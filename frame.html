@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Decard Pipeline — Кадр</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #FFFFFF;
+            --bg-secondary: #F5F6F8;
+            --text-primary: #1A1A1A;
+            --text-secondary: #666666;
+            --accent: #2743C0;
+            --accent-rgb: 39, 67, 192;
+            --accent-gradient: linear-gradient(135deg, #2743C0 0%, #4A6FE8 100%);
+            --border: rgba(224, 224, 224, 0.3);
+            --success: #27AE60;
+            --warning: #F39C12;
+            --danger: #E74C3C;
+            --card-shadow: 0 1px 2px rgba(20, 22, 26, 0.05);
+            --card-shadow-hover: 0 4px 14px rgba(20, 22, 26, 0.10);
+            --card-bg: #FFFFFF;
+            --card-border: rgba(20, 22, 26, 0.10);
+            --role-artist: #2743C0;
+            --role-lead: #27AE60;
+            --role-art: #F39C12;
+            --toast-bg: rgba(26, 26, 26, 0.95);
+            --toast-success: #27AE60;
+            --toast-warning: #F39C12;
+            --toast-error: #E74C3C;
+            --glass-blur: blur(10px);
+            --font-mono: 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+            --modal-overlay: rgba(0, 0, 0, 0.5);
+            --modal-bg: #FFFFFF;
+            --input-bg: #FFFFFF;
+            --input-border: rgba(224, 224, 224, 0.5);
+            --btn-secondary-bg: rgba(255, 255, 255, 0.5);
+            --stage-meta-bg: rgba(39, 67, 192, 0.05);
+            --qc-bg: rgba(39, 174, 96, 0.08);
+            --qc-border: rgba(39, 174, 96, 0.3);
+            --progress-bar-bg: rgba(224, 224, 224, 0.3);
+            --progress-bar-fill: var(--accent-gradient);
+        }
+        [data-theme="dark"] {
+            --bg-primary: #0E0E0E;
+            --bg-secondary: #1A1A1A;
+            --text-primary: #E8E8E8;
+            --text-secondary: #999999;
+            --accent: #4A6FE8;
+            --accent-rgb: 74, 111, 232;
+            --accent-gradient: linear-gradient(135deg, #4A6FE8 0%, #6B8EFF 100%);
+            --border: rgba(42, 42, 42, 0.3);
+            --success: #2ECC71;
+            --warning: #F5B041;
+            --danger: #E74C3C;
+            --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+            --card-shadow-hover: 0 4px 14px rgba(0, 0, 0, 0.4);
+            --card-bg: #17181B;
+            --card-border: rgba(255, 255, 255, 0.08);
+            --role-artist: #4A6FE8;
+            --role-lead: #2ECC71;
+            --role-art: #F5B041;
+            --toast-bg: rgba(232, 232, 232, 0.95);
+            --modal-overlay: rgba(255, 255, 255, 0.1);
+            --modal-bg: #1A1A1A;
+            --input-bg: #212121;
+            --input-border: rgba(42, 42, 42, 0.5);
+            --btn-secondary-bg: rgba(255, 255, 255, 0.1);
+            --stage-meta-bg: rgba(74, 111, 232, 0.1);
+            --qc-bg: rgba(46, 204, 113, 0.1);
+            --qc-border: rgba(46, 204, 113, 0.3);
+            --progress-bar-bg: rgba(42, 42, 42, 0.5);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            padding: 40px;
+            transition: background 0.4s ease, color 0.4s ease;
+            min-height: 100vh;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        header { margin-bottom: 24px; border-bottom: 2px solid var(--border); padding-bottom: 24px; }
+        .header-top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+        .header-left { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+        .frame-title { font-size: 24px; font-weight: 700; }
+        .overall-progress { font-size: 14px; color: var(--text-secondary); background: var(--bg-secondary); padding: 8px 16px; border-radius: 6px; }
+        .overall-progress strong { color: var(--accent); }
+        .btn { padding: 8px 16px; border: none; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 6px; }
+        .btn-primary { background: var(--accent); color: white; }
+        .btn-primary:hover { opacity: 0.9; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(39, 67, 192, 0.3); }
+        .btn-complete { background: var(--accent-gradient); color: white; }
+        .btn-complete:hover { opacity: 0.9; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(39, 67, 192, 0.3); }
+        .btn-secondary { background: var(--btn-secondary-bg); color: var(--text-primary); border: 1px solid var(--border); }
+        .btn-secondary:hover { background: var(--border); transform: translateY(-2px); }
+        .btn-back { background: var(--btn-secondary-bg); color: var(--text-primary); border: 1px solid var(--border); }
+        .btn-back:hover { background: var(--border); transform: translateY(-2px); }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-danger:hover { opacity: 0.9; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3); }
+        .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+        .search-box { display: flex; align-items: center; gap: 8px; }
+        .search-input { padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--card-bg); color: var(--text-primary); font-size: 14px; width: 200px; transition: border-color 0.2s ease; }
+        .search-input:focus { outline: none; border-color: var(--accent); }
+        .search-results { font-size: 13px; color: var(--text-secondary); white-space: nowrap; }
+        .hide-warnings .warning-box { display: none; }
+        .theme-controls { display: flex; gap: 8px; }
+        .theme-btn { padding: 6px 10px; border: 1px solid var(--border); background: var(--btn-secondary-bg); color: var(--text-primary); border-radius: 4px; cursor: pointer; transition: all 0.2s ease; font-size: 16px; }
+        .theme-btn:hover { background: var(--border); transform: translateY(-2px); }
+        .theme-btn.active { background: var(--accent-gradient); color: white; border-color: transparent; }
+        .stages-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 24px; margin-top: 16px; align-items: start; }
+        .stage-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; overflow: hidden; box-shadow: var(--card-shadow); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); position: relative; }
+        .stage-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--accent-gradient); opacity: 0; transition: opacity 0.3s ease; }
+        .stage-card:hover::before { opacity: 1; }
+        .stage-card::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 45%; background: linear-gradient(to top, rgba(var(--accent-rgb), 0.14), transparent); opacity: 0; transition: opacity 0.35s ease; pointer-events: none; z-index: -1; }
+        .stage-card:hover::after { opacity: 1; }
+        .stage-card:hover { transform: translateY(-4px); box-shadow: var(--card-shadow-hover); }
+        .stage-card.custom-free { border-left: 4px solid var(--success); }
+        .stage-card.custom-paid { border-left: 4px solid var(--warning); }
+        .stage-card.custom-base { border-left: 4px solid var(--accent); }
+        .stage-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; cursor: pointer; user-select: none; background: rgba(255, 255, 255, 0.05); border-bottom: 1px solid transparent; transition: all 0.2s ease; }
+        .stage-header:hover { border-bottom-color: var(--border); background: rgba(39, 67, 192, 0.05); }
+        [data-theme="dark"] .stage-header:hover { background: rgba(74, 111, 232, 0.1); }
+        .stage-card.expanded .stage-header { border-bottom-color: var(--border); }
+        .stage-header-left { display: flex; align-items: center; gap: 12px; flex: 1; flex-wrap: wrap; }
+        .stage-number { font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: var(--accent); background: rgba(39, 67, 192, 0.1); padding: 4px 12px; border-radius: 4px; }
+        [data-theme="dark"] .stage-number { background: rgba(74, 111, 232, 0.2); }
+        .stage-title { font-size: 16px; font-weight: 600; flex: 1; }
+        .revision-badge { font-family: var(--font-mono); font-size: 10px; padding: 2px 8px; border-radius: 3px; font-weight: 600; }
+        .revision-free { background: rgba(39, 174, 96, 0.15); color: var(--success); }
+        .revision-paid { background: rgba(243, 156, 18, 0.15); color: var(--warning); }
+        .revision-base { background: rgba(39, 67, 192, 0.12); color: var(--accent); }
+        .stage-status { font-family: var(--font-mono); font-size: 11px; padding: 4px 8px; border-radius: 4px; font-weight: 600; }
+        .status-not-started { background: rgba(102, 102, 102, 0.1); color: var(--text-secondary); }
+        .status-in-progress { background: rgba(243, 156, 18, 0.15); color: var(--warning); }
+        .status-done { background: rgba(39, 174, 96, 0.15); color: var(--success); }
+        .expand-icon { font-size: 18px; color: var(--text-secondary); transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); margin-left: 12px; }
+        .stage-card.expanded .expand-icon { transform: rotate(180deg); }
+        .stage-content { display: none; padding: 20px; }
+        .stage-card.expanded .stage-content { display: block; animation: fadeIn 0.3s ease; }
+        .stage-meta { background: var(--stage-meta-bg); padding: 12px; border-radius: 6px; margin-bottom: 16px; border-left: 3px solid var(--accent); }
+        .stage-location { font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 4px; }
+        .stage-output { font-size: 12px; color: var(--text-primary); }
+        .stage-output strong { color: var(--accent); }
+        .delete-stage-btn { float: right; background: none; border: 1px solid var(--danger); color: var(--danger); border-radius: 4px; padding: 4px 10px; font-size: 12px; cursor: pointer; transition: all 0.2s ease; }
+        .delete-stage-btn:hover { background: var(--danger); color: white; }
+        .quick-actions { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+        .btn-small { padding: 4px 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--btn-secondary-bg); color: var(--text-primary); font-size: 12px; cursor: pointer; transition: all 0.2s ease; }
+        .btn-small:hover { border-color: var(--accent); background: rgba(39, 67, 192, 0.05); transform: translateY(-1px); }
+        [data-theme="dark"] .btn-small:hover { background: rgba(74, 111, 232, 0.1); }
+        .checklist { margin-bottom: 20px; }
+        .checklist-item { display: flex; align-items: center; margin-bottom: 12px; font-size: 14px; gap: 8px; }
+        .checklist-item input[type="checkbox"] { margin-top: 0; width: 16px; height: 16px; cursor: pointer; accent-color: var(--accent); flex-shrink: 0; }
+        .checklist-item .task-edit-input { flex: 1; padding: 4px 8px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--text-primary); font-size: 14px; font-family: inherit; transition: all 0.15s ease; }
+        .checklist-item .task-edit-input:hover { border-color: var(--input-border); background: var(--input-bg); }
+        .checklist-item .task-edit-input:focus { outline: none; border-color: var(--accent); background: var(--input-bg); }
+        .checklist-item.checked .task-edit-input { color: var(--text-secondary); text-decoration: line-through; }
+        .task-delete-btn { background: none; border: none; color: var(--danger); cursor: pointer; font-size: 14px; padding: 4px; opacity: 0.6; transition: all 0.2s ease; flex-shrink: 0; }
+        .task-delete-btn:hover { opacity: 1; transform: scale(1.15); }
+        .task-comment-btn { padding: 4px 8px; border: 1px solid var(--border); background: var(--btn-secondary-bg); color: var(--text-primary); border-radius: 4px; cursor: pointer; transition: all 0.2s ease; font-size: 12px; flex-shrink: 0; }
+        .task-comment-btn:hover { background: var(--border); transform: translateY(-2px); }
+        .task-comment-btn.has-comment { background: var(--accent-gradient); color: white; border-color: transparent; }
+        .comments-compact-btn.has-comments { color: var(--accent); border-color: var(--accent); }
+        .add-task-btn { background: none; border: 1px dashed var(--border); border-radius: 4px; padding: 6px 12px; color: var(--text-secondary); font-size: 13px; cursor: pointer; transition: all 0.2s ease; display: block; width: 100%; text-align: center; margin-top: 4px; }
+        .add-task-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(39, 67, 192, 0.05); }
+        .stage-progress-container { margin-bottom: 16px; }
+        .progress-bar { height: 8px; background: var(--progress-bar-bg); border-radius: 4px; overflow: hidden; margin-bottom: 8px; }
+        .progress-fill { height: 100%; background: var(--progress-bar-fill); border-radius: 4px; transition: width 0.3s ease; }
+        .stage-progress { font-size: 13px; color: var(--text-secondary); }
+        .comments-compact-btn { padding: 8px 16px; border: 1px solid var(--border); background: var(--btn-secondary-bg); color: var(--text-primary); border-radius: 6px; cursor: pointer; transition: all 0.2s ease; font-size: 13px; font-weight: 600; margin-bottom: 16px; display: inline-flex; align-items: center; gap: 6px; }
+        .comments-compact-btn:hover { background: var(--border); transform: translateY(-2px); }
+        .qc-section { background: var(--qc-bg); border: 1px solid var(--qc-border); padding: 12px; border-radius: 6px; margin-bottom: 16px; }
+        .qc-title { font-size: 12px; font-weight: 700; color: var(--success); margin-bottom: 6px; }
+        .qc-text { font-size: 13px; color: var(--text-primary); line-height: 1.5; }
+        .warning-box { background: var(--warning); border-left: 3px solid rgba(0,0,0,0.2); padding: 12px; border-radius: 0 4px 4px 0; }
+        .warning-text { font-size: 13px; color: #FFFFFF; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+        .add-stage-wrap { grid-column: 1 / -1; display: flex; justify-content: center; margin-top: 8px; }
+        .add-stage-btn { background: var(--accent-gradient); color: white; border: none; border-radius: 6px; padding: 10px 20px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(39, 67, 192, 0.2); }
+        .add-stage-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(39, 67, 192, 0.3); }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--modal-overlay); backdrop-filter: blur(4px); z-index: 2000; justify-content: center; align-items: center; }
+        .modal.active { display: flex; }
+        .modal-content { background: var(--modal-bg); border-radius: 8px; padding: 32px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3); animation: modalSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid var(--border); }
+        .modal-title { font-size: 20px; font-weight: 700; }
+        .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-secondary); transition: color 0.2s ease; padding: 4px; }
+        .modal-close:hover { color: var(--text-primary); transform: scale(1.1); }
+        .modal-body { margin-bottom: 24px; }
+        .modal-footer { display: flex; gap: 12px; justify-content: flex-end; padding-top: 16px; border-top: 2px solid var(--border); }
+        .form-group { margin-bottom: 16px; }
+        .form-label { display: block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
+        .form-input, .form-select { width: 100%; padding: 10px 12px; border: 1px solid var(--input-border); border-radius: 6px; background: var(--input-bg); color: var(--text-primary); font-size: 14px; font-family: inherit; }
+        .form-input:focus, .form-select:focus { outline: none; border-color: var(--accent); }
+        .type-option { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--input-border); border-radius: 6px; margin-bottom: 8px; cursor: pointer; }
+        .comment { background: var(--bg-secondary); padding: 12px; border-radius: 6px; margin-bottom: 12px; border-left: 3px solid var(--border); }
+        .comment-meta { display: flex; gap: 12px; margin-bottom: 8px; font-size: 12px; color: var(--text-secondary); }
+        .comment-text { font-size: 14px; color: var(--text-primary); line-height: 1.5; }
+        .log-entry { padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+        .log-entry:last-child { border-bottom: none; }
+        .log-time { color: var(--text-secondary); font-size: 12px; margin-bottom: 2px; }
+        .log-desc { color: var(--text-primary); }
+        /* Вид при экспорте в PDF: скрываем интерактивные элементы, разворачиваем все этапы в одну колонку */
+        body.exporting-pdf .btn-group, body.exporting-pdf .search-box, body.exporting-pdf .quick-actions,
+        body.exporting-pdf .task-delete-btn, body.exporting-pdf .task-comment-btn, body.exporting-pdf .comments-compact-btn,
+        body.exporting-pdf .add-task-btn, body.exporting-pdf .add-stage-wrap, body.exporting-pdf .delete-stage-btn,
+        body.exporting-pdf .expand-icon { display: none !important; }
+        body.exporting-pdf .stage-content { display: block !important; }
+        body.exporting-pdf .stage-header { cursor: default; }
+        body.exporting-pdf .stages-grid { grid-template-columns: 1fr !important; }
+        body.exporting-pdf .task-edit-input { pointer-events: none; }
+        .toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 2000; display: flex; flex-direction: column; gap: 8px; }
+        .toast { background: var(--toast-bg); color: var(--text-primary); padding: 12px 20px; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); font-size: 14px; font-weight: 500; animation: slideInRight 0.3s cubic-bezier(0.4, 0, 0.2, 1); display: flex; align-items: center; gap: 8px; min-width: 250px; backdrop-filter: blur(10px); }
+        .toast.success { border-left: 4px solid var(--toast-success); }
+        .toast.warning { border-left: 4px solid var(--toast-warning); }
+        .toast.error { border-left: 4px solid var(--toast-error); }
+        .toast-icon { font-size: 18px; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideInRight { from { opacity: 0; transform: translateX(100px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes modalSlideIn { from { opacity: 0; transform: translateY(-50px) scale(0.9); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        @media (max-width: 768px) {
+            body { padding: 20px; }
+            .header-top { flex-direction: column; align-items: flex-start; }
+            .stages-grid { grid-template-columns: 1fr; }
+            .search-box { width: 100%; }
+            .search-input { width: 100%; }
+            .toast-container { bottom: 10px; right: 10px; left: 10px; }
+            .toast { min-width: auto; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-top">
+                <div class="header-left">
+                    <a href="project.html?id=1" class="btn btn-back" id="backBtn">← Назад</a>
+                    <span class="frame-title" id="frameTitle">Загрузка...</span>
+                    <span class="overall-progress" id="overallProgress">Общий прогресс: <strong>0%</strong> (0/0)</span>
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-secondary" onclick="expandAll()">Развернуть все</button>
+                    <button class="btn btn-secondary" onclick="collapseAll()">Свернуть все</button>
+                    <button class="btn btn-secondary" id="warningsToggleBtn" onclick="toggleWarnings()">⚠️ Скрыть предупреждения</button>
+                    <button class="btn btn-secondary" onclick="openLogModal()">📜 Лог изменений</button>
+                    <button class="btn btn-secondary" onclick="exportFramePDF()">📄 Экспорт в PDF</button>
+                    <div class="theme-controls">
+                        <button class="theme-btn" data-theme="light" onclick="setTheme('light')" title="Светлая тема">☀️</button>
+                        <button class="theme-btn" data-theme="dark" onclick="setTheme('dark')" title="Тёмная тема">🌙</button>
+                        <button class="theme-btn" data-theme="system" onclick="setTheme('system')" title="Системная тема">💻</button>
+                    </div>
+                    <button class="btn btn-complete" onclick="completeFrame()">✓ Завершить кадр</button>
+                    <div class="user-box" id="userBox" style="display:flex; align-items:center; gap:10px; font-size:13px; color: var(--text-secondary);"></div>
+                </div>
+            </div>
+        </header>
+        <div class="search-box" style="margin-bottom: 16px;">
+            <input type="text" class="search-input" id="searchInput" placeholder="🔍 Поиск этапа..." oninput="searchStages()">
+            <span class="search-results" id="searchResults"></span>
+        </div>
+        <div class="stages-grid" id="stagesGrid"></div>
+    </div>
+    <div class="modal" id="commentsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="commentsModalTitle">Комментарии</h3>
+                <button class="modal-close" onclick="closeCommentsModal()">×</button>
+            </div>
+            <div class="modal-body" id="commentsModalList"></div>
+            <div class="form-group">
+                <input type="text" class="form-input" id="modalCommentInput" placeholder="Написать комментарий..." onkeydown="if(event.key==='Enter') addModalComment()">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeCommentsModal()">Закрыть</button>
+                <button class="btn btn-primary" onclick="addModalComment()">Добавить комментарий</button>
+            </div>
+        </div>
+    </div>
+    <div class="modal" id="taskCommentModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="taskCommentTitle">Комментарии к задаче</h3>
+                <button class="modal-close" onclick="closeTaskCommentModal()">×</button>
+            </div>
+            <div class="modal-body" id="taskCommentsList"></div>
+            <div class="form-group">
+                <input type="text" class="form-input" id="taskCommentInput" placeholder="Написать комментарий..." onkeydown="if(event.key==='Enter') addTaskComment()">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeTaskCommentModal()">Закрыть</button>
+                <button class="btn btn-primary" onclick="addTaskComment()">Добавить комментарий</button>
+            </div>
+        </div>
+    </div>
+    <div class="modal" id="logModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">📜 Лог изменений</h3>
+                <button class="modal-close" onclick="closeLogModal()">×</button>
+            </div>
+            <div class="modal-body" id="logModalList"></div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeLogModal()">Закрыть</button>
+            </div>
+        </div>
+    </div>
+    <div class="modal" id="addStageModal">
+        <div class="modal-content" style="max-width: 460px;">
+            <div class="modal-header">
+                <h3 class="modal-title">Добавить этап</h3>
+                <button class="modal-close" onclick="closeAddStageModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Название этапа</label>
+                    <input type="text" class="form-input" id="newStageTitle" placeholder="Например: Доп. ракурс по запросу клиента">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Тип этапа</label>
+                    <select class="form-select" id="newStageType">
+                        <option value="base">🔵 Базовый (обычный доп. этап)</option>
+                        <option value="free_revision">🟢 Бесплатная правка</option>
+                        <option value="paid_revision">🟡 Платная правка</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeAddStageModal()">Отмена</button>
+                <button class="btn btn-primary" onclick="submitAddStage()">Добавить</button>
+            </div>
+        </div>
+    </div>
+    <div class="toast-container" id="toastContainer"></div>
+    <script>
+        // ====== ПОДКЛЮЧЕНИЕ К SUPABASE ======
+        const SUPABASE_URL = 'https://mcpsnmcvzxzdgllhbrib.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_ouAuh1fPBDLo3bLxs4FnLA_dJwIN-Un';
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        // =====================================
+
+        const roleLabels = { artist: 'Художник', lead: 'Тимлид', art_director: 'Арт-директор', ceo: 'Генеральный директор' };
+        let currentUser = null;
+
+        async function requireAuth() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) { window.location.href = 'login.html'; return false; }
+            const { data: profile, error } = await supabaseClient.from('profiles').select('*').eq('id', session.user.id).single();
+            if (error || !profile) { console.error(error); await supabaseClient.auth.signOut(); window.location.href = 'login.html'; return false; }
+            currentUser = { id: profile.id, full_name: profile.full_name, role: profile.role };
+            renderUserBox();
+            return true;
+        }
+
+        function renderUserBox() {
+            const box = document.getElementById('userBox');
+            if (!box || !currentUser) return;
+            box.innerHTML = `<span>${currentUser.full_name} · ${roleLabels[currentUser.role] || currentUser.role}</span>
+                <button class="btn btn-secondary" onclick="doLogout()" style="padding:4px 10px; font-size:12px;">Выйти</button>`;
+        }
+
+        async function doLogout() {
+            await supabaseClient.auth.signOut();
+            window.location.href = 'login.html';
+        }
+
+        function canManageStages() { return currentUser && ['lead', 'art_director', 'ceo'].includes(currentUser.role); }
+        function canDeleteComments() { return currentUser && ['art_director', 'ceo'].includes(currentUser.role); }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const projectId = urlParams.get('project');
+        const frameId = urlParams.get('frame');
+        // Фикс: сразу ставим правильную ссылку "Назад" по projectId из URL,
+        // а не ждём успешной загрузки кадра (иначе при ошибке загрузки кнопка
+        // вела на жёстко зашитый несуществующий id=1)
+        document.addEventListener('DOMContentLoaded', function() {
+            const backBtn = document.getElementById('backBtn');
+            if (backBtn) backBtn.href = `project.html?id=${projectId || ''}`;
+        });
+
+        // Экранирование пользовательского текста перед вставкой в innerHTML —
+        // защищает от случайного/умышленного HTML/JS в названиях этапов, задач,
+        // комментариях (иначе это hранимый XSS: увидит каждый, кто откроет кадр)
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        // Шаблон для ПЕРВИЧНОГО заполнения нового кадра (используется только один раз,
+        // когда у кадра ещё нет своих этапов в базе — дальше каждый кадр живёт своей жизнью)
+        const seedTemplate = [
+            { number: 1, title: "Бриф и референсы", location: "pureref, ArchDaily/Behance/Pinterest", output: "Утверждённый мудборд + ТЗ", tasks: ["Собрать у заказчика референсы", "Согласовать стиль и настроение", "Определить ключевые ракурсы", "Зафиксировать формат кадра", "Утвердить мудборд"], qc: "Утверждённый мудборд + ТЗ", warning: "Начинать моделинг/свет без зафиксированного ракурса и референса — потом весь сетап переделывается." },
+            { number: 2, title: "Сцена, камера, композиция", location: "3ds Max", output: "Утверждённый ракурс", tasks: ["Проверить масштаб сцены", "Настроить камеру (фокусное, высоту)", "Построить композицию по правилам третей", "Проверить читаемость геометрии", "Убедиться, что ключевые элементы не обрезаны", "Сохранить финальный camera preset"], qc: "Утверждённый ракурс, читается архитектура, нет случайных обрезаний", warning: "Ракурс «красивый», но не читается геометрия, либо ключевые элементы обрезаны краем кадра." },
+            { number: 3, title: "Свет (Sun/Sky/HDRI)", location: "3ds Max / Corona", output: "Световой сценарий", tasks: ["Выбрать тип освещения (Sun+Sky / HDRI)", "Настроить направление и интенсивность света", "Проверить экспозицию и тон-маппинг", "Настроить LightMix", "Проверить читаемость планов", "Сохранить световые пресеты"], qc: "Свет соответствует референсам, нет пересветов, читаются планы", warning: "Гнаться за художественностью через интенсивность Sun/Sky вместо экспозиции/тон-маппинга." },
+            { number: 4, title: "Материалы и детализация", location: "3ds Max / Corona", output: "Референс-приближенная сцена", tasks: ["Проверить физически корректный масштаб текстур", "Проверить UV и направление волокон", "Настроить roughness", "Проверить IOR", "Убрать заметный тайлинг", "Проверить соответствие референсу", "Проверить поведение материала в финальном освещении"], qc: "Материалы согласованы с финальным световым сценарием", warning: "Менять материал раньше света — материалы настраиваются после финального светового сценария." },
+            { number: 5, title: "Оптимизация и рендер-сетап", location: "3ds Max / Corona", output: "Финальный рендер + пассы", tasks: ["Удалить невидимые объекты", "Оптимизировать геометрию", "Проверить карты и текстуры на размер", "Настроить Corona Denoiser", "Настроить Render Elements", "Проверить сцену на ошибки Corona", "Запустить тестовый рендер"], qc: "Сцена оптимизирована, рендер без артефактов", warning: "Экономить время на оптимизации сцены — потом это утраивает время рендера и повышает риск артефактов." },
+            { number: 6, title: "Базовая цветокоррекция и постобработка", location: "Photoshop / Camera Raw", output: "Выровненный, чистый кадр", tasks: ["Открыть рендер в Camera Raw", "Настроить баланс белого", "Скорректировать экспозицию", "Настроить контраст и чёткость", "Убрать шумы (при необходимости)", "Проверить цвета на соответствие референсу"], qc: "Выровненный, чистый кадр, готовый к вставке людей", warning: "Слишком агрессивная обработка, потеря деталей в светах/тенях." },
+            { number: 7, title: "Подготовка под людей", location: "Photoshop / скетч", output: "Разметка мест, поз, сценария", tasks: ["Определить места для людей", "Сделать скетч поз и сценария", "Согласовать количество персонажей", "Определить стиль одежды", "Согласовать сценарий с заказчиком"], qc: "Согласованный скетч сценария с людьми", warning: "Финальная генерация до согласования композиции." },
+            { number: 8, title: "Генерация людей", location: "Lovart / Gemini / GPT image", output: "Готовые cutout-фигуры", tasks: ["Подготовить промпт с описанием ракурса и света", "Сгенерировать варианты в Lovart/Gemini/GPT", "Проверить соответствие ракурсу сцены", "Проверить освещение на фигурах", "Вырезать фигуры (удалить фон)", "Сохранить в PNG с прозрачностью"], qc: "Готовые cutout-фигуры, соответствующие сцене", warning: "Ракурс/свет фигуры не совпадает со сценой." },
+            { number: 9, title: "Композитинг людей", location: "Photoshop", output: "Вписанные фигуры с тенями/цветом", tasks: ["Вставить фигуры в сцену", "Настроить размер и перспективу", "Добавить контактные тени", "Скорректировать цвет (Hue/Saturation)", "Проверить интеграцию с окружением", "Добавить размытие в движении (при необходимости)"], qc: "Вписанные фигуры с тенями и цветовой интеграцией", warning: "Идеально вырезанная фигура без контактной тени и без Hue/Saturation-сверки с рендером — «приклеенный» вид виден сразу." },
+            { number: 10, title: "Финал и сдача", location: "Photoshop / Camera Raw", output: "Готовый кадр под формат сдачи", tasks: ["Финальная цветокоррекция", "Настроить тональный контраст", "Проверить кадр на артефакты", "Подготовить под требуемый формат", "Экспортировать в нужном разрешении", "Проверить файл перед сдачей"], qc: "Готовый кадр под формат сдачи", warning: "Несогласованный тональный контраст с назначением кадра." }
+        ];
+
+        let expandedStageIds = [];
+        let currentCommentsStageId = null;
+        let currentTaskComment = null;
+
+        // Главное хранилище в памяти: массив этапов кадра, у каждого — свой массив задач.
+        // Загружается из frame_stages/frame_tasks и обновляется при каждом действии.
+        let stagesData = [];
+
+        function showToast(message, type = 'success') { const container = document.getElementById('toastContainer'); const toast = document.createElement('div'); toast.className = `toast ${type}`; const icon = type === 'success' ? '✓' : type === 'warning' ? '⚠' : '✗'; toast.innerHTML = `<span class="toast-icon">${icon}</span><span>${message}</span>`; container.appendChild(toast); setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateX(100px)'; setTimeout(() => toast.remove(), 300); }, 3000); }
+        function setTheme(theme) { localStorage.setItem('decardTheme', theme); applyTheme(theme); updateThemeButtons(theme); }
+        function applyTheme(theme) { if (theme === 'system') { const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches; document.documentElement.setAttribute('data-theme', systemDark ? 'dark' : 'light'); } else { document.documentElement.setAttribute('data-theme', theme); } }
+        function updateThemeButtons(activeTheme) { document.querySelectorAll('.theme-btn').forEach(btn => { btn.classList.remove('active'); if (btn.getAttribute('data-theme') === activeTheme) btn.classList.add('active'); }); }
+        function loadTheme() { const saved = localStorage.getItem('decardTheme') || 'system'; applyTheme(saved); updateThemeButtons(saved); }
+
+        function toggleWarnings() {
+            const hidden = document.body.classList.toggle('hide-warnings');
+            localStorage.setItem('decardHideWarnings', hidden ? '1' : '0');
+            updateWarningsToggleLabel(hidden);
+        }
+        function loadWarningsPref() {
+            const hidden = localStorage.getItem('decardHideWarnings') === '1';
+            document.body.classList.toggle('hide-warnings', hidden);
+            updateWarningsToggleLabel(hidden);
+        }
+        function updateWarningsToggleLabel(hidden) {
+            const btn = document.getElementById('warningsToggleBtn');
+            if (btn) btn.textContent = hidden ? '⚠️ Показать предупреждения' : '⚠️ Скрыть предупреждения';
+        }
+
+        // ====== РАБОТА С ДАННЫМИ ЧЕРЕЗ SUPABASE ======
+
+        async function getFrame() {
+            const { data, error } = await supabaseClient.from('frames').select('*').eq('id', frameId).single();
+            if (error) { console.error(error); return null; }
+            return data;
+        }
+
+        async function completeFrame() {
+            const { error } = await supabaseClient.from('frames').update({ status: 'done' }).eq('id', frameId);
+            if (error) { console.error(error); showToast('Не удалось завершить кадр', 'error'); return; }
+            await logActivity('frame_complete', 'Кадр отмечен как завершённый');
+            showToast('Кадр завершён!', 'success');
+            setTimeout(() => { window.location.href = `project.html?id=${projectId}`; }, 1000);
+        }
+
+        // Если у кадра ещё нет своих этапов в базе — создаём их один раз из шаблона
+        async function seedFrameStagesIfNeeded() {
+            const { data: existing, error } = await supabaseClient.from('frame_stages').select('id').eq('frame_id', frameId).limit(1);
+            if (error) { console.error(error); return; }
+            if (existing && existing.length > 0) return; // уже заполнено раньше
+
+            const stageRows = seedTemplate.map(s => ({
+                frame_id: frameId, stage_number: s.number, title: s.title, location: s.location,
+                output: s.output, qc: s.qc, warning: s.warning, stage_type: 'base', is_custom: false
+            }));
+            const { data: insertedStages, error: stageError } = await supabaseClient.from('frame_stages').insert(stageRows).select();
+            if (stageError) { console.error(stageError); showToast('Ошибка создания этапов кадра', 'error'); return; }
+
+            const taskRows = [];
+            insertedStages.forEach(stageRow => {
+                const template = seedTemplate.find(s => s.number === stageRow.stage_number);
+                template.tasks.forEach((taskText, i) => {
+                    taskRows.push({ frame_stage_id: stageRow.id, task_index: i, text: taskText, checked: false });
+                });
+            });
+            const { error: taskError } = await supabaseClient.from('frame_tasks').insert(taskRows);
+            if (taskError) { console.error(taskError); showToast('Ошибка создания задач кадра', 'error'); }
+        }
+
+        // Загружает все этапы кадра вместе с их задачами и комментариями (к этапам и к задачам)
+        async function loadStagesData() {
+            const { data: stages, error } = await supabaseClient.from('frame_stages').select('*').eq('frame_id', frameId).order('stage_number', { ascending: true });
+            if (error) { console.error(error); showToast('Ошибка загрузки этапов', 'error'); stagesData = []; return; }
+            const stageIds = stages.map(s => s.id);
+            let tasks = [];
+            let comments = [];
+            if (stageIds.length > 0) {
+                const { data: taskData, error: taskErr } = await supabaseClient.from('frame_tasks').select('*').in('frame_stage_id', stageIds).order('task_index', { ascending: true });
+                if (taskErr) { console.error(taskErr); showToast('Ошибка загрузки задач', 'error'); }
+                tasks = taskData || [];
+
+                const { data: commentData, error: commentErr } = await supabaseClient.from('frame_comments').select('*').in('frame_stage_id', stageIds);
+                if (commentErr) console.error(commentErr);
+                comments = commentData || [];
+            }
+            stagesData = stages.map(s => {
+                const stageTasks = tasks.filter(t => t.frame_stage_id === s.id).map(t => ({
+                    ...t, comments: comments.filter(c => c.frame_task_id === t.id)
+                }));
+                const stageComments = comments.filter(c => c.frame_stage_id === s.id && !c.frame_task_id);
+                return { ...s, tasks: stageTasks, comments: stageComments };
+            });
+        }
+
+        async function reloadAndRender() {
+            await loadStagesData();
+            renderStages();
+        }
+
+        // Пишет запись в лог изменений кадра. Не блокирует основное действие при ошибке.
+        async function logActivity(actionType, description) {
+            const { error } = await supabaseClient.from('frame_activity_log').insert({ frame_id: frameId, action_type: actionType, description: description, actor_name: currentUser ? currentUser.full_name : null });
+            if (error) console.error('Ошибка записи в лог:', error);
+        }
+
+        async function openLogModal() {
+            const listEl = document.getElementById('logModalList');
+            listEl.innerHTML = '<p style="color: var(--text-secondary); font-size: 13px; text-align: center; padding: 20px 0;">Загрузка...</p>';
+            document.getElementById('logModal').classList.add('active');
+            const { data, error } = await supabaseClient.from('frame_activity_log').select('*').eq('frame_id', frameId).order('created_at', { ascending: false }).limit(200);
+            if (error) { console.error(error); listEl.innerHTML = '<p style="color: var(--danger); font-size: 13px;">Не удалось загрузить лог</p>'; return; }
+            if (!data || data.length === 0) { listEl.innerHTML = '<p style="color: var(--text-secondary); font-size: 13px; text-align: center; padding: 40px 0;">Изменений пока нет</p>'; return; }
+            listEl.innerHTML = data.map(entry => {
+                const time = new Date(entry.created_at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                return `<div class="log-entry"><div class="log-time">${time}${entry.actor_name ? ' · ' + escapeHtml(entry.actor_name) : ''}</div><div class="log-desc">${escapeHtml(entry.description)}</div></div>`;
+            }).join('');
+        }
+        function closeLogModal() { document.getElementById('logModal').classList.remove('active'); }
+
+        // Экспорт текущего чек-листа кадра в PDF-отчёт
+        function exportFramePDF() {
+            const container = document.querySelector('.container');
+            const frameName = (document.getElementById('frameTitle').textContent || 'kadr').replace(/[^a-zA-Zа-яА-Я0-9]+/g, '_');
+            document.body.classList.add('exporting-pdf');
+            showToast('Формируется PDF...', 'success');
+            html2pdf().set({
+                margin: 10,
+                filename: `${frameName}_report.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            }).from(container).save().then(() => {
+                document.body.classList.remove('exporting-pdf');
+                logActivity('export_pdf', 'Кадр экспортирован в PDF-отчёт');
+            }).catch(err => {
+                console.error(err);
+                document.body.classList.remove('exporting-pdf');
+                showToast('Не удалось создать PDF', 'error');
+            });
+        }
+
+        function toggleStageExpand(stageId) { const index = expandedStageIds.indexOf(stageId); if (index > -1) { expandedStageIds.splice(index, 1); } else { expandedStageIds.push(stageId); } renderStages(); }
+        function expandAll() { expandedStageIds = stagesData.map(s => s.id); renderStages(); showToast('Все этапы развёрнуты', 'success'); }
+        function collapseAll() { expandedStageIds = []; renderStages(); showToast('Все этапы свёрнуты', 'success'); }
+
+        function searchStages() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            const cards = document.querySelectorAll('.stage-card');
+            let count = 0;
+            cards.forEach(card => {
+                const title = card.querySelector('.stage-title').textContent.toLowerCase();
+                if (title.includes(query)) { card.style.display = ''; count++; } else { card.style.display = 'none'; }
+            });
+            document.getElementById('searchResults').textContent = query ? `Найдено: ${count}` : '';
+        }
+
+        function getStageStatus(stage) {
+            const total = stage.tasks.length;
+            const completed = stage.tasks.filter(t => t.checked).length;
+            if (total === 0 || completed === 0) return 'not-started';
+            if (completed === total) return 'done';
+            return 'in-progress';
+        }
+
+        function updateStageProgress(stageId) {
+            const stage = stagesData.find(s => s.id === stageId);
+            const cardEl = document.getElementById(`stage-${stageId}`);
+            if (!stage || !cardEl) return;
+            const total = stage.tasks.length;
+            const completed = stage.tasks.filter(t => t.checked).length;
+            const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+            const progressText = cardEl.querySelector('.stage-progress');
+            const progressFill = cardEl.querySelector('.progress-fill');
+            if (progressText) progressText.textContent = `Прогресс: ${completed}/${total} (${percent}%)`;
+            if (progressFill) progressFill.style.width = `${percent}%`;
+        }
+
+        function updateOverallProgress() {
+            let totalTasks = 0, completedTasks = 0;
+            stagesData.forEach(stage => { totalTasks += stage.tasks.length; completedTasks += stage.tasks.filter(t => t.checked).length; });
+            const percent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+            document.getElementById('overallProgress').innerHTML = `Общий прогресс: <strong>${percent}%</strong> (${completedTasks}/${totalTasks})`;
+        }
+
+        function refreshStageStatusBadge(stageId) {
+            const cardEl = document.getElementById(`stage-${stageId}`);
+            const stage = stagesData.find(s => s.id === stageId);
+            if (!cardEl || !stage) return;
+            const status = getStageStatus(stage);
+            const badge = cardEl.querySelector('.stage-status');
+            if (!badge) return;
+            badge.className = 'stage-status';
+            if (status === 'in-progress') { badge.classList.add('status-in-progress'); badge.textContent = 'В работе'; }
+            else if (status === 'done') { badge.classList.add('status-done'); badge.textContent = 'Готово'; }
+            else { badge.classList.add('status-not-started'); badge.textContent = 'Не начато'; }
+        }
+
+        // ====== ЗАДАЧИ: отметка, редактирование текста, добавление, удаление ======
+
+        async function toggleTask(taskId, stageId) {
+            const stage = stagesData.find(s => s.id === stageId);
+            const task = stage.tasks.find(t => t.id === taskId);
+            const newChecked = !task.checked;
+            const { error } = await supabaseClient.from('frame_tasks').update({ checked: newChecked, checked_at: newChecked ? new Date().toISOString() : null }).eq('id', taskId);
+            if (error) { console.error(error); showToast('Не удалось сохранить отметку', 'error'); return; }
+            task.checked = newChecked;
+            const checkbox = document.getElementById(`task-${taskId}`);
+            if (checkbox) { checkbox.checked = newChecked; const item = checkbox.closest('.checklist-item'); if (item) item.classList.toggle('checked', newChecked); }
+            updateStageProgress(stageId);
+            updateOverallProgress();
+            refreshStageStatusBadge(stageId);
+            logActivity('task_toggle', `${newChecked ? 'Отмечена' : 'Снята отметка с'} задача «${task.text}» (этап «${stage.title}»)`);
+        }
+
+        async function editTaskText(taskId, stageId, newText) {
+            const trimmed = newText.trim();
+            if (!trimmed) { showToast('Текст задачи не может быть пустым', 'error'); reloadAndRender(); return; }
+            const { error } = await supabaseClient.from('frame_tasks').update({ text: trimmed }).eq('id', taskId);
+            if (error) { console.error(error); showToast('Не удалось сохранить текст', 'error'); return; }
+            const stage = stagesData.find(s => s.id === stageId);
+            const task = stage.tasks.find(t => t.id === taskId);
+            const oldText = task.text;
+            task.text = trimmed;
+            showToast('Текст задачи обновлён', 'success');
+            logActivity('task_edit', `Изменён текст задачи в этапе «${stage.title}»: «${oldText}» → «${trimmed}»`);
+        }
+
+        async function addTask(stageId) {
+            const stage = stagesData.find(s => s.id === stageId);
+            // Фикс: индекс новой задачи считаем от максимального существующего,
+            // а не от количества задач — иначе после удаления задачи из середины
+            // этапа новый task_index мог совпасть с уже существующим и сортировка "плыла"
+            const nextIndex = stage.tasks.length > 0 ? Math.max(...stage.tasks.map(t => t.task_index)) + 1 : 0;
+            const { data, error } = await supabaseClient.from('frame_tasks').insert({ frame_stage_id: stageId, task_index: nextIndex, text: `Новая задача ${nextIndex + 1}`, checked: false }).select().single();
+            if (error) { console.error(error); showToast('Не удалось добавить задачу', 'error'); return; }
+            stage.tasks.push(data);
+            if (!expandedStageIds.includes(stageId)) expandedStageIds.push(stageId);
+            renderStages();
+            showToast('Задача добавлена', 'success');
+            logActivity('task_add', `Добавлена задача «${data.text}» в этап «${stage.title}»`);
+        }
+
+        async function deleteTask(taskId, stageId) {
+            const stage = stagesData.find(s => s.id === stageId);
+            if (stage.tasks.length <= 1) { showToast('Нельзя удалить единственную задачу этапа', 'error'); return; }
+            if (!confirm('Удалить эту задачу?')) return;
+            const taskBeingDeleted = stage.tasks.find(t => t.id === taskId);
+            const { error } = await supabaseClient.from('frame_tasks').delete().eq('id', taskId);
+            if (error) { console.error(error); showToast('Не удалось удалить задачу', 'error'); return; }
+            stage.tasks = stage.tasks.filter(t => t.id !== taskId);
+            if (!expandedStageIds.includes(stageId)) expandedStageIds.push(stageId);
+            renderStages();
+            showToast('Задача удалена', 'warning');
+            logActivity('task_delete', `Удалена задача «${taskBeingDeleted.text}» из этапа «${stage.title}»`);
+        }
+
+        // ====== ЭТАПЫ: отметить все / сбросить / добавить свой / удалить свой ======
+
+        async function markAllTasks(stageId) {
+            const stage = stagesData.find(s => s.id === stageId);
+            const { error } = await supabaseClient.from('frame_tasks').update({ checked: true, checked_at: new Date().toISOString() }).eq('frame_stage_id', stageId);
+            if (error) { console.error(error); showToast('Не удалось отметить задачи', 'error'); return; }
+            if (!expandedStageIds.includes(stageId)) expandedStageIds.push(stageId);
+            await reloadAndRender();
+            showToast('Все задачи отмечены', 'success');
+            logActivity('stage_mark_all', `Отмечены все задачи этапа «${stage.title}»`);
+        }
+
+        function confirmResetStage(stageId) {
+            const stage = stagesData.find(s => s.id === stageId);
+            if (!confirm(`Сбросить все отметки в этапе «${stage.title}»?`)) return;
+            resetStage(stageId);
+        }
+
+        async function resetStage(stageId) {
+            const stage = stagesData.find(s => s.id === stageId);
+            const { error } = await supabaseClient.from('frame_tasks').update({ checked: false, checked_at: null }).eq('frame_stage_id', stageId);
+            if (error) { console.error(error); showToast('Не удалось сбросить этап', 'error'); return; }
+            if (!expandedStageIds.includes(stageId)) expandedStageIds.push(stageId);
+            await reloadAndRender();
+            showToast('Этап сброшен', 'warning');
+            logActivity('stage_reset', `Сброшены все отметки этапа «${stage.title}»`);
+        }
+
+        function openAddStageModal() {
+            document.getElementById('newStageTitle').value = '';
+            document.getElementById('newStageType').value = 'base';
+            document.getElementById('addStageModal').classList.add('active');
+        }
+        function closeAddStageModal() { document.getElementById('addStageModal').classList.remove('active'); }
+
+        async function submitAddStage() {
+            const title = document.getElementById('newStageTitle').value.trim();
+            const type = document.getElementById('newStageType').value;
+            if (!title) { showToast('Введите название этапа', 'error'); return; }
+
+            const nextNumber = stagesData.length > 0 ? Math.max(...stagesData.map(s => s.stage_number)) + 1 : 1;
+            const warningByType = {
+                base: 'Дополнительный этап — согласуйте с тимлидом перед стартом.',
+                free_revision: 'Бесплатная правка — уточните лимит бесплатных правок по проекту.',
+                paid_revision: 'Платная правка — требует подтверждения бюджета у заказчика.'
+            };
+            // Фикс: если тип вдруг не совпал ни с одним ключом — берём базовый текст,
+            // а не пишем undefined в базу
+            const warningText = warningByType[type] || warningByType.base;
+            const { data: newStage, error } = await supabaseClient.from('frame_stages').insert({
+                frame_id: frameId, stage_number: nextNumber, title: title,
+                location: 'Правки', output: 'Правки внесены', qc: 'Правки согласованы',
+                warning: warningText, stage_type: type, is_custom: true
+            }).select().single();
+            if (error) { console.error(error); showToast('Не удалось создать этап', 'error'); return; }
+
+            const defaultTasks = ['Внести правки', 'Проверить результат', 'Согласовать с заказчиком/тимлидом'];
+            const taskRows = defaultTasks.map((text, i) => ({ frame_stage_id: newStage.id, task_index: i, text, checked: false }));
+            const { error: taskError } = await supabaseClient.from('frame_tasks').insert(taskRows);
+            if (taskError) { console.error(taskError); showToast('Этап создан, но задачи не удалось добавить', 'warning'); }
+
+            closeAddStageModal();
+            await reloadAndRender();
+            expandedStageIds.push(newStage.id);
+            renderStages();
+            showToast('Этап добавлен', 'success');
+            const typeLabel = { base: 'базовый', free_revision: 'бесплатная правка', paid_revision: 'платная правка' }[type];
+            logActivity('stage_add', `Добавлен этап «${title}» (тип: ${typeLabel})`);
+        }
+
+        function confirmDeleteStage(stageId) {
+            const stage = stagesData.find(s => s.id === stageId);
+            if (!stage.is_custom) { showToast('Базовые этапы пайплайна удалять нельзя', 'error'); return; }
+            if (!confirm(`Удалить этап «${stage.title}»? Это действие нельзя отменить.`)) return;
+            deleteStage(stageId);
+        }
+
+        async function deleteStage(stageId) {
+            const stage = stagesData.find(s => s.id === stageId);
+            // Дублируем проверку и здесь (не только в confirmDeleteStage) —
+            // защита на случай прямого вызова функции, а не только клика по кнопке
+            if (!stage.is_custom) { showToast('Базовые этапы пайплайна удалять нельзя', 'error'); return; }
+            const { error } = await supabaseClient.from('frame_stages').delete().eq('id', stageId);
+            if (error) { console.error(error); showToast('Не удалось удалить этап', 'error'); return; }
+            await reloadAndRender();
+            showToast('Этап удалён', 'warning');
+            logActivity('stage_delete', `Удалён этап «${stage.title}»`);
+        }
+
+        // ====== Комментарии ======
+
+        function openCommentsModal(stageId) {
+            currentCommentsStageId = stageId;
+            const stage = stagesData.find(s => s.id === stageId);
+            document.getElementById('commentsModalTitle').textContent = `Комментарии: ${stage.title}`;
+            document.getElementById('modalCommentInput').value = '';
+            renderCommentsInto('commentsModalList', stage.comments);
+            document.getElementById('commentsModal').classList.add('active');
+        }
+        function closeCommentsModal() { document.getElementById('commentsModal').classList.remove('active'); currentCommentsStageId = null; }
+
+        function renderCommentsInto(elementId, comments) {
+            const el = document.getElementById(elementId);
+            if (!comments || comments.length === 0) {
+                el.innerHTML = '<p style="color: var(--text-secondary); font-size: 13px; text-align: center; padding: 20px 0;">Нет комментариев</p>';
+                return;
+            }
+            el.innerHTML = comments.map(c => {
+                const date = new Date(c.created_at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+                const deleteBtn = canDeleteComments() ? `<button onclick="deleteComment('${c.id}')" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:12px;margin-left:auto;">🗑</button>` : '';
+                return `<div class="comment"><div class="comment-meta"><strong>${escapeHtml(c.author_name)}</strong><span>${date}</span>${deleteBtn}</div><div class="comment-text">${escapeHtml(c.text)}</div></div>`;
+            }).join('');
+        }
+
+        async function deleteComment(commentId) {
+            if (!confirm('Удалить этот комментарий?')) return;
+            const { error } = await supabaseClient.from('frame_comments').delete().eq('id', commentId);
+            if (error) { console.error(error); showToast('Не удалось удалить комментарий', 'error'); return; }
+            await reloadAndRender();
+            if (currentCommentsStageId) openCommentsModal(currentCommentsStageId);
+            if (currentTaskComment) openTaskCommentModal(currentTaskComment.taskId, currentTaskComment.stageId);
+            showToast('Комментарий удалён', 'warning');
+        }
+
+        async function addModalComment() {
+            if (!currentCommentsStageId) return;
+            const input = document.getElementById('modalCommentInput');
+            const text = input.value.trim();
+            if (!text) return;
+            const stage = stagesData.find(s => s.id === currentCommentsStageId);
+            const { data, error } = await supabaseClient.from('frame_comments').insert({ frame_stage_id: currentCommentsStageId, frame_task_id: null, author_id: currentUser.id, author_name: currentUser.full_name, text: text }).select().single();
+            if (error) { console.error(error); showToast('Не удалось добавить комментарий', 'error'); return; }
+            input.value = '';
+            stage.comments.push(data);
+            renderCommentsInto('commentsModalList', stage.comments);
+            refreshCommentsButtonLabel(stage.id);
+            showToast('Комментарий добавлен', 'success');
+            logActivity('comment_add', `Добавлен комментарий к этапу «${stage.title}»: «${text}»`);
+        }
+
+        function openTaskCommentModal(taskId, stageId) {
+            currentTaskComment = { taskId, stageId };
+            const stage = stagesData.find(s => s.id === stageId);
+            const task = stage.tasks.find(t => t.id === taskId);
+            document.getElementById('taskCommentTitle').textContent = `Комментарии: ${task.text}`;
+            document.getElementById('taskCommentInput').value = '';
+            renderCommentsInto('taskCommentsList', task.comments);
+            document.getElementById('taskCommentModal').classList.add('active');
+        }
+        function closeTaskCommentModal() { document.getElementById('taskCommentModal').classList.remove('active'); currentTaskComment = null; }
+
+        async function addTaskComment() {
+            if (!currentTaskComment) return;
+            const input = document.getElementById('taskCommentInput');
+            const text = input.value.trim();
+            if (!text) return;
+            const stage = stagesData.find(s => s.id === currentTaskComment.stageId);
+            const task = stage.tasks.find(t => t.id === currentTaskComment.taskId);
+            const { data, error } = await supabaseClient.from('frame_comments').insert({ frame_stage_id: currentTaskComment.stageId, frame_task_id: currentTaskComment.taskId, author_id: currentUser.id, author_name: currentUser.full_name, text: text }).select().single();
+            if (error) { console.error(error); showToast('Не удалось добавить комментарий', 'error'); return; }
+            input.value = '';
+            task.comments.push(data);
+            renderCommentsInto('taskCommentsList', task.comments);
+            refreshTaskCommentButton(task.id, stage.id);
+            showToast('Комментарий добавлен', 'success');
+            logActivity('comment_add', `Добавлен комментарий к задаче «${task.text}»: «${text}»`);
+        }
+
+        // Точечно обновляем подписи на кнопках комментариев, не перерисовывая всю страницу
+        function refreshCommentsButtonLabel(stageId) {
+            const cardEl = document.getElementById(`stage-${stageId}`);
+            const stage = stagesData.find(s => s.id === stageId);
+            if (!cardEl || !stage) return;
+            const btn = cardEl.querySelector('.comments-compact-btn');
+            if (btn) { btn.textContent = `💬 Комментарии (${stage.comments.length})`; btn.classList.toggle('has-comments', stage.comments.length > 0); }
+        }
+        function refreshTaskCommentButton(taskId, stageId) {
+            const stage = stagesData.find(s => s.id === stageId);
+            const task = stage.tasks.find(t => t.id === taskId);
+            const btn = document.querySelector(`.task-comment-btn[onclick*="'${taskId}'"]`);
+            if (btn) { btn.textContent = `💬${task.comments.length > 0 ? ' (' + task.comments.length + ')' : ''}`; btn.classList.toggle('has-comment', task.comments.length > 0); }
+        }
+
+        // ====== Рендер ======
+
+        function renderStageCard(stage) {
+            const total = stage.tasks.length;
+            const completedCount = stage.tasks.filter(t => t.checked).length;
+            const progressPercent = total > 0 ? Math.round((completedCount / total) * 100) : 0;
+            const stageStatus = getStageStatus(stage);
+            let statusClass = 'status-not-started', statusText = 'Не начато';
+            if (stageStatus === 'in-progress') { statusClass = 'status-in-progress'; statusText = 'В работе'; }
+            else if (stageStatus === 'done') { statusClass = 'status-done'; statusText = 'Готово'; }
+
+            let cardClass = 'stage-card';
+            if (stage.stage_type === 'free_revision') cardClass += ' custom-free';
+            else if (stage.stage_type === 'paid_revision') cardClass += ' custom-paid';
+            else if (stage.is_custom) cardClass += ' custom-base';
+            if (expandedStageIds.includes(stage.id)) cardClass += ' expanded';
+
+            let revisionBadge = '';
+            if (stage.stage_type === 'free_revision') revisionBadge = '<span class="revision-badge revision-free">🟢 Бесплатная правка</span>';
+            else if (stage.stage_type === 'paid_revision') revisionBadge = '<span class="revision-badge revision-paid">🟡 Платная правка</span>';
+            else if (stage.is_custom) revisionBadge = '<span class="revision-badge revision-base">🔵 Доп. этап</span>';
+
+            const tasksHtml = stage.tasks.map(task => {
+                return `<div class="checklist-item ${task.checked ? 'checked' : ''}">
+                    <input type="checkbox" id="task-${task.id}" ${task.checked ? 'checked' : ''} onclick="event.stopPropagation(); toggleTask('${task.id}', '${stage.id}')">
+                    <input type="text" class="task-edit-input" value="${escapeHtml(task.text)}" onclick="event.stopPropagation()" onchange="editTaskText('${task.id}', '${stage.id}', this.value)">
+                    <button class="task-delete-btn" onclick="event.stopPropagation(); deleteTask('${task.id}', '${stage.id}')" title="Удалить задачу">🗑</button>
+                    <button class="task-comment-btn ${task.comments.length > 0 ? 'has-comment' : ''}" onclick="event.stopPropagation(); openTaskCommentModal('${task.id}', '${stage.id}')" title="Комментарии к задаче">💬${task.comments.length > 0 ? ' (' + task.comments.length + ')' : ''}</button>
+                </div>`;
+            }).join('');
+
+            const deleteStageBtn = (stage.is_custom && canManageStages()) ? `<button class="delete-stage-btn" onclick="event.stopPropagation(); confirmDeleteStage('${stage.id}')">🗑 Удалить этап</button>` : '';
+
+            return `<div class="${cardClass}" id="stage-${stage.id}" onclick="toggleStageExpand('${stage.id}')">
+                <div class="stage-header">
+                    <div class="stage-header-left"><div class="stage-number">Этап ${stage.stage_number}</div><div class="stage-title">${escapeHtml(stage.title)}</div>${revisionBadge}</div>
+                    <span class="stage-status ${statusClass}">${statusText}</span>
+                    <span class="expand-icon">▼</span>
+                </div>
+                <div class="stage-content">
+                    <div class="stage-meta">${deleteStageBtn}<span class="stage-location">📍 ${escapeHtml(stage.location || '')}</span><span class="stage-output"><strong>На выходе:</strong> ${escapeHtml(stage.output || '')}</span></div>
+                    <div class="quick-actions" onclick="event.stopPropagation()">
+                        <button class="btn-small" onclick="markAllTasks('${stage.id}')">✓ Отметить всё</button>
+                        <button class="btn-small" onclick="confirmResetStage('${stage.id}')">↺ Сбросить</button>
+                    </div>
+                    <div class="checklist" onclick="event.stopPropagation">
+                        ${tasksHtml}
+                        <button class="add-task-btn" onclick="event.stopPropagation(); addTask('${stage.id}')">+ Добавить задачу</button>
+                    </div>
+                    <div class="stage-progress-container"><div class="progress-bar"><div class="progress-fill" style="width: ${progressPercent}%"></div></div><div class="stage-progress">Прогресс: ${completedCount}/${total} (${progressPercent}%)</div></div>
+                    <button class="comments-compact-btn ${stage.comments.length > 0 ? 'has-comments' : ''}" onclick="openCommentsModal('${stage.id}'); event.stopPropagation()">💬 Комментарии (${stage.comments.length})</button>
+                    <div class="qc-section" onclick="event.stopPropagation()"><div class="qc-title">Критерий перехода</div><div class="qc-text">${escapeHtml(stage.qc || '')}</div></div>
+                    <div class="warning-box" onclick="event.stopPropagation()"><div class="warning-text">⚠️ ${escapeHtml(stage.warning || '')}</div></div>
+                </div>
+            </div>`;
+        }
+
+        function renderStages() {
+            const grid = document.getElementById('stagesGrid');
+            grid.innerHTML = stagesData.map(stage => renderStageCard(stage)).join('');
+            grid.innerHTML += canManageStages() ? `<div class="add-stage-wrap"><button class="add-stage-btn" onclick="openAddStageModal()">+ Добавить этап</button></div>` : '';
+            updateOverallProgress();
+        }
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            loadTheme();
+            loadWarningsPref();
+            const ok = await requireAuth();
+            if (!ok) return;
+            const frame = await getFrame();
+            if (frame) {
+                document.getElementById('frameTitle').textContent = frame.name;
+                document.getElementById('backBtn').href = `project.html?id=${projectId}`;
+            } else {
+                document.getElementById('frameTitle').textContent = 'Кадр не найден';
+            }
+            await seedFrameStagesIfNeeded();
+            await loadStagesData();
+            renderStages();
+            showToast('Добро пожаловать!', 'success');
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Decard Pipeline — Проект</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600\&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #FFFFFF;
+            --bg-secondary: #F5F6F8;
+            --text-primary: #1A1A1A;
+            --text-secondary: #666666;
+            --accent: #2743C0;
+            --accent-rgb: 39, 67, 192;
+            --accent-gradient: linear-gradient(135deg, #2743C0 0%, #4A6FE8 100%);
+            --border: rgba(224, 224, 224, 0.3);
+            --success: #27AE60;
+            --warning: #F39C12;
+            --danger: #E74C3C;
+            --card-shadow: 0 1px 2px rgba(20, 22, 26, 0.05);
+            --card-shadow-hover: 0 4px 14px rgba(20, 22, 26, 0.10);
+            --card-bg: #FFFFFF;
+            --card-border: rgba(20, 22, 26, 0.10);
+            --role-artist: #2743C0;
+            --role-lead: #27AE60;
+            --role-art: #F39C12;
+            --toast-bg: rgba(26, 26, 26, 0.95);
+            --toast-success: #27AE60;
+            --toast-warning: #F39C12;
+            --toast-error: #E74C3C;
+            --glass-blur: blur(10px);
+            --font-mono: 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+        }
+        [data-theme="dark"] {
+            --bg-primary: #0E0E0E;
+            --bg-secondary: #1A1A1A;
+            --text-primary: #E8E8E8;
+            --text-secondary: #999999;
+            --accent: #4A6FE8;
+            --accent-rgb: 74, 111, 232;
+            --accent-gradient: linear-gradient(135deg, #4A6FE8 0%, #6B8EFF 100%);
+            --border: rgba(42, 42, 42, 0.3);
+            --success: #2ECC71;
+            --warning: #F5B041;
+            --danger: #E74C3C;
+            --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+            --card-shadow-hover: 0 4px 14px rgba(0, 0, 0, 0.4);
+            --card-bg: #17181B;
+            --card-border: rgba(255, 255, 255, 0.08);
+            --role-artist: #4A6FE8;
+            --role-lead: #2ECC71;
+            --role-art: #F5B041;
+            --toast-bg: rgba(232, 232, 232, 0.95);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            padding: 40px;
+            transition: background 0.4s ease, color 0.4s ease;
+            min-height: 100vh;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        header { margin-bottom: 40px; border-bottom: 2px solid var(--border); padding-bottom: 24px; }
+        .header-top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+        .project-title { font-size: 24px; font-weight: 700; }
+        .btn { padding: 8px 16px; border: none; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 6px; }
+        .btn-primary { background: var(--accent); color: white; }
+        .btn-primary:hover { opacity: 0.9; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(39, 67, 192, 0.3); }
+        .btn-secondary { background: var(--card-bg); color: var(--text-primary); border: 1px solid var(--border); }
+        .btn-secondary:hover { background: var(--border); transform: translateY(-2px); }
+        .btn-back { background: var(--card-bg); color: var(--text-primary); border: 1px solid var(--border); }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-danger:hover { opacity: 0.9; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3); }
+        .frames-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 24px; }
+        .frame-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; overflow: hidden; box-shadow: var(--card-shadow); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); position: relative; }
+        .frame-card::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 45%; background: linear-gradient(to top, rgba(var(--accent-rgb), 0.14), transparent); opacity: 0; transition: opacity 0.35s ease; pointer-events: none; z-index: -1; }
+        .frame-card:hover::after { opacity: 1; }
+        .frame-card:hover { transform: translateY(-4px); box-shadow: var(--card-shadow-hover); }
+        .frame-header { padding: 20px; border-bottom: 1px solid var(--border); }
+        .frame-title { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+        .frame-meta { font-size: 13px; color: var(--text-secondary); display: flex; gap: 16px; flex-wrap: wrap; }
+        .frame-body { padding: 20px; }
+        .frame-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        .empty-state { text-align: center; padding: 80px 20px; color: var(--text-secondary); }
+        .empty-state h3 { font-size: 20px; margin-bottom: 8px; color: var(--text-primary); }
+        .status-badge { font-family: var(--font-mono); font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+        .status-not-started { background: var(--border); color: var(--text-secondary); }
+        .status-in-progress { background: rgba(243, 156, 18, 0.15); color: var(--warning); }
+        .status-done { background: rgba(39, 174, 96, 0.15); color: var(--success); }
+        .frame-progress { margin-top: 12px; }
+        .frame-progress-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+        .frame-progress-fill { height: 100%; background: var(--accent-gradient); border-radius: 3px; transition: width 0.3s ease; }
+        .frame-progress-label { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+        .toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 2000; display: flex; flex-direction: column; gap: 8px; }
+        .toast { background: var(--toast-bg); color: var(--text-primary); padding: 12px 20px; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); font-size: 14px; font-weight: 500; animation: slideInRight 0.3s cubic-bezier(0.4, 0, 0.2, 1); display: flex; align-items: center; gap: 8px; min-width: 250px; backdrop-filter: blur(10px); }
+        .toast.success { border-left: 4px solid var(--toast-success); }
+        .toast.warning { border-left: 4px solid var(--toast-warning); }
+        .toast.error { border-left: 4px solid var(--toast-error); }
+        .toast-icon { font-size: 18px; }
+        .theme-controls { display: flex; align-items: center; gap: 8px; }
+        .theme-btn { padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--card-bg); color: var(--text-primary); font-size: 13px; cursor: pointer; transition: all 0.2s ease; }
+        .theme-btn:hover { border-color: var(--accent); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(39, 67, 192, 0.1); }
+        .theme-btn.active { background: var(--accent-gradient); color: white; border-color: var(--accent); }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideInRight { from { opacity: 0; transform: translateX(100px); } to { opacity: 1; transform: translateX(0); } }
+        @media (max-width: 768px) {
+            body { padding: 20px; }
+            .header-top { flex-direction: column; align-items: flex-start; }
+            .frames-grid { grid-template-columns: 1fr; }
+            .toast-container { bottom: 10px; right: 10px; left: 10px; }
+            .toast { min-width: auto; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-top">
+                <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+                    <a href="index.html" class="btn btn-back">← Назад</a>
+                    <span class="project-title" id="projectTitle">Загрузка...</span>
+                    <div class="theme-controls">
+                        <button class="theme-btn" data-theme="light" onclick="setTheme('light')" title="Светлая тема">☀️</button>
+                        <button class="theme-btn" data-theme="dark" onclick="setTheme('dark')" title="Тёмная тема">🌙</button>
+                        <button class="theme-btn" data-theme="system" onclick="setTheme('system')" title="Системная тема">💻</button>
+                    </div>
+                </div>
+                <button class="btn btn-primary" id="newFrameBtn" onclick="createFrame()">+ Новый кадр</button>
+                <div class="user-box" id="userBox" style="display:flex; align-items:center; gap:10px; font-size:13px; color: var(--text-secondary);"></div>
+            </div>
+        </header>
+        <div class="frames-grid" id="framesGrid"></div>
+        <div class="empty-state" id="emptyState" style="display: none;">
+            <h3>Нет кадров</h3>
+            <p>Создайте первый кадр для этого проекта</p>
+        </div>
+    </div>
+    <div class="toast-container" id="toastContainer"></div>
+    <script>
+        // ====== ПОДКЛЮЧЕНИЕ К SUPABASE ======
+        const SUPABASE_URL = 'https://mcpsnmcvzxzdgllhbrib.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_ouAuh1fPBDLo3bLxs4FnLA_dJwIN-Un';
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        // =====================================
+
+        const roleLabels = { artist: 'Художник', lead: 'Тимлид', art_director: 'Арт-директор', ceo: 'Генеральный директор' };
+        let currentUser = null;
+
+        async function requireAuth() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) { window.location.href = 'login.html'; return false; }
+            const { data: profile, error } = await supabaseClient.from('profiles').select('*').eq('id', session.user.id).single();
+            if (error || !profile) { console.error(error); await supabaseClient.auth.signOut(); window.location.href = 'login.html'; return false; }
+            currentUser = { id: profile.id, full_name: profile.full_name, role: profile.role };
+            renderUserBox();
+            applyRolePermissions();
+            return true;
+        }
+
+        function renderUserBox() {
+            const box = document.getElementById('userBox');
+            if (!box || !currentUser) return;
+            box.innerHTML = `<span>${currentUser.full_name} · ${roleLabels[currentUser.role] || currentUser.role}</span>
+                <button class="btn btn-secondary" onclick="doLogout()" style="padding:4px 10px; font-size:12px;">Выйти</button>`;
+        }
+
+        function applyRolePermissions() {
+            const canManage = ['lead', 'art_director', 'ceo'].includes(currentUser.role);
+            const newBtn = document.getElementById('newFrameBtn');
+            if (newBtn) newBtn.style.display = canManage ? '' : 'none';
+        }
+
+        async function doLogout() {
+            await supabaseClient.auth.signOut();
+            window.location.href = 'login.html';
+        }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const projectId = urlParams.get('id'); // теперь это uuid-строка, а не число
+
+        // Экранирование пользовательского текста перед вставкой в innerHTML —
+        // защита от HTML/JS в названиях проектов и кадров (иначе это hранимый XSS)
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            const icon = type === 'success' ? '✓' : type === 'warning' ? '⚠' : '✗';
+            toast.innerHTML = `<span class="toast-icon">${icon}</span><span>${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(100px)';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+        function setTheme(theme) {
+            localStorage.setItem('decardTheme', theme);
+            applyTheme(theme);
+            updateThemeButtons(theme);
+        }
+        function applyTheme(theme) {
+            if (theme === 'system') {
+                const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                document.documentElement.setAttribute('data-theme', systemDark ? 'dark' : 'light');
+            } else {
+                document.documentElement.setAttribute('data-theme', theme);
+            }
+        }
+        function updateThemeButtons(activeTheme) {
+            document.querySelectorAll('.theme-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.getAttribute('data-theme') === activeTheme) btn.classList.add('active');
+            });
+        }
+        function loadTheme() {
+            const saved = localStorage.getItem('decardTheme') || 'system';
+            applyTheme(saved);
+            updateThemeButtons(saved);
+        }
+
+        // ====== РАБОТА С ДАННЫМИ ЧЕРЕЗ SUPABASE ======
+
+        async function getProject() {
+            const { data, error } = await supabaseClient
+                .from('projects')
+                .select('*')
+                .eq('id', projectId)
+                .single();
+            if (error) {
+                console.error(error);
+                return null;
+            }
+            return data;
+        }
+
+        async function getFrames() {
+            const { data, error } = await supabaseClient
+                .from('frames')
+                .select('*')
+                .eq('project_id', projectId)
+                .order('created_at', { ascending: false });
+            if (error) {
+                console.error(error);
+                showToast('Ошибка загрузки кадров', 'error');
+                return [];
+            }
+            return data;
+        }
+
+        // Догружает этапы и задачи всех кадров проекта одним запросом (frame_stages → frame_tasks)
+        // и считает для каждого кадра "выполнено/всего" — теперь у каждого кадра своё число задач,
+        // так как задачи и этапы редактируются индивидуально (см. frame.html).
+        async function getFramesProgress(frameIds) {
+            if (frameIds.length === 0) return {};
+            const { data, error } = await supabaseClient
+                .from('frame_stages')
+                .select('frame_id, frame_tasks(checked)')
+                .in('frame_id', frameIds);
+            if (error) {
+                console.error(error);
+                return {};
+            }
+            const progress = {};
+            (data || []).forEach(stageRow => {
+                if (!progress[stageRow.frame_id]) progress[stageRow.frame_id] = { total: 0, completed: 0 };
+                const tasks = stageRow.frame_tasks || [];
+                progress[stageRow.frame_id].total += tasks.length;
+                progress[stageRow.frame_id].completed += tasks.filter(t => t.checked).length;
+            });
+            return progress;
+        }
+
+        async function createFrame() {
+            const name = prompt('Название кадра:');
+            if (!name) return;
+
+            const { error } = await supabaseClient.from('frames').insert({
+                project_id: projectId,
+                name: name,
+                status: 'not_started'
+            });
+
+            if (error) {
+                console.error(error);
+                showToast('Не удалось создать кадр', 'error');
+                return;
+            }
+            showToast('Кадр создан!', 'success');
+            renderFrames();
+        }
+
+        async function deleteFrame(frameId) {
+            if (!confirm('Удалить кадр?')) return;
+            const { error } = await supabaseClient.from('frames').delete().eq('id', frameId);
+            if (error) {
+                console.error(error);
+                showToast('Не удалось удалить кадр', 'error');
+                return;
+            }
+            showToast('Кадр удалён', 'warning');
+            renderFrames();
+        }
+
+        async function setFrameStatus(frameId, status) {
+            const { error } = await supabaseClient
+                .from('frames')
+                .update({ status: status })
+                .eq('id', frameId);
+            if (error) {
+                console.error(error);
+                showToast('Не удалось обновить статус', 'error');
+                return;
+            }
+            showToast(`Статус: ${getFrameStatusLabel(status)}`, 'success');
+            renderFrames();
+        }
+
+        function getFrameStatusLabel(status) {
+            if (status === 'done') return '✅ Готов';
+            if (status === 'in_progress') return '🟡 В работе';
+            return '⚪ Не начат';
+        }
+        function getFrameStatusClass(status) {
+            if (status === 'done') return 'status-done';
+            if (status === 'in_progress') return 'status-in-progress';
+            return 'status-not-started';
+        }
+
+        async function renderFrames() {
+            const project = await getProject();
+            if (!project) {
+                document.getElementById('projectTitle').textContent = 'Проект не найден';
+                return;
+            }
+            document.getElementById('projectTitle').textContent = project.name;
+
+            const frames = await getFrames();
+            const progressMap = await getFramesProgress(frames.map(f => f.id));
+            const canManageFrames = currentUser && ['lead', 'art_director', 'ceo'].includes(currentUser.role);
+            const grid = document.getElementById('framesGrid');
+            const empty = document.getElementById('emptyState');
+            if (frames.length === 0) {
+                grid.innerHTML = '';
+                empty.style.display = 'block';
+            } else {
+                empty.style.display = 'none';
+                grid.innerHTML = frames.map(f => {
+                    const statusLabel = getFrameStatusLabel(f.status);
+                    const statusClass = getFrameStatusClass(f.status);
+                    const createdDisplay = f.created_at ? new Date(f.created_at).toLocaleDateString('ru-RU') : '';
+                    const frameProgress = progressMap[f.id] || { total: 0, completed: 0 };
+                    const progressPercent = frameProgress.total > 0 ? Math.round((frameProgress.completed / frameProgress.total) * 100) : 0;
+                    return `
+                        <div class="frame-card">
+                            <div class="frame-header">
+                                <div class="frame-title">${escapeHtml(f.name)}</div>
+                                <div class="frame-meta">
+                                    <span>📅 ${createdDisplay}</span>
+                                    <span class="status-badge ${statusClass}">${statusLabel}</span>
+                                </div>
+                                <div class="frame-progress">
+                                    <div class="frame-progress-bar">
+                                        <div class="frame-progress-fill" style="width: ${progressPercent}%"></div>
+                                    </div>
+                                    <div class="frame-progress-label">${progressPercent}% (${frameProgress.completed}/${frameProgress.total} задач)</div>
+                                </div>
+                            </div>
+                            <div class="frame-body">
+                                <div class="frame-actions">
+                                    <a href="frame.html?project=${projectId}&frame=${f.id}" class="btn btn-primary">Открыть чек-лист</a>
+                                    <button class="btn btn-secondary" onclick="setFrameStatus('${f.id}', 'in_progress')">🟡 В работу</button>
+                                    <button class="btn btn-secondary" onclick="setFrameStatus('${f.id}', 'done')">✅ Готов</button>
+                                    ${canManageFrames ? `<button class="btn btn-secondary" onclick="deleteFrame('${f.id}')" style="color: var(--danger);">🗑</button>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            loadTheme();
+            const ok = await requireAuth();
+            if (!ok) return;
+            renderFrames();
+            showToast('Добро пожаловать!', 'success');
+        });
+    </script>
+</body>
+</html>

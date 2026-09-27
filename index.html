@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Decard Pipeline — Главная</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600\&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #FFFFFF;
+            --bg-secondary: #F5F6F8;
+            --text-primary: #1A1A1A;
+            --text-secondary: #666666;
+            --accent: #2743C0;
+            --accent-rgb: 39, 67, 192;
+            --accent-gradient: linear-gradient(135deg, #2743C0 0%, #4A6FE8 100%);
+            --border: rgba(224, 224, 224, 0.3);
+            --success: #27AE60;
+            --warning: #F39C12;
+            --danger: #E74C3C;
+            --card-shadow: 0 1px 2px rgba(20, 22, 26, 0.05);
+            --card-shadow-hover: 0 4px 14px rgba(20, 22, 26, 0.10);
+            --card-bg: #FFFFFF;
+            --card-border: rgba(20, 22, 26, 0.10);
+            --role-artist: #2743C0;
+            --role-lead: #27AE60;
+            --role-art: #F39C12;
+            --toast-bg: rgba(26, 26, 26, 0.95);
+            --toast-success: #27AE60;
+            --toast-warning: #F39C12;
+            --toast-error: #E74C3C;
+            --glass-blur: blur(10px);
+            --font-mono: 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+        }
+        [data-theme="dark"] {
+            --bg-primary: #0E0E0E;
+            --bg-secondary: #1A1A1A;
+            --text-primary: #E8E8E8;
+            --text-secondary: #999999;
+            --accent: #4A6FE8;
+            --accent-rgb: 74, 111, 232;
+            --accent-gradient: linear-gradient(135deg, #4A6FE8 0%, #6B8EFF 100%);
+            --border: rgba(42, 42, 42, 0.3);
+            --success: #2ECC71;
+            --warning: #F5B041;
+            --danger: #E74C3C;
+            --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+            --card-shadow-hover: 0 4px 14px rgba(0, 0, 0, 0.4);
+            --card-bg: #17181B;
+            --card-border: rgba(255, 255, 255, 0.08);
+            --role-artist: #4A6FE8;
+            --role-lead: #2ECC71;
+            --role-art: #F5B041;
+            --toast-bg: rgba(232, 232, 232, 0.95);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            padding: 40px;
+            transition: background 0.4s ease, color 0.4s ease;
+            min-height: 100vh;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        header { margin-bottom: 40px; border-bottom: 2px solid var(--border); padding-bottom: 24px; }
+        .header-top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+        .logo-section { display: flex; align-items: center; gap: 16px; }
+        .logo { font-size: 24px; font-weight: 700; color: var(--text-primary); letter-spacing: 2px; text-transform: uppercase; }
+        .logo span { color: var(--accent); }
+        .btn { padding: 8px 16px; border: none; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 6px; }
+        .btn-primary { background: var(--accent); color: white; }
+        .btn-primary:hover { opacity: 0.9; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(39, 67, 192, 0.3); }
+        .btn-secondary { background: var(--card-bg); color: var(--text-primary); border: 1px solid var(--border); }
+        .btn-secondary:hover { background: var(--border); transform: translateY(-2px); }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-danger:hover { opacity: 0.9; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3); }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 40px; }
+        .stat-card { background: var(--card-bg); padding: 20px; border-radius: 8px; border: 1px solid var(--card-border); box-shadow: var(--card-shadow); transition: background 0.3s ease; }
+        .stat-number { font-size: 32px; font-weight: 700; color: var(--accent); }
+        .stat-label { font-size: 14px; color: var(--text-secondary); margin-top: 4px; }
+        .projects-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 24px; }
+        .project-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; overflow: hidden; box-shadow: var(--card-shadow); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); position: relative; }
+        .project-card::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 45%; background: linear-gradient(to top, rgba(var(--accent-rgb), 0.14), transparent); opacity: 0; transition: opacity 0.35s ease; pointer-events: none; z-index: -1; }
+        .project-card:hover::after { opacity: 1; }
+        .project-card:hover { transform: translateY(-4px); box-shadow: var(--card-shadow-hover); }
+        .project-card.completed { border-color: var(--success); }
+        .project-header { padding: 20px; border-bottom: 1px solid var(--border); }
+        .project-title { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+        .project-meta { font-size: 13px; color: var(--text-secondary); display: flex; gap: 16px; flex-wrap: wrap; }
+        .project-body { padding: 20px; }
+        .project-progress { margin-bottom: 16px; }
+        .progress-bar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+        .progress-fill { height: 100%; background: var(--accent-gradient); border-radius: 4px; }
+        .project-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        .empty-state { text-align: center; padding: 80px 20px; color: var(--text-secondary); }
+        .empty-state h3 { font-size: 20px; margin-bottom: 8px; color: var(--text-primary); }
+        .deadline-badge { font-family: var(--font-mono); font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+        .deadline-ok { background: rgba(39, 174, 96, 0.15); color: var(--success); }
+        .deadline-soon { background: rgba(243, 156, 18, 0.15); color: var(--warning); }
+        .deadline-urgent { background: rgba(231, 76, 60, 0.15); color: var(--danger); }
+        .toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 2000; display: flex; flex-direction: column; gap: 8px; }
+        .toast { background: var(--toast-bg); color: var(--text-primary); padding: 12px 20px; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); font-size: 14px; font-weight: 500; animation: slideInRight 0.3s cubic-bezier(0.4, 0, 0.2, 1); display: flex; align-items: center; gap: 8px; min-width: 250px; backdrop-filter: blur(10px); }
+        .toast.success { border-left: 4px solid var(--toast-success); }
+        .toast.warning { border-left: 4px solid var(--toast-warning); }
+        .toast.error { border-left: 4px solid var(--toast-error); }
+        .toast-icon { font-size: 18px; }
+        .theme-controls { display: flex; align-items: center; gap: 8px; }
+        .theme-btn { padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--card-bg); color: var(--text-primary); font-size: 13px; cursor: pointer; transition: all 0.2s ease; }
+        .theme-btn:hover { border-color: var(--accent); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(39, 67, 192, 0.1); }
+        .theme-btn.active { background: var(--accent-gradient); color: white; border-color: var(--accent); }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideInRight { from { opacity: 0; transform: translateX(100px); } to { opacity: 1; transform: translateX(0); } }
+        @media (max-width: 768px) {
+            body { padding: 20px; }
+            .header-top { flex-direction: column; align-items: flex-start; }
+            .projects-grid { grid-template-columns: 1fr; }
+            .toast-container { bottom: 10px; right: 10px; left: 10px; }
+            .toast { min-width: auto; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-top">
+                <div class="logo-section">
+                    <div class="logo">DECARD <span>PIPELINE</span></div>
+                    <div class="theme-controls">
+                        <button class="theme-btn" data-theme="light" onclick="setTheme('light')" title="Светлая тема">☀️</button>
+                        <button class="theme-btn" data-theme="dark" onclick="setTheme('dark')" title="Тёмная тема">🌙</button>
+                        <button class="theme-btn" data-theme="system" onclick="setTheme('system')" title="Системная тема">💻</button>
+                    </div>
+                </div>
+                <button class="btn btn-primary" id="newProjectBtn" onclick="createProject()">+ Новый проект</button>
+                <button class="btn btn-secondary" id="addEmployeeBtn" onclick="openAddEmployeeModal()" style="display:none;">+ Добавить сотрудника</button>
+                <div class="user-box" id="userBox" style="display:flex; align-items:center; gap:10px; font-size:13px; color: var(--text-secondary);"></div>
+            </div>
+        </header>
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-number" id="totalProjects">0</div>
+                <div class="stat-label">Проектов</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="totalFrames">0</div>
+                <div class="stat-label">Кадров</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="completedFrames">0</div>
+                <div class="stat-label">Завершено</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="completedProjects">0</div>
+                <div class="stat-label">Завершено проектов</div>
+            </div>
+        </div>
+        <div class="projects-grid" id="projectsGrid"></div>
+        <div class="empty-state" id="emptyState" style="display: none;">
+            <h3>Нет проектов</h3>
+            <p>Создайте первый проект, чтобы начать работу</p>
+        </div>
+    </div>
+    <div class="modal" id="addEmployeeModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); z-index:2000; justify-content:center; align-items:center;">
+        <div style="background: var(--bg-primary); border-radius: 8px; padding: 32px; max-width: 420px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+            <h3 style="font-size: 20px; font-weight: 700; margin-bottom: 20px;">Добавить сотрудника</h3>
+            <div style="margin-bottom: 14px;">
+                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Имя Фамилия</label>
+                <input type="text" id="newEmpName" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+            </div>
+            <div style="margin-bottom: 14px;">
+                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Роль</label>
+                <select id="newEmpRole" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+                    <option value="artist">Художник</option>
+                    <option value="lead">Тимлид</option>
+                    <option value="art_director">Арт-директор</option>
+                    <option value="ceo">Генеральный директор</option>
+                </select>
+            </div>
+            <div style="margin-bottom: 14px;">
+                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Логин (произвольный, например vanya@decard.local)</label>
+                <input type="text" id="newEmpEmail" placeholder="имя@decard.local" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">PIN (минимум 6 символов)</label>
+                <input type="text" id="newEmpPin" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+            </div>
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+                <button class="btn btn-secondary" onclick="closeAddEmployeeModal()">Отмена</button>
+                <button class="btn btn-primary" onclick="submitAddEmployee()">Создать</button>
+            </div>
+        </div>
+    </div>
+    <div class="toast-container" id="toastContainer"></div>
+    <script>
+        // ====== ПОДКЛЮЧЕНИЕ К SUPABASE ======
+        const SUPABASE_URL = 'https://mcpsnmcvzxzdgllhbrib.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_ouAuh1fPBDLo3bLxs4FnLA_dJwIN-Un';
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        // =====================================
+
+        const roleLabels = { artist: 'Художник', lead: 'Тимлид', art_director: 'Арт-директор', ceo: 'Генеральный директор' };
+        let currentUser = null; // { id, full_name, role }
+
+        // Проверяет вход и подгружает профиль (имя+роль). Если не вошли — отправляет на экран входа.
+        async function requireAuth() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) { window.location.href = 'login.html'; return false; }
+            const { data: profile, error } = await supabaseClient.from('profiles').select('*').eq('id', session.user.id).single();
+            if (error || !profile) { console.error(error); await supabaseClient.auth.signOut(); window.location.href = 'login.html'; return false; }
+            currentUser = { id: profile.id, full_name: profile.full_name, role: profile.role };
+            renderUserBox();
+            applyRolePermissions();
+            return true;
+        }
+
+        function renderUserBox() {
+            const box = document.getElementById('userBox');
+            if (!box || !currentUser) return;
+            box.innerHTML = `<span>${currentUser.full_name} · ${roleLabels[currentUser.role] || currentUser.role}</span>
+                <button class="btn btn-secondary" onclick="changePin()" style="padding:4px 10px; font-size:12px;">Сменить PIN</button>
+                <button class="btn btn-secondary" onclick="doLogout()" style="padding:4px 10px; font-size:12px;">Выйти</button>`;
+        }
+
+        function applyRolePermissions() {
+            const canManage = ['lead', 'art_director', 'ceo'].includes(currentUser.role);
+            const newBtn = document.getElementById('newProjectBtn');
+            if (newBtn) newBtn.style.display = canManage ? '' : 'none';
+            const addEmpBtn = document.getElementById('addEmployeeBtn');
+            if (addEmpBtn) addEmpBtn.style.display = ['ceo', 'art_director'].includes(currentUser.role) ? '' : 'none';
+        }
+
+        function openAddEmployeeModal() {
+            document.getElementById('newEmpName').value = '';
+            document.getElementById('newEmpRole').value = 'artist';
+            document.getElementById('newEmpEmail').value = '';
+            document.getElementById('newEmpPin').value = '';
+            document.getElementById('addEmployeeModal').style.display = 'flex';
+        }
+        function closeAddEmployeeModal() { document.getElementById('addEmployeeModal').style.display = 'none'; }
+
+        async function submitAddEmployee() {
+            const full_name = document.getElementById('newEmpName').value.trim();
+            const role = document.getElementById('newEmpRole').value;
+            const email = document.getElementById('newEmpEmail').value.trim();
+            const pin = document.getElementById('newEmpPin').value.trim();
+            if (!full_name || !email || !pin) { showToast('Заполните все поля', 'error'); return; }
+            if (pin.length < 6) { showToast('PIN должен быть не короче 6 символов', 'error'); return; }
+
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            try {
+                const response = await fetch(`${SUPABASE_URL}/functions/v1/bright-api`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${session.access_token}`,
+                        'apikey': SUPABASE_KEY
+                    },
+                    body: JSON.stringify({ full_name, role, email, pin })
+                });
+                const result = await response.json();
+                if (!response.ok) { showToast(result.error || 'Не удалось создать сотрудника', 'error'); return; }
+                closeAddEmployeeModal();
+                showToast('Сотрудник добавлен!', 'success');
+            } catch (e) {
+                console.error(e);
+                showToast('Ошибка соединения с сервером', 'error');
+            }
+        }
+
+        async function changePin() {
+            const newPin = prompt('Новый PIN (минимум 6 символов):');
+            if (!newPin) return;
+            if (newPin.length < 6) { showToast('PIN должен быть не короче 6 символов', 'error'); return; }
+            const { error } = await supabaseClient.auth.updateUser({ password: newPin });
+            if (error) { console.error(error); showToast('Не удалось сменить PIN', 'error'); return; }
+            showToast('PIN обновлён', 'success');
+        }
+
+        async function doLogout() {
+            await supabaseClient.auth.signOut();
+            window.location.href = 'login.html';
+        }
+
+        // Экранирование пользовательского текста перед вставкой в innerHTML —
+        // защита от HTML/JS в названиях проектов (иначе это hранимый XSS)
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            const icon = type === 'success' ? '✓' : type === 'warning' ? '⚠' : '✗';
+            toast.innerHTML = `<span class="toast-icon">${icon}</span><span>${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(100px)';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+        function setTheme(theme) {
+            localStorage.setItem('decardTheme', theme);
+            applyTheme(theme);
+            updateThemeButtons(theme);
+        }
+        function applyTheme(theme) {
+            if (theme === 'system') {
+                const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                document.documentElement.setAttribute('data-theme', systemDark ? 'dark' : 'light');
+            } else {
+                document.documentElement.setAttribute('data-theme', theme);
+            }
+        }
+        function updateThemeButtons(activeTheme) {
+            document.querySelectorAll('.theme-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.getAttribute('data-theme') === activeTheme) btn.classList.add('active');
+            });
+        }
+        function loadTheme() {
+            const saved = localStorage.getItem('decardTheme') || 'system';
+            applyTheme(saved);
+            updateThemeButtons(saved);
+        }
+
+        // ====== РАБОТА С ДАННЫМИ ЧЕРЕЗ SUPABASE (вместо localStorage) ======
+
+        // Загружает все проекты + отдельно все кадры (для подсчёта прогресса)
+        async function loadProjectsWithFrames() {
+            const { data: projects, error: projErr } = await supabaseClient
+                .from('projects')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (projErr) {
+                console.error(projErr);
+                showToast('Ошибка загрузки проектов', 'error');
+                return [];
+            }
+
+            const { data: frames, error: framesErr } = await supabaseClient
+                .from('frames')
+                .select('id, project_id, status');
+
+            if (framesErr) {
+                console.error(framesErr);
+                showToast('Ошибка загрузки кадров', 'error');
+            }
+
+            // Приклеиваем кадры к каждому проекту, чтобы дальше код работал как раньше
+            return projects.map(p => ({
+                ...p,
+                frames: (frames || []).filter(f => f.project_id === p.id)
+            }));
+        }
+
+        async function createProject() {
+            const name = prompt('Название проекта:');
+            if (!name) return;
+            const deadlineRaw = prompt('Дедлайн (ДД.ММ.ГГГГ):');
+
+            // Supabase хранит дату в формате ГГГГ-ММ-ДД, конвертируем из ДД.ММ.ГГГГ
+            let deadlineIso = null;
+            if (deadlineRaw) {
+                const parts = deadlineRaw.split('.');
+                if (parts.length === 3) {
+                    const [day, month, year] = parts;
+                    deadlineIso = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                }
+            }
+
+            const { error } = await supabaseClient.from('projects').insert({
+                name: name,
+                deadline: deadlineIso,
+                completed: false
+            });
+
+            if (error) {
+                console.error(error);
+                showToast('Не удалось создать проект', 'error');
+                return;
+            }
+            showToast('Проект создан!', 'success');
+            renderProjects();
+        }
+
+        async function deleteProject(id) {
+            if (!confirm('Удалить проект?')) return;
+            const { error } = await supabaseClient.from('projects').delete().eq('id', id);
+            if (error) {
+                console.error(error);
+                showToast('Не удалось удалить проект', 'error');
+                return;
+            }
+            showToast('Проект удалён', 'warning');
+            renderProjects();
+        }
+
+        async function completeProject(id, currentlyCompleted) {
+            const { error } = await supabaseClient
+                .from('projects')
+                .update({ completed: !currentlyCompleted })
+                .eq('id', id);
+            if (error) {
+                console.error(error);
+                showToast('Не удалось обновить статус', 'error');
+                return;
+            }
+            showToast(!currentlyCompleted ? 'Проект завершён!' : 'Проект возвращён', 'success');
+            renderProjects();
+        }
+
+        // Фикс: раньше название/дедлайн передавались прямо в onclick='...' через
+        // JSON.stringify внутри одинарных кавычек — если в названии проекта встречался
+        // апостроф ('), HTML-атрибут ломался и кнопка редактирования переставала работать.
+        // Теперь берём данные из последнего загруженного списка проектов по id.
+        let lastLoadedProjects = [];
+
+        async function editProject(id) {
+            const project = lastLoadedProjects.find(p => p.id === id);
+            const currentName = project ? project.name : '';
+            const currentDeadlineIso = project ? project.deadline : null;
+            const newName = prompt('Новое название:', currentName);
+            if (!newName) return;
+
+            // Конвертируем текущий дедлайн обратно в ДД.ММ.ГГГГ для удобства редактирования
+            let currentDeadlineDisplay = '';
+            if (currentDeadlineIso) {
+                const [year, month, day] = currentDeadlineIso.split('-');
+                currentDeadlineDisplay = `${day}.${month}.${year}`;
+            }
+            const newDeadlineRaw = prompt('Новый дедлайн (ДД.ММ.ГГГГ):', currentDeadlineDisplay);
+
+            let deadlineIso = null;
+            if (newDeadlineRaw) {
+                const parts = newDeadlineRaw.split('.');
+                if (parts.length === 3) {
+                    const [day, month, year] = parts;
+                    deadlineIso = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                }
+            }
+
+            const { error } = await supabaseClient
+                .from('projects')
+                .update({ name: newName, deadline: deadlineIso })
+                .eq('id', id);
+
+            if (error) {
+                console.error(error);
+                showToast('Не удалось обновить проект', 'error');
+                return;
+            }
+            showToast('Проект обновлён', 'success');
+            renderProjects();
+        }
+
+        function getDeadlineStatus(deadlineIso) {
+            if (!deadlineIso) return 'ok';
+            const dl = new Date(deadlineIso);
+            const now = new Date();
+            const diffDays = (dl - now) / (1000 * 60 * 60 * 24);
+            if (diffDays < 0) return 'urgent';
+            if (diffDays <= 7) return 'soon';
+            return 'ok';
+        }
+        function getDeadlineLabel(status) {
+            if (status === 'urgent') return '🔴 Просрочено';
+            if (status === 'soon') return '🟠 Скоро';
+            return '🟢 В срок';
+        }
+        function formatDateRu(isoDate) {
+            if (!isoDate) return '';
+            const [year, month, day] = isoDate.split('-');
+            return `${day}.${month}.${year}`;
+        }
+
+        async function renderProjects() {
+            const projects = await loadProjectsWithFrames();
+            lastLoadedProjects = projects;
+            const canManageProjects = currentUser && ['lead', 'art_director', 'ceo'].includes(currentUser.role);
+            const grid = document.getElementById('projectsGrid');
+            const empty = document.getElementById('emptyState');
+            if (projects.length === 0) {
+                grid.innerHTML = '';
+                empty.style.display = 'block';
+            } else {
+                empty.style.display = 'none';
+                grid.innerHTML = projects.map(p => {
+                    const totalFrames = p.frames.length;
+                    const completedFrames = p.frames.filter(f => f.status === 'done').length;
+                    const progress = totalFrames > 0 ? Math.round((completedFrames / totalFrames) * 100) : 0;
+                    const deadlineStatus = getDeadlineStatus(p.deadline);
+                    const deadlineLabel = getDeadlineLabel(deadlineStatus);
+                    const deadlineClass = `deadline-${deadlineStatus}`;
+                    const createdDisplay = p.created_at ? new Date(p.created_at).toLocaleDateString('ru-RU') : '';
+                    return `
+                        <div class="project-card ${p.completed ? 'completed' : ''}">
+                            <div class="project-header">
+                                <div class="project-title">${escapeHtml(p.name)} ${p.completed ? '✅' : ''}</div>
+                                <div class="project-meta">
+                                    <span>📅 Создан: ${createdDisplay}</span>
+                                    <span>📊 ${totalFrames} кадров</span>
+                                    ${p.deadline ? `<span class="deadline-badge ${deadlineClass}">${deadlineLabel}: ${formatDateRu(p.deadline)}</span>` : ''}
+                                </div>
+                            </div>
+                            <div class="project-body">
+                                <div class="project-progress">
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: ${progress}%"></div>
+                                    </div>
+                                    <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">${progress}% завершено</div>
+                                </div>
+                                <div class="project-actions">
+                                    <a href="project.html?id=${p.id}" class="btn btn-primary">Открыть</a>
+                                    ${canManageProjects ? `<button class="btn btn-secondary" onclick="editProject('${p.id}')">✏️</button>` : ''}
+                                    ${canManageProjects ? `<button class="btn btn-secondary" onclick="deleteProject('${p.id}')" style="color: var(--danger);">🗑</button>` : ''}
+                                    <button class="btn ${p.completed ? 'btn-secondary' : 'btn-danger'}" onclick="completeProject('${p.id}', ${p.completed})">${p.completed ? '↺ Вернуть' : '✓ Завершить'}</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+            updateStats(projects);
+        }
+
+        function updateStats(projects) {
+            const totalFrames = projects.reduce((sum, p) => sum + p.frames.length, 0);
+            const completedFrames = projects.reduce((sum, p) => sum + p.frames.filter(f => f.status === 'done').length, 0);
+            const completedProjects = projects.filter(p => p.completed).length;
+            document.getElementById('totalProjects').textContent = projects.length;
+            document.getElementById('totalFrames').textContent = totalFrames;
+            document.getElementById('completedFrames').textContent = completedFrames;
+            document.getElementById('completedProjects').textContent = completedProjects;
+        }
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            loadTheme();
+            const ok = await requireAuth();
+            if (!ok) return;
+            renderProjects();
+            showToast('Добро пожаловать!', 'success');
+        });
+    </script>
+</body>
+</html>
