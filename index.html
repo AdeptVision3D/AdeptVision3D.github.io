@@ -81,6 +81,11 @@
                         <button class="theme-btn" data-theme="system" onclick="setTheme('system')" title="Системная тема"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></button>
                     </div>
                 </div>
+                <div class="global-search" style="position:relative;">
+                    <input type="text" id="globalSearchInput" placeholder="Поиск по проектам и кадрам..." autocomplete="off" oninput="onGlobalSearchInput()" onfocus="onGlobalSearchInput()" style="padding:8px 12px; border:1px solid var(--border); border-radius:6px; background: var(--card-bg); color: var(--text-primary); font-size:13px; width:240px;">
+                    <div id="globalSearchResults" style="display:none; position:absolute; top:calc(100% + 4px); left:0; right:0; background: var(--card-bg); border:1px solid var(--card-border); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.2); z-index:2500; max-height:340px; overflow-y:auto;"></div>
+                </div>
+                <a href="my.html" class="btn btn-secondary">Моё</a>
                 <a href="analytics.html" class="btn btn-secondary" id="analyticsBtn" style="display:none;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Аналитика</a>
                 <button class="btn btn-primary" id="newProjectBtn" onclick="createProject()">+ Новый проект</button>
                 <button class="btn btn-secondary" id="addEmployeeBtn" onclick="openAddEmployeeModal()" style="display:none;">+ Добавить сотрудника</button>
@@ -104,6 +109,10 @@
             <div class="stat-card">
                 <div class="stat-number" id="completedProjects">0</div>
                 <div class="stat-label">Завершено проектов</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="hotFramesCount" style="color: var(--danger);">0</div>
+                <div class="stat-label">Горящих кадров сейчас</div>
             </div>
         </div>
         <div class="hot-deadlines" id="hotDeadlines" style="display:none;"></div>
@@ -497,7 +506,7 @@
 
             const { data: frames, error: framesErr } = await supabaseClient
                 .from('frames')
-                .select('id, project_id, status');
+                .select('id, project_id, status, is_priority');
 
             if (framesErr) {
                 console.error(framesErr);
@@ -670,6 +679,34 @@
             renderProjects();
         }
 
+        // ====== Глобальный поиск (шапка) — проекты + кадры по всем проектам ======
+        let globalSearchDebounce = null;
+        function onGlobalSearchInput() {
+            clearTimeout(globalSearchDebounce);
+            const query = document.getElementById('globalSearchInput').value;
+            const resultsEl = document.getElementById('globalSearchResults');
+            if (query.trim().length < 2) { resultsEl.style.display = 'none'; return; }
+            globalSearchDebounce = setTimeout(async () => {
+                const { projects, frames } = await runGlobalSearch(query);
+                if (projects.length === 0 && frames.length === 0) {
+                    resultsEl.innerHTML = '<div style="padding:14px; font-size:13px; color:var(--text-secondary);">Ничего не найдено</div>';
+                } else {
+                    resultsEl.innerHTML = `
+                        ${projects.length > 0 ? `<div style="padding:8px 14px; font-size:11px; font-weight:700; color:var(--text-secondary); text-transform:uppercase;">Проекты</div>` : ''}
+                        ${projects.map(p => `<a href="project.html?id=${p.id}" style="display:block; padding:8px 14px; font-size:13px; color:var(--text-primary); text-decoration:none;" onmouseover="this.style.background='rgba(39,67,192,0.08)'" onmouseout="this.style.background=''">${escapeHtml(p.name)}</a>`).join('')}
+                        ${frames.length > 0 ? `<div style="padding:8px 14px; font-size:11px; font-weight:700; color:var(--text-secondary); text-transform:uppercase;">Кадры</div>` : ''}
+                        ${frames.map(f => `<a href="frame.html?project=${f.project_id}&frame=${f.id}" style="display:block; padding:8px 14px; font-size:13px; color:var(--text-primary); text-decoration:none;" onmouseover="this.style.background='rgba(39,67,192,0.08)'" onmouseout="this.style.background=''">${escapeHtml(f.name)} <span style="color:var(--text-secondary); font-size:12px;">· ${escapeHtml(f.projects ? f.projects.name : '')}</span></a>`).join('')}
+                    `;
+                }
+                resultsEl.style.display = 'block';
+            }, 250);
+        }
+        document.addEventListener('click', (e) => {
+            const wrap = document.getElementById('globalSearchInput');
+            const results = document.getElementById('globalSearchResults');
+            if (wrap && results && !wrap.contains(e.target) && !results.contains(e.target)) results.style.display = 'none';
+        });
+
         // "Горящие дедлайны" — до 5 незавершённых проектов с ближайшим/просроченным
         // сроком, доступных текущему пользователю (не показываем то, что он всё равно
         // не может открыть). Считается от полного списка, а не от отфильтрованного
@@ -773,17 +810,42 @@
                     `;
                 }).join('');
             }
-            updateStats(projects);
+            updateStats(projects, canManageProjects);
         }
 
-        function updateStats(projects) {
+        function updateStats(projects, canManageProjects) {
             const totalFrames = projects.reduce((sum, p) => sum + p.frames.length, 0);
             const completedFrames = projects.reduce((sum, p) => sum + p.frames.filter(f => f.status === 'done').length, 0);
             const completedProjects = projects.filter(p => p.completed).length;
+            // "Живой" показатель — горящие кадры только по доступным пользователю проектам
+            const hotFrames = projects.reduce((sum, p) => {
+                if (getProjectFlags(p, canManageProjects).blockedFromEntry) return sum;
+                return sum + p.frames.filter(f => f.is_priority).length;
+            }, 0);
             document.getElementById('totalProjects').textContent = projects.length;
             document.getElementById('totalFrames').textContent = totalFrames;
             document.getElementById('completedFrames').textContent = completedFrames;
             document.getElementById('completedProjects').textContent = completedProjects;
+            const hotEl = document.getElementById('hotFramesCount');
+            if (hotEl) hotEl.textContent = hotFrames;
+        }
+
+        // "Живые" виджеты: тихо обновляем цифры каждые 60 секунд, не трогая сетку карточек,
+        // чтобы не сбивать открытые модалки/выделение текста. Полный renderProjects()
+        // вызывается только по явным действиям пользователя.
+        function isAnyModalOpen() {
+            return ['addEmployeeModal', 'employeesModal', 'projectTeamModal'].some(id => {
+                const el = document.getElementById(id);
+                return el && el.style.display === 'flex';
+            });
+        }
+        async function refreshLiveStats() {
+            if (isAnyModalOpen()) return;
+            const canManageProjects = currentUser && (hasAdminAccess(currentUser) || ['lead', 'art_director', 'ceo'].includes(currentUser.role));
+            const projects = await loadProjectsWithFrames();
+            lastLoadedProjects = projects;
+            updateStats(projects, canManageProjects);
+            renderHotDeadlines(projects, canManageProjects);
         }
 
         document.addEventListener('DOMContentLoaded', async function() {
@@ -801,6 +863,8 @@
             } else {
                 showToast('Добро пожаловать!', 'success');
             }
+            // "Живые" виджеты — тихое обновление раз в минуту, без перерисовки всей сетки
+            setInterval(refreshLiveStats, 60000);
         });
     </script>
 </body>

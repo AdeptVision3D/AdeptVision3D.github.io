@@ -133,3 +133,105 @@ function formatDateRu(isoDate) {
     const [year, month, day] = isoDate.split('-');
     return `${day}.${month}.${year}`;
 }
+
+// ====== Упоминания (@Имя Фамилия) в комментариях — общая логика для frame.html и my.html ======
+
+// Достаём из текста комментария id всех сотрудников, чьё полное имя встречается
+// после "@" (сравнение без учёта регистра). Простое решение без парсинга markdown —
+// сотрудник должен быть напечатан целиком, автокомплит (attachMentionAutocomplete)
+// как раз вставляет имя в нужном виде, чтобы не приходилось печатать вручную.
+function extractMentions(text, employees) {
+    if (!text || !employees || employees.length === 0) return [];
+    const lower = text.toLowerCase();
+    const ids = [];
+    employees.forEach(p => {
+        if (p.full_name && lower.includes('@' + p.full_name.toLowerCase())) ids.push(p.id);
+    });
+    return [...new Set(ids)];
+}
+
+// Подсвечивает "@Имя Фамилия" в уже экранированном (escapeHtml) тексте комментария.
+// Работает поверх escapeHtml — сначала текст экранируется, потом в нём ищутся и
+// оборачиваются в span только реально известные имена сотрудников, поэтому это
+// безопасно (нельзя вставить произвольный HTML через комментарий).
+function highlightMentions(escapedText, employees) {
+    if (!employees || employees.length === 0) return escapedText;
+    let result = escapedText;
+    employees.forEach(p => {
+        if (!p.full_name) return;
+        const escapedName = escapeHtml(p.full_name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        result = result.replace(new RegExp('@' + escapedName, 'gi'), `<span class="mention-tag">@${escapeHtml(p.full_name)}</span>`);
+    });
+    return result;
+}
+
+// Простой автокомплит "@" в текстовом поле: набираешь "@" + начало имени — под полем
+// всплывает список совпадений из employeesGetter(), клик вставляет имя целиком.
+// employeesGetter — функция (не массив!), т.к. список сотрудников обычно подгружается
+// асинхронно уже после того, как поле привязано.
+function attachMentionAutocomplete(inputEl, employeesGetter) {
+    if (!inputEl) return;
+    let dropdown = null;
+    function closeDropdown() { if (dropdown) { dropdown.remove(); dropdown = null; } }
+    inputEl.addEventListener('input', () => {
+        const val = inputEl.value;
+        const cursor = inputEl.selectionStart;
+        const uptoCursor = val.slice(0, cursor);
+        const atIndex = uptoCursor.lastIndexOf('@');
+        if (atIndex === -1 || /\s/.test(uptoCursor.slice(atIndex + 1))) { closeDropdown(); return; }
+        const partial = uptoCursor.slice(atIndex + 1).toLowerCase();
+        const employees = (employeesGetter && employeesGetter()) || [];
+        const matches = employees.filter(p => p.full_name && p.full_name.toLowerCase().includes(partial)).slice(0, 5);
+        closeDropdown();
+        if (matches.length === 0) return;
+        dropdown = document.createElement('div');
+        dropdown.style.cssText = 'position:absolute; z-index:5000; background:var(--card-bg,#fff); border:1px solid var(--border,#ccc); border-radius:6px; box-shadow:0 8px 24px rgba(0,0,0,0.2); overflow:hidden; font-size:13px; min-width:180px;';
+        const rect = inputEl.getBoundingClientRect();
+        dropdown.style.left = (rect.left + window.scrollX) + 'px';
+        dropdown.style.top = (rect.bottom + window.scrollY + 4) + 'px';
+        matches.forEach(p => {
+            const item = document.createElement('div');
+            item.textContent = p.full_name;
+            item.style.cssText = 'padding:8px 12px; cursor:pointer; color: var(--text-primary, #111);';
+            item.onmouseenter = () => item.style.background = 'rgba(39,67,192,0.1)';
+            item.onmouseleave = () => item.style.background = '';
+            item.onmousedown = (e) => {
+                e.preventDefault(); // не даём инпуту потерять фокус раньше клика
+                const before = val.slice(0, atIndex);
+                const after = val.slice(cursor);
+                inputEl.value = `${before}@${p.full_name} ${after}`;
+                inputEl.focus();
+                closeDropdown();
+            };
+            dropdown.appendChild(item);
+        });
+        document.body.appendChild(dropdown);
+    });
+    inputEl.addEventListener('blur', () => setTimeout(closeDropdown, 150));
+}
+
+// ====== Глобальный поиск (проекты + кадры) — используется на главной и доступен
+// с других страниц через переход на index.html#search=... ======
+async function runGlobalSearch(query) {
+    const q = query.trim();
+    if (q.length < 2) return { projects: [], frames: [] };
+    const [{ data: projects, error: projErr }, { data: frames, error: frameErr }] = await Promise.all([
+        supabaseClient.from('projects').select('id, name').ilike('name', `%${q}%`).limit(8),
+        supabaseClient.from('frames').select('id, name, project_id').ilike('name', `%${q}%`).limit(8)
+    ]);
+    if (projErr) console.error(projErr);
+    if (frameErr) console.error(frameErr);
+    // Джойн с проектами вручную (как и везде на сайте) — не полагаемся на то, что
+    // Supabase сам определит связь frames.project_id -> projects.id для вложенного select
+    let framesWithProject = frames || [];
+    if (framesWithProject.length > 0) {
+        const projectIds = [...new Set(framesWithProject.map(f => f.project_id))];
+        const { data: frameProjects, error: fpErr } = await supabaseClient.from('projects').select('id, name').in('id', projectIds);
+        if (fpErr) console.error(fpErr);
+        framesWithProject = framesWithProject.map(f => ({
+            ...f,
+            projects: { name: (frameProjects || []).find(p => p.id === f.project_id)?.name || '' }
+        }));
+    }
+    return { projects: projects || [], frames: framesWithProject };
+}

@@ -33,6 +33,8 @@
         .frame-card.priority { border-color: var(--danger); }
         .priority-badge { font-family: var(--font-mono); font-size: 11px; padding: 4px 12px 4px 9px; border-radius: 999px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; background: rgba(231, 76, 60, 0.12); color: var(--danger); }
         .btn-priority-on { color: var(--danger); border-color: var(--danger); }
+        .assignee-badge { font-family: var(--font-mono); font-size: 11px; padding: 4px 12px 4px 9px; border-radius: 999px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; background: rgba(39, 67, 192, 0.1); color: var(--accent); }
+        .assignee-select { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-secondary); color: var(--text-primary); font-size: 13px; }
         .empty-state { text-align: center; padding: 80px 20px; color: var(--text-secondary); }
         .empty-state h3 { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 8px; color: var(--text-primary); }
         .status-badge { font-family: var(--font-mono); font-size: 11px; padding: 4px 12px 4px 9px; border-radius: 999px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
@@ -59,7 +61,10 @@
                         <button class="theme-btn" data-theme="system" onclick="setTheme('system')" title="Системная тема"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></button>
                     </div>
                 </div>
-                <button class="btn btn-primary" id="newFrameBtn" onclick="createFrame()">+ Новый кадр</button>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <a href="my.html" class="btn btn-secondary">Моё</a>
+                    <button class="btn btn-primary" id="newFrameBtn" onclick="createFrame()">+ Новый кадр</button>
+                </div>
                 <div class="user-box" id="userBox" style="display:flex; align-items:center; gap:10px; font-size:13px; color: var(--text-secondary);"></div>
             </div>
         </header>
@@ -139,6 +144,21 @@
                 return null;
             }
             return data;
+        }
+
+        // Сотрудники для назначения ответственного за кадр ("Моё") — загружаем один раз
+        let allProfilesCache = [];
+        async function loadProfilesCache() {
+            const { data, error } = await supabaseClient.from('profiles').select('id, full_name').eq('is_active', true).order('full_name', { ascending: true });
+            if (error) { console.error(error); return; }
+            allProfilesCache = data || [];
+        }
+
+        async function assignFrame(frameId, userId) {
+            const { error } = await supabaseClient.from('frames').update({ assigned_to: userId || null }).eq('id', frameId);
+            if (error) { console.error(error); showToast('Не удалось назначить исполнителя', 'error'); return; }
+            showToast(userId ? 'Исполнитель назначен' : 'Исполнитель снят', 'success');
+            renderFrames();
         }
 
         async function getFrames() {
@@ -279,6 +299,13 @@
                     const frameProgress = progressMap[f.id] || { total: 0, completed: 0 };
                     const progressPercent = frameProgress.total > 0 ? Math.round((frameProgress.completed / frameProgress.total) * 100) : 0;
                     const isPriority = !!f.is_priority;
+                    const assignee = f.assigned_to ? allProfilesCache.find(p => p.id === f.assigned_to) : null;
+                    const assigneeBadge = assignee ? `<span class="assignee-badge">${ICON.team} ${escapeHtml(assignee.full_name)}</span>` : '';
+                    const assigneeSelect = canManageFrames ? `
+                        <select class="assignee-select" onchange="assignFrame('${f.id}', this.value)" title="Назначить ответственного">
+                            <option value="">Не назначено</option>
+                            ${allProfilesCache.map(p => `<option value="${p.id}" ${f.assigned_to === p.id ? 'selected' : ''}>${escapeHtml(p.full_name)}</option>`).join('')}
+                        </select>` : '';
                     return `
                         <div class="frame-card viewfinder-card ${isPriority ? 'priority' : ''}">
                             <div class="frame-header">
@@ -289,11 +316,13 @@
                                         <span class="status-badge ${statusClass}"><span class="badge-dot"></span>${statusLabel}</span>
                                         <span>${frameProgress.completed}/${frameProgress.total} задач</span>
                                         ${isPriority ? `<span class="priority-badge">${ICON.warning} Горит</span>` : ''}
+                                        ${!canManageFrames ? assigneeBadge : ''}
                                     </div>
                                 </div>
                                 <div class="progress-ring" style="--percent:${progressPercent}"><span class="progress-ring-label">${progressPercent}%</span></div>
                             </div>
                             <div class="frame-body">
+                                ${canManageFrames ? `<div style="margin-bottom:12px;">${assigneeSelect}</div>` : ''}
                                 <div class="frame-actions">
                                     <a href="frame.html?project=${projectId}&frame=${f.id}" class="btn btn-primary">Открыть чек-лист</a>
                                     <button class="btn btn-secondary ${isPriority ? 'btn-priority-on' : ''}" onclick="toggleFramePriority('${f.id}', ${isPriority})" title="${isPriority ? 'Снять пометку приоритета' : 'Отметить как горящий'}">${ICON.warning}</button>
@@ -314,6 +343,7 @@
             if (!ok) return;
             const allowed = await checkProjectAccess();
             if (!allowed) return;
+            await loadProfilesCache();
             renderFrames();
             showToast('Добро пожаловать!', 'success');
         });

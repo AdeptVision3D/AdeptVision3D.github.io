@@ -117,6 +117,7 @@
         .comment { background: var(--bg-secondary); padding: 12px; border-radius: 6px; margin-bottom: 12px; border-left: 3px solid var(--border); }
         .comment-meta { display: flex; gap: 12px; margin-bottom: 8px; font-size: 12px; color: var(--text-secondary); }
         .comment-text { font-size: 14px; color: var(--text-primary); line-height: 1.5; }
+        .mention-tag { color: var(--accent); font-weight: 600; background: rgba(39, 67, 192, 0.1); padding: 1px 5px; border-radius: 4px; }
         .log-entry { padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
         .log-entry:last-child { border-bottom: none; }
         .log-time { color: var(--text-secondary); font-size: 12px; margin-bottom: 2px; }
@@ -153,6 +154,7 @@
                     <span class="overall-progress" id="overallProgress"><span class="progress-ring small" id="overallProgressRing" style="--percent:0"><span class="progress-ring-label">0%</span></span><span id="overallProgressText">Общий прогресс: 0/0</span></span>
                 </div>
                 <div class="btn-group">
+                    <a href="my.html" class="btn btn-secondary" title="Мои назначенные кадры и упоминания">Моё</a>
                     <button class="btn btn-secondary" onclick="expandAll()" title="Развернуть все этапы"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 13 12 18 17 13"/><polyline points="7 6 12 11 17 6"/></svg><span class="btn-text">Развернуть все</span></button>
                     <button class="btn btn-secondary" onclick="collapseAll()" title="Свернуть все этапы"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg><span class="btn-text">Свернуть все</span></button>
                     <button class="btn btn-secondary" id="warningsToggleBtn" onclick="toggleWarnings()" title="Скрыть/показать предупреждения"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20Z"/><line x1="12" y1="9" x2="12" y2="14"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><span class="btn-text"> Скрыть предупреждения</span></button>
@@ -183,7 +185,7 @@
             </div>
             <div class="modal-body" id="commentsModalList"></div>
             <div class="form-group">
-                <input type="text" class="form-input" id="modalCommentInput" placeholder="Написать комментарий..." onkeydown="if(event.key==='Enter') addModalComment()">
+                <input type="text" class="form-input" id="modalCommentInput" placeholder="Написать комментарий... (@Имя — упомянуть)" onkeydown="if(event.key==='Enter') addModalComment()">
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeCommentsModal()">Закрыть</button>
@@ -199,7 +201,7 @@
             </div>
             <div class="modal-body" id="taskCommentsList"></div>
             <div class="form-group">
-                <input type="text" class="form-input" id="taskCommentInput" placeholder="Написать комментарий..." onkeydown="if(event.key==='Enter') addTaskComment()">
+                <input type="text" class="form-input" id="taskCommentInput" placeholder="Написать комментарий... (@Имя — упомянуть)" onkeydown="if(event.key==='Enter') addTaskComment()">
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeTaskCommentModal()">Закрыть</button>
@@ -299,6 +301,9 @@
         let expandedStageIds = [];
         let currentCommentsStageId = null;
         let currentTaskComment = null;
+        // Текущий статус кадра (для автостатусов) и кэш сотрудников (для @упоминаний)
+        let currentFrameStatus = 'not_started';
+        let allProfilesForMentions = [];
 
         // Главное хранилище в памяти: массив этапов кадра, у каждого — свой массив задач.
         // Загружается из frame_stages/frame_tasks и обновляется при каждом действии.
@@ -327,12 +332,41 @@
             return data;
         }
 
+        // Список сотрудников для автокомплита "@" и подсветки упоминаний в комментариях
+        async function loadProfilesForMentions() {
+            const { data, error } = await supabaseClient.from('profiles').select('id, full_name').eq('is_active', true);
+            if (error) { console.error(error); return; }
+            allProfilesForMentions = data || [];
+        }
+
         async function completeFrame() {
             const { error } = await supabaseClient.from('frames').update({ status: 'done' }).eq('id', frameId);
             if (error) { console.error(error); showToast('Не удалось завершить кадр', 'error'); return; }
+            currentFrameStatus = 'done';
             await logActivity('frame_complete', 'Кадр отмечен как завершённый');
             showToast('Кадр завершён!', 'success');
             setTimeout(() => { window.location.href = `project.html?id=${projectId}`; }, 1000);
+        }
+
+        // ====== Автостатусы: статус кадра сам подстраивается под прогресс задач ======
+        // Не мешает ручному "Завершить кадр" — просто держит статус в согласии с чеклистом,
+        // чтобы не забывали вручную переключать "В работу"/"Готов".
+        async function maybeAutoUpdateFrameStatus(totalTasks, completedTasks) {
+            if (totalTasks === 0) return;
+            const allDone = completedTasks === totalTasks;
+            if (allDone && currentFrameStatus !== 'done') {
+                const { error } = await supabaseClient.from('frames').update({ status: 'done' }).eq('id', frameId);
+                if (error) { console.error(error); return; }
+                currentFrameStatus = 'done';
+                showToast('Все задачи выполнены — кадр автоматически отмечен как готов', 'success');
+                logActivity('frame_auto_status', 'Кадр автоматически переведён в статус «Готов» — все задачи выполнены');
+            } else if (!allDone && currentFrameStatus === 'done') {
+                const { error } = await supabaseClient.from('frames').update({ status: 'in_progress' }).eq('id', frameId);
+                if (error) { console.error(error); return; }
+                currentFrameStatus = 'in_progress';
+                showToast('Статус кадра автоматически возвращён «В работе»', 'warning');
+                logActivity('frame_auto_status', 'Кадр автоматически возвращён в статус «В работе» — не все задачи выполнены');
+            }
         }
 
         // Если у кадра ещё нет своих этапов в базе — создаём их один раз из шаблона
@@ -487,7 +521,7 @@
             if (progressRing) { progressRing.style.setProperty('--percent', percent); progressRing.querySelector('.progress-ring-label').textContent = `${percent}%`; }
         }
 
-        function updateOverallProgress() {
+        async function updateOverallProgress() {
             let totalTasks = 0, completedTasks = 0;
             stagesData.forEach(stage => { totalTasks += stage.tasks.length; completedTasks += stage.tasks.filter(t => t.checked).length; });
             const percent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
@@ -495,6 +529,7 @@
             if (overallRing) { overallRing.style.setProperty('--percent', percent); overallRing.querySelector('.progress-ring-label').textContent = `${percent}%`; }
             const overallText = document.getElementById('overallProgressText');
             if (overallText) overallText.textContent = `Общий прогресс: ${completedTasks}/${totalTasks}`;
+            await maybeAutoUpdateFrameStatus(totalTasks, completedTasks);
         }
 
         function refreshStageStatusBadge(stageId) {
@@ -679,7 +714,7 @@
             el.innerHTML = comments.map(c => {
                 const date = new Date(c.created_at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
                 const deleteBtn = canDeleteComments() ? `<button onclick="deleteComment('${c.id}')" style="background:none;border:none;color:var(--danger);cursor:pointer;margin-left:auto;display:inline-flex;align-items:center;">${ICON.trash}</button>` : '';
-                return `<div class="comment"><div class="comment-meta"><strong>${escapeHtml(c.author_name)}</strong><span>${date}</span>${deleteBtn}</div><div class="comment-text">${escapeHtml(c.text)}</div></div>`;
+                return `<div class="comment"><div class="comment-meta"><strong>${escapeHtml(c.author_name)}</strong><span>${date}</span>${deleteBtn}</div><div class="comment-text">${highlightMentions(escapeHtml(c.text), allProfilesForMentions)}</div></div>`;
             }).join('');
         }
 
@@ -699,7 +734,8 @@
             const text = input.value.trim();
             if (!text) return;
             const stage = stagesData.find(s => s.id === currentCommentsStageId);
-            const { data, error } = await supabaseClient.from('frame_comments').insert({ frame_stage_id: currentCommentsStageId, frame_task_id: null, author_id: currentUser.id, author_name: currentUser.full_name, text: text }).select().single();
+            const mentions = extractMentions(text, allProfilesForMentions);
+            const { data, error } = await supabaseClient.from('frame_comments').insert({ frame_stage_id: currentCommentsStageId, frame_task_id: null, author_id: currentUser.id, author_name: currentUser.full_name, text: text, mentions: mentions }).select().single();
             if (error) { console.error(error); showToast('Не удалось добавить комментарий', 'error'); return; }
             input.value = '';
             stage.comments.push(data);
@@ -727,7 +763,8 @@
             if (!text) return;
             const stage = stagesData.find(s => s.id === currentTaskComment.stageId);
             const task = stage.tasks.find(t => t.id === currentTaskComment.taskId);
-            const { data, error } = await supabaseClient.from('frame_comments').insert({ frame_stage_id: currentTaskComment.stageId, frame_task_id: currentTaskComment.taskId, author_id: currentUser.id, author_name: currentUser.full_name, text: text }).select().single();
+            const mentions = extractMentions(text, allProfilesForMentions);
+            const { data, error } = await supabaseClient.from('frame_comments').insert({ frame_stage_id: currentTaskComment.stageId, frame_task_id: currentTaskComment.taskId, author_id: currentUser.id, author_name: currentUser.full_name, text: text, mentions: mentions }).select().single();
             if (error) { console.error(error); showToast('Не удалось добавить комментарий', 'error'); return; }
             input.value = '';
             task.comments.push(data);
@@ -830,9 +867,13 @@
             if (frame) {
                 document.getElementById('frameTitle').textContent = frame.name;
                 document.getElementById('backBtn').href = `project.html?id=${projectId}`;
+                currentFrameStatus = frame.status || 'not_started';
             } else {
                 document.getElementById('frameTitle').textContent = 'Кадр не найден';
             }
+            await loadProfilesForMentions();
+            attachMentionAutocomplete(document.getElementById('modalCommentInput'), () => allProfilesForMentions);
+            attachMentionAutocomplete(document.getElementById('taskCommentInput'), () => allProfilesForMentions);
             await seedFrameStagesIfNeeded();
             await loadStagesData();
             renderStages();
