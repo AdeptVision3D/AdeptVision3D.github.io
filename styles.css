@@ -264,3 +264,20 @@ body {
 }
 .site-credit a { color: inherit; text-decoration: none; }
 .site-credit a:hover { opacity: 1; text-decoration: underline; }
+
+/* Маскот-рендербот для пустых состояний (см. MASCOT_SVG в common.js) */
+.mascot-wrap { display: flex; justify-content: center; margin-bottom: 12px; color: var(--text-secondary); }
+.mascot-body { transform-origin: 50% 90%; animation: mascotFloat 3.2s ease-in-out infinite; }
+@keyframes mascotFloat {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    50% { transform: translateY(-6px) rotate(-1.5deg); }
+}
+.mascot-eye { animation: mascotBlink 4.5s ease-in-out infinite; transform-origin: center; }
+.mascot-eye:nth-child(5) { animation-delay: 0.08s; }
+@keyframes mascotBlink {
+    0%, 92%, 100% { transform: scaleY(1); }
+    95% { transform: scaleY(0.1); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .mascot-body, .mascot-eye { animation: none; }
+}

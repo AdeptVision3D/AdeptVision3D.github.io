@@ -95,6 +95,7 @@
         </header>
         <div class="frames-grid" id="framesGrid"></div>
         <div class="empty-state" id="emptyState" style="display: none;">
+            <div class="mascot-wrap" id="emptyStateMascot"></div>
             <h3>Нет кадров</h3>
             <p>Создайте первый кадр для этого проекта</p>
         </div>
@@ -424,7 +425,7 @@
         async function openProjectLogModal() {
             document.getElementById('projectLogModal').classList.add('active');
             const listEl = document.getElementById('projectLogModalList');
-            listEl.innerHTML = '<p style="color: var(--text-secondary); font-size: 13px; text-align: center; padding: 20px 0;">Загрузка...</p>';
+            listEl.innerHTML = `<p style="color: var(--text-secondary); font-size: 13px; text-align: center; padding: 20px 0;">${randomLoadingPhrase()}</p>`;
 
             const frames = await getFrames();
             const frameIds = frames.map(f => f.id);
@@ -464,6 +465,8 @@
 
         document.addEventListener('DOMContentLoaded', async function() {
             loadTheme();
+            document.getElementById('emptyStateMascot').innerHTML = MASCOT_SVG;
+            document.getElementById('projectTitle').textContent = randomLoadingPhrase();
             const ok = await requireAuth();
             if (!ok) return;
             const allowed = await checkProjectAccess();

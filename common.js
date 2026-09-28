@@ -457,3 +457,40 @@ function renderReminderBell(items) {
     if (document.body) inject();
     else document.addEventListener('DOMContentLoaded', inject);
 })();
+
+// ====== Немного мема: шуточные фразы загрузки и маскот-рендербот ======
+// Заменяют скучное "Загрузка..." в модалках/заголовках — чисто для настроения,
+// на логику ни на что не влияет.
+const FUNNY_LOADING_PHRASES = [
+    'Считаем полигоны...',
+    'Прогреваем Corona...',
+    'Договариваемся с GI...',
+    'Кэшируем облучённость...',
+    'Будим Sun & Sky...',
+    'Ищем потерянные пиксели...',
+    'Собираем сцену...',
+    'Считаем денойз...',
+    'Почти как рендер — осталось совсем чуть-чуть...',
+    'Уговариваем Vray... то есть Corona, простите'
+];
+function randomLoadingPhrase() {
+    return FUNNY_LOADING_PHRASES[Math.floor(Math.random() * FUNNY_LOADING_PHRASES.length)];
+}
+
+// Маленький маскот-рендербот для пустых состояний ("кадров пока нет" и т.п.) —
+// покачивается и изредка моргает, чистый inline SVG + CSS-анимация, без картинок.
+const MASCOT_SVG = `
+<svg class="mascot" width="88" height="88" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="50" cy="90" rx="26" ry="5" fill="currentColor" opacity="0.08"/>
+    <g class="mascot-body">
+        <rect x="10" y="8" width="10" height="6" rx="3" fill="currentColor" opacity="0.5" transform="rotate(-20 15 11)"/>
+        <circle cx="10" cy="8" r="3" fill="var(--accent)"/>
+        <rect x="22" y="16" width="56" height="42" rx="10" fill="currentColor" opacity="0.12" stroke="var(--accent)" stroke-width="2.5"/>
+        <circle class="mascot-eye" cx="40" cy="37" r="4.5" fill="var(--accent)"/>
+        <circle class="mascot-eye" cx="60" cy="37" r="4.5" fill="var(--accent)"/>
+        <path d="M40 48 Q50 54 60 48" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+        <rect x="16" y="62" width="68" height="10" rx="5" fill="currentColor" opacity="0.12" stroke="var(--accent)" stroke-width="2"/>
+        <rect x="30" y="76" width="12" height="10" rx="3" fill="currentColor" opacity="0.3"/>
+        <rect x="58" y="76" width="12" height="10" rx="3" fill="currentColor" opacity="0.3"/>
+    </g>
+</svg>`;

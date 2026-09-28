@@ -436,7 +436,7 @@
 
         async function openLogModal() {
             const listEl = document.getElementById('logModalList');
-            listEl.innerHTML = '<p style="color: var(--text-secondary); font-size: 13px; text-align: center; padding: 20px 0;">Загрузка...</p>';
+            listEl.innerHTML = `<p style="color: var(--text-secondary); font-size: 13px; text-align: center; padding: 20px 0;">${randomLoadingPhrase()}</p>`;
             document.getElementById('logModal').classList.add('active');
             const { data, error } = await supabaseClient.from('frame_activity_log').select('*').eq('frame_id', frameId).order('created_at', { ascending: false }).limit(200);
             if (error) { console.error(error); listEl.innerHTML = '<p style="color: var(--danger); font-size: 13px;">Не удалось загрузить лог</p>'; return; }
@@ -866,6 +866,7 @@
         document.addEventListener('DOMContentLoaded', async function() {
             loadTheme();
             loadWarningsPref();
+            document.getElementById('frameTitle').textContent = randomLoadingPhrase();
             const ok = await requireAuth();
             if (!ok) return;
             initDeadlineReminders(currentUser);

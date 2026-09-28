@@ -10,6 +10,7 @@
     <meta name="theme-color" content="#0F1830">
     <link rel="apple-touch-icon" href="icons/icon-192.png">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
@@ -154,6 +155,7 @@
         </div>
         <div class="projects-grid" id="projectsGrid"></div>
         <div class="empty-state" id="emptyState" style="display: none;">
+            <div class="mascot-wrap" id="emptyStateMascot"></div>
             <h3 id="emptyStateTitle">Нет проектов</h3>
             <p id="emptyStateText">Создайте первый проект, чтобы начать работу</p>
         </div>
@@ -446,7 +448,7 @@
 
         async function loadAndRenderEmployees() {
             const listEl = document.getElementById('employeesList');
-            listEl.innerHTML = '<p style="color: var(--text-secondary); font-size: 13px; text-align: center; padding: 20px 0;">Загрузка...</p>';
+            listEl.innerHTML = `<p style="color: var(--text-secondary); font-size: 13px; text-align: center; padding: 20px 0;">${randomLoadingPhrase()}</p>`;
             const { data, error } = await supabaseClient.from('profiles').select('*').order('full_name', { ascending: true });
             if (error) { console.error(error); listEl.innerHTML = '<p style="color: var(--danger); font-size: 13px;">Не удалось загрузить список</p>'; return; }
             allEmployeesCache = data || [];
@@ -492,7 +494,7 @@
             if (!project) return;
             currentTeamProjectId = projectId;
             document.getElementById('projectTeamName').textContent = project.name;
-            document.getElementById('projectTeamList').innerHTML = '<p style="color: var(--text-secondary); font-size: 13px; text-align: center; padding: 20px 0;">Загрузка...</p>';
+            document.getElementById('projectTeamList').innerHTML = `<p style="color: var(--text-secondary); font-size: 13px; text-align: center; padding: 20px 0;">${randomLoadingPhrase()}</p>`;
             document.getElementById('projectTeamModal').style.display = 'flex';
 
             const { data, error } = await supabaseClient
@@ -661,6 +663,10 @@
             }
             logProjectActivity(id, 'project_complete', !currentlyCompleted ? 'Проект отмечен как завершённый' : 'Проект возвращён в работу', currentUser ? currentUser.full_name : null);
             showToast(!currentlyCompleted ? 'Проект завершён!' : 'Проект возвращён', 'success');
+            // Маленький праздник — только когда завершаем, не при отмене
+            if (!currentlyCompleted && typeof confetti === 'function') {
+                confetti({ particleCount: 130, spread: 95, origin: { y: 0.6 } });
+            }
             renderProjects();
         }
 
@@ -947,6 +953,7 @@
         document.addEventListener('DOMContentLoaded', async function() {
             loadTheme();
             restoreProjectsControls();
+            document.getElementById('emptyStateMascot').innerHTML = MASCOT_SVG;
             const ok = await requireAuth();
             if (!ok) return;
             await renderProjects();
