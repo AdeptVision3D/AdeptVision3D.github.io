@@ -235,3 +235,102 @@ async function runGlobalSearch(query) {
     }
     return { projects: projects || [], frames: framesWithProject };
 }
+
+// ====== "Сдача в срок" — эффективный срок кадра и статус доставки ======
+// Если у кадра нет своего срока — используем дедлайн проекта. Возвращает
+// ISO-дату (YYYY-MM-DD) или null, если срок нигде не задан.
+function getEffectiveDueDate(frame, projectDeadline) {
+    return (frame && frame.due_date) || projectDeadline || null;
+}
+
+// Статус доставки кадра: 'on_time' | 'late' | 'overdue' | null.
+// null — либо срок не задан вовсе, либо кадр ещё не завершён и срок не прошёл
+// (тогда достаточно обычного deadline-бейджа "скоро/просрочено", см. getDeadlineStatus).
+function getDeliveryStatus(frame, projectDeadline) {
+    const due = getEffectiveDueDate(frame, projectDeadline);
+    if (!due) return null;
+    if (frame.status === 'done') {
+        if (!frame.completed_at) return null; // старые записи без даты завершения — не оцениваем
+        const completedDate = frame.completed_at.slice(0, 10);
+        return completedDate <= due ? 'on_time' : 'late';
+    }
+    const todayIso = new Date().toISOString().slice(0, 10);
+    return todayIso > due ? 'overdue' : null;
+}
+
+// ====== Лог активности (frame_activity_log) — общие функции для всех страниц ======
+// Раньше запись в лог умел делать только frame.html (там же и модалка для чтения).
+// Теперь действия с кадром можно совершать и со страницы проекта (назначение,
+// приоритет, статус, срок сдачи) — эти функции даём общими, чтобы такие действия
+// тоже попадали в журнал.
+async function logFrameActivity(frameId, actionType, description, actorName) {
+    const { error } = await supabaseClient.from('frame_activity_log').insert({
+        frame_id: frameId, action_type: actionType, description: description, actor_name: actorName || null
+    });
+    if (error) console.error('Ошибка записи в лог:', error);
+}
+
+// Записи уровня проекта (не привязаны к конкретному кадру) — стоп/снятие стопа,
+// завершение проекта, изменение команды и т.п.
+async function logProjectActivity(projectId, actionType, description, actorName) {
+    const { error } = await supabaseClient.from('frame_activity_log').insert({
+        project_id: projectId, action_type: actionType, description: description, actor_name: actorName || null
+    });
+    if (error) console.error('Ошибка записи в лог:', error);
+}
+
+// ====== Сеть: баннер офлайн/онлайн + устойчивые к сетевым сбоям запросы ======
+// Баннер создаём один раз через JS и вставляем на любую страницу, где подключён
+// common.js — правкой одного файла работает сразу везде, без изменений в каждом HTML.
+(function initConnectivityBanner() {
+    let banner = null;
+    function ensureBanner() {
+        if (banner) return banner;
+        banner = document.createElement('div');
+        banner.id = 'connectivityBanner';
+        const attach = () => document.body && document.body.prepend(banner);
+        if (document.body) attach();
+        else document.addEventListener('DOMContentLoaded', attach);
+        return banner;
+    }
+    function showOffline() {
+        const el = ensureBanner();
+        el.className = 'offline';
+        el.textContent = '⚠ Нет подключения к интернету — изменения не сохраняются';
+    }
+    function showReconnected() {
+        const el = ensureBanner();
+        if (el.className !== 'offline') return; // баннера офлайна не было — не показываем "восстановлено" зря
+        el.className = 'reconnected';
+        el.textContent = '✓ Соединение восстановлено';
+        setTimeout(() => { el.className = ''; }, 3000);
+    }
+    window.addEventListener('offline', showOffline);
+    window.addEventListener('online', showReconnected);
+    document.addEventListener('DOMContentLoaded', () => {
+        if (!navigator.onLine) showOffline();
+    });
+})();
+
+// Похоже ли это на сетевую ошибку (обрыв соединения), а не на обычную ошибку
+// от Supabase/Postgres (нет прав, нарушение constraint и т.п.)?
+function isNetworkError(error) {
+    if (!error) return false;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return true;
+    const msg = ((error && error.message) || '').toLowerCase();
+    return msg.includes('failed to fetch') || msg.includes('networkerror') || msg.includes('load failed') || msg.includes('network request failed');
+}
+
+// Оборачивает запрос к Supabase: если ошибка похожа на сетевую — делает
+// повторные попытки с паузой вместо того, чтобы сразу показывать пользователю
+// ошибку из-за случайного обрыва связи (актуально в полевых условиях/на объекте).
+// queryFn — функция без аргументов, возвращающая { data, error } (обычный supabase-запрос).
+async function withRetry(queryFn, retries = 2, delayMs = 1200) {
+    let result = await queryFn();
+    while (result && result.error && isNetworkError(result.error) && retries > 0) {
+        await new Promise(r => setTimeout(r, delayMs));
+        result = await queryFn();
+        retries--;
+    }
+    return result;
+}

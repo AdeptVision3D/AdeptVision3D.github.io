@@ -340,7 +340,8 @@
         }
 
         async function completeFrame() {
-            const { error } = await supabaseClient.from('frames').update({ status: 'done' }).eq('id', frameId);
+            // completed_at фиксируем вместе со статусом — по нему считаем "сдано в срок/с опозданием"
+            const { error } = await supabaseClient.from('frames').update({ status: 'done', completed_at: new Date().toISOString() }).eq('id', frameId);
             if (error) { console.error(error); showToast('Не удалось завершить кадр', 'error'); return; }
             currentFrameStatus = 'done';
             await logActivity('frame_complete', 'Кадр отмечен как завершённый');
@@ -355,13 +356,13 @@
             if (totalTasks === 0) return;
             const allDone = completedTasks === totalTasks;
             if (allDone && currentFrameStatus !== 'done') {
-                const { error } = await supabaseClient.from('frames').update({ status: 'done' }).eq('id', frameId);
+                const { error } = await supabaseClient.from('frames').update({ status: 'done', completed_at: new Date().toISOString() }).eq('id', frameId);
                 if (error) { console.error(error); return; }
                 currentFrameStatus = 'done';
                 showToast('Все задачи выполнены — кадр автоматически отмечен как готов', 'success');
                 logActivity('frame_auto_status', 'Кадр автоматически переведён в статус «Готов» — все задачи выполнены');
             } else if (!allDone && currentFrameStatus === 'done') {
-                const { error } = await supabaseClient.from('frames').update({ status: 'in_progress' }).eq('id', frameId);
+                const { error } = await supabaseClient.from('frames').update({ status: 'in_progress', completed_at: null }).eq('id', frameId);
                 if (error) { console.error(error); return; }
                 currentFrameStatus = 'in_progress';
                 showToast('Статус кадра автоматически возвращён «В работе»', 'warning');
@@ -395,8 +396,12 @@
 
         // Загружает все этапы кадра вместе с их задачами и комментариями (к этапам и к задачам)
         async function loadStagesData() {
-            const { data: stages, error } = await supabaseClient.from('frame_stages').select('*').eq('frame_id', frameId).order('stage_number', { ascending: true });
-            if (error) { console.error(error); showToast('Ошибка загрузки этапов', 'error'); stagesData = []; return; }
+            const { data: stages, error } = await withRetry(() => supabaseClient.from('frame_stages').select('*').eq('frame_id', frameId).order('stage_number', { ascending: true }));
+            if (error) {
+                console.error(error);
+                showToast(isNetworkError(error) ? 'Нет соединения — проверьте сеть и обновите страницу' : 'Ошибка загрузки этапов', 'error');
+                stagesData = []; return;
+            }
             const stageIds = stages.map(s => s.id);
             let tasks = [];
             let comments = [];

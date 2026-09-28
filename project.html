@@ -41,6 +41,30 @@
         .status-not-started { background: var(--border); color: var(--text-secondary); }
         .status-in-progress { background: rgba(243, 156, 18, 0.15); color: var(--warning); }
         .status-done { background: rgba(39, 174, 96, 0.15); color: var(--success); }
+        .deadline-badge { font-family: var(--font-mono); font-size: 11px; padding: 4px 12px 4px 9px; border-radius: 999px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
+        .deadline-ok { background: rgba(39, 174, 96, 0.15); color: var(--success); }
+        .deadline-soon { background: rgba(243, 156, 18, 0.15); color: var(--warning); }
+        .deadline-urgent { background: rgba(231, 76, 60, 0.15); color: var(--danger); }
+        .delivery-badge { font-family: var(--font-mono); font-size: 11px; padding: 4px 12px 4px 9px; border-radius: 999px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
+        .delivery-on_time { background: rgba(39, 174, 96, 0.15); color: var(--success); }
+        .delivery-late { background: rgba(231, 76, 60, 0.15); color: var(--danger); }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--modal-overlay); backdrop-filter: blur(4px); z-index: 2000; justify-content: center; align-items: center; }
+        .modal.active { display: flex; }
+        .modal-content { background: var(--modal-bg); border-radius: 8px; padding: 32px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid var(--border); }
+        .modal-title { font-size: 18px; font-weight: 700; }
+        .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-secondary); transition: color 0.2s ease; padding: 4px; }
+        .modal-close:hover { color: var(--text-primary); transform: scale(1.1); }
+        .modal-body { margin-bottom: 24px; }
+        .modal-footer { display: flex; gap: 12px; justify-content: flex-end; padding-top: 16px; border-top: 2px solid var(--border); }
+        .log-entry { padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+        .log-entry:last-child { border-bottom: none; }
+        .log-time { color: var(--text-secondary); font-size: 12px; margin-bottom: 2px; }
+        .log-desc { color: var(--text-primary); }
+        .log-frame-tag { color: var(--accent); font-weight: 600; }
+        @media (max-width: 768px) {
+            .modal-content { padding: 20px; max-height: 88vh; }
+        }
         @media (max-width: 768px) {
             body { padding: 20px; }
             .header-top { flex-direction: column; align-items: flex-start; }
@@ -63,6 +87,7 @@
                 </div>
                 <div style="display:flex; align-items:center; gap:10px;">
                     <a href="my.html" class="btn btn-secondary">Моё</a>
+                    <button class="btn btn-secondary" onclick="openProjectLogModal()" title="Журнал изменений по проекту">📋 <span class="btn-text">Журнал</span></button>
                     <button class="btn btn-primary" id="newFrameBtn" onclick="createFrame()">+ Новый кадр</button>
                 </div>
                 <div class="user-box" id="userBox" style="display:flex; align-items:center; gap:10px; font-size:13px; color: var(--text-secondary);"></div>
@@ -75,6 +100,18 @@
         </div>
     </div>
     <div class="toast-container" id="toastContainer"></div>
+    <div class="modal" id="projectLogModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" style="display:flex; align-items:center; gap:8px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> Журнал изменений по проекту</h3>
+                <button class="modal-close" onclick="closeProjectLogModal()">×</button>
+            </div>
+            <div class="modal-body" id="projectLogModalList"></div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeProjectLogModal()">Закрыть</button>
+            </div>
+        </div>
+    </div>
     <script src="common.js"></script>
     <script>
         let currentUser = null;
@@ -134,11 +171,13 @@
         // ====== РАБОТА С ДАННЫМИ ЧЕРЕЗ SUPABASE ======
 
         async function getProject() {
-            const { data, error } = await supabaseClient
+            // withRetry — при обрыве связи (не при обычной ошибке БД) делает пару
+            // повторных попыток вместо того, чтобы сразу показать пустую страницу
+            const { data, error } = await withRetry(() => supabaseClient
                 .from('projects')
                 .select('*')
                 .eq('id', projectId)
-                .single();
+                .single());
             if (error) {
                 console.error(error);
                 return null;
@@ -156,20 +195,50 @@
 
         async function assignFrame(frameId, userId) {
             const { error } = await supabaseClient.from('frames').update({ assigned_to: userId || null }).eq('id', frameId);
-            if (error) { console.error(error); showToast('Не удалось назначить исполнителя', 'error'); return; }
+            if (error) {
+                const msg = isNetworkError(error) ? 'Нет соединения — попробуйте ещё раз' : 'Не удалось назначить исполнителя';
+                console.error(error); showToast(msg, 'error'); return;
+            }
+            const assignee = userId ? allProfilesCache.find(p => p.id === userId) : null;
+            logFrameActivity(frameId, 'assign', assignee ? `Назначен исполнитель: ${assignee.full_name}` : 'Исполнитель снят', currentUser ? currentUser.full_name : null);
             showToast(userId ? 'Исполнитель назначен' : 'Исполнитель снят', 'success');
             renderFrames();
         }
 
+        // Срок сдачи конкретного кадра (если пусто — используется срок проекта).
+        // Быстрое редактирование через prompt(), как и у срока проекта на главной.
+        async function editFrameDueDate(frameId, currentDueIso) {
+            let currentDisplay = '';
+            if (currentDueIso) {
+                const [y, m, d] = currentDueIso.split('-');
+                currentDisplay = `${d}.${m}.${y}`;
+            }
+            const raw = prompt('Срок сдачи кадра (ДД.ММ.ГГГГ), пусто — использовать срок проекта:', currentDisplay);
+            if (raw === null) return; // отмена
+
+            let dueIso = null;
+            if (raw.trim()) {
+                const parts = raw.trim().split('.');
+                if (parts.length !== 3) { showToast('Неверный формат даты', 'error'); return; }
+                const [d, m, y] = parts;
+                dueIso = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+            }
+            const { error } = await supabaseClient.from('frames').update({ due_date: dueIso }).eq('id', frameId);
+            if (error) { console.error(error); showToast('Не удалось изменить срок', 'error'); return; }
+            logFrameActivity(frameId, 'due_date_change', dueIso ? `Установлен срок сдачи кадра: ${formatDateRu(dueIso)}` : 'Срок сдачи кадра сброшен (используется срок проекта)', currentUser ? currentUser.full_name : null);
+            showToast('Срок обновлён', 'success');
+            renderFrames();
+        }
+
         async function getFrames() {
-            const { data, error } = await supabaseClient
+            const { data, error } = await withRetry(() => supabaseClient
                 .from('frames')
                 .select('*')
                 .eq('project_id', projectId)
-                .order('created_at', { ascending: false });
+                .order('created_at', { ascending: false }));
             if (error) {
                 console.error(error);
-                showToast('Ошибка загрузки кадров', 'error');
+                showToast(isNetworkError(error) ? 'Нет соединения — проверьте сеть и обновите страницу' : 'Ошибка загрузки кадров', 'error');
                 return [];
             }
             return data;
@@ -230,15 +299,19 @@
         }
 
         async function setFrameStatus(frameId, status) {
+            // completed_at фиксируем/сбрасываем вместе со статусом — нужно для
+            // расчёта "сдано в срок / с опозданием" (см. getDeliveryStatus в common.js)
+            const updates = { status: status };
+            updates.completed_at = status === 'done' ? new Date().toISOString() : null;
             const { error } = await supabaseClient
                 .from('frames')
-                .update({ status: status })
+                .update(updates)
                 .eq('id', frameId);
             if (error) {
-                console.error(error);
-                showToast('Не удалось обновить статус', 'error');
-                return;
+                const msg = isNetworkError(error) ? 'Нет соединения — попробуйте ещё раз' : 'Не удалось обновить статус';
+                console.error(error); showToast(msg, 'error'); return;
             }
+            logFrameActivity(frameId, 'frame_status_change', `Статус кадра изменён: ${getFrameStatusLabel(status)}`, currentUser ? currentUser.full_name : null);
             showToast(`Статус: ${getFrameStatusLabel(status)}`, 'success');
             renderFrames();
         }
@@ -256,6 +329,7 @@
                 showToast('Не удалось изменить приоритет', 'error');
                 return;
             }
+            logFrameActivity(frameId, 'priority_toggle', !currentlyPriority ? 'Кадр отмечен как горящий' : 'Пометка приоритета снята', currentUser ? currentUser.full_name : null);
             showToast(!currentlyPriority ? 'Кадр отмечен как горящий' : 'Пометка приоритета снята', 'success');
             renderFrames();
         }
@@ -299,6 +373,10 @@
                     const frameProgress = progressMap[f.id] || { total: 0, completed: 0 };
                     const progressPercent = frameProgress.total > 0 ? Math.round((frameProgress.completed / frameProgress.total) * 100) : 0;
                     const isPriority = !!f.is_priority;
+                    const effectiveDue = getEffectiveDueDate(f, project.deadline);
+                    const dueStatus = effectiveDue ? getDeadlineStatus(effectiveDue) : null;
+                    const delivery = getDeliveryStatus(f, project.deadline);
+                    const dueTitle = f.due_date ? 'Свой срок кадра (не срок проекта)' : 'Срок по умолчанию — дедлайн проекта';
                     const assignee = f.assigned_to ? allProfilesCache.find(p => p.id === f.assigned_to) : null;
                     const assigneeBadge = assignee ? `<span class="assignee-badge">${ICON.team} ${escapeHtml(assignee.full_name)}</span>` : '';
                     const assigneeSelect = canManageFrames ? `
@@ -316,6 +394,9 @@
                                         <span class="status-badge ${statusClass}"><span class="badge-dot"></span>${statusLabel}</span>
                                         <span>${frameProgress.completed}/${frameProgress.total} задач</span>
                                         ${isPriority ? `<span class="priority-badge">${ICON.warning} Горит</span>` : ''}
+                                        ${f.status !== 'done' && effectiveDue ? `<span class="deadline-badge deadline-${dueStatus}" title="${dueTitle}"><span class="badge-dot"></span>${getDeadlineLabel(dueStatus)}: ${formatDateRu(effectiveDue)}</span>` : ''}
+                                        ${delivery === 'on_time' ? `<span class="delivery-badge delivery-on_time">✓ Сдано в срок</span>` : ''}
+                                        ${delivery === 'late' ? `<span class="delivery-badge delivery-late">⚠ Сдано с опозданием</span>` : ''}
                                         ${!canManageFrames ? assigneeBadge : ''}
                                     </div>
                                 </div>
@@ -328,6 +409,7 @@
                                     <button class="btn btn-secondary ${isPriority ? 'btn-priority-on' : ''}" onclick="toggleFramePriority('${f.id}', ${isPriority})" title="${isPriority ? 'Снять пометку приоритета' : 'Отметить как горящий'}">${ICON.warning}</button>
                                     <button class="btn btn-secondary" onclick="setFrameStatus('${f.id}', 'in_progress')">${ICON.clock} В работу</button>
                                     <button class="btn btn-secondary" onclick="setFrameStatus('${f.id}', 'done')">${ICON.check} Готов</button>
+                                    ${canManageFrames ? `<button class="btn btn-secondary" onclick="editFrameDueDate('${f.id}', ${f.due_date ? `'${f.due_date}'` : 'null'})" title="Срок сдачи кадра">${ICON.calendar} Срок</button>` : ''}
                                     ${canManageFrames ? `<button class="btn btn-secondary" onclick="deleteFrame('${f.id}')" style="color: var(--danger);">${ICON.trash}</button>` : ''}
                                 </div>
                             </div>
@@ -336,6 +418,49 @@
                 }).join('');
             }
         }
+
+        // ====== Журнал изменений по проекту — объединяет записи по всем кадрам проекта
+        // и записи уровня самого проекта (стоп/снятие стопа, завершение, команда) ======
+        async function openProjectLogModal() {
+            document.getElementById('projectLogModal').classList.add('active');
+            const listEl = document.getElementById('projectLogModalList');
+            listEl.innerHTML = '<p style="color: var(--text-secondary); font-size: 13px; text-align: center; padding: 20px 0;">Загрузка...</p>';
+
+            const frames = await getFrames();
+            const frameIds = frames.map(f => f.id);
+            const frameNameMap = Object.fromEntries(frames.map(f => [f.id, f.name]));
+
+            const queries = [
+                supabaseClient.from('frame_activity_log').select('*').eq('project_id', projectId).order('created_at', { ascending: false }).limit(100)
+            ];
+            if (frameIds.length > 0) {
+                queries.push(supabaseClient.from('frame_activity_log').select('*').in('frame_id', frameIds).order('created_at', { ascending: false }).limit(200));
+            }
+            const results = await Promise.all(queries);
+            const failed = results.find(r => r.error);
+            if (failed) {
+                console.error(failed.error);
+                listEl.innerHTML = '<p style="color: var(--danger); font-size: 13px;">Не удалось загрузить журнал</p>';
+                return;
+            }
+
+            let entries = results.flatMap(r => r.data || []);
+            const seen = new Set();
+            entries = entries.filter(e => { if (seen.has(e.id)) return false; seen.add(e.id); return true; });
+            entries.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+            entries = entries.slice(0, 200);
+
+            if (entries.length === 0) {
+                listEl.innerHTML = '<p style="color: var(--text-secondary); font-size: 13px; text-align: center; padding: 40px 0;">Изменений пока нет</p>';
+                return;
+            }
+            listEl.innerHTML = entries.map(entry => {
+                const time = new Date(entry.created_at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                const frameLabel = entry.frame_id ? (frameNameMap[entry.frame_id] || 'Удалённый кадр') : 'Проект';
+                return `<div class="log-entry"><div class="log-time">${time}${entry.actor_name ? ' · ' + escapeHtml(entry.actor_name) : ''} · <span class="log-frame-tag">${escapeHtml(frameLabel)}</span></div><div class="log-desc">${escapeHtml(entry.description)}</div></div>`;
+            }).join('');
+        }
+        function closeProjectLogModal() { document.getElementById('projectLogModal').classList.remove('active'); }
 
         document.addEventListener('DOMContentLoaded', async function() {
             loadTheme();

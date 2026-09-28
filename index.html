@@ -483,6 +483,8 @@
                     return;
                 }
             }
+            const names = selectedIds.map(id => (teamPickerEmployeesCache || []).find(p => p.id === id)?.full_name).filter(Boolean);
+            logProjectActivity(projectId, 'team_change', names.length > 0 ? `Изменена команда проекта: ${names.join(', ')}` : 'Команда проекта очищена', currentUser ? currentUser.full_name : null);
             showToast('Команда проекта обновлена', 'success');
             closeProjectTeamModal();
             renderProjects();
@@ -501,14 +503,14 @@
 
         // Загружает все проекты + отдельно все кадры (для подсчёта прогресса)
         async function loadProjectsWithFrames() {
-            const { data: projects, error: projErr } = await supabaseClient
+            const { data: projects, error: projErr } = await withRetry(() => supabaseClient
                 .from('projects')
                 .select('*')
-                .order('created_at', { ascending: false });
+                .order('created_at', { ascending: false }));
 
             if (projErr) {
                 console.error(projErr);
-                showToast('Ошибка загрузки проектов', 'error');
+                showToast(isNetworkError(projErr) ? 'Нет соединения — проверьте сеть и обновите страницу' : 'Ошибка загрузки проектов', 'error');
                 return [];
             }
 
@@ -590,6 +592,7 @@
                 showToast('Не удалось обновить статус', 'error');
                 return;
             }
+            logProjectActivity(id, 'project_complete', !currentlyCompleted ? 'Проект отмечен как завершённый' : 'Проект возвращён в работу', currentUser ? currentUser.full_name : null);
             showToast(!currentlyCompleted ? 'Проект завершён!' : 'Проект возвращён', 'success');
             renderProjects();
         }
@@ -693,6 +696,7 @@
         async function toggleProjectHold(id, currentlyOnHold) {
             const { error } = await supabaseClient.from('projects').update({ on_hold: !currentlyOnHold }).eq('id', id);
             if (error) { console.error(error); showToast('Не удалось изменить статус стопа', 'error'); return; }
+            logProjectActivity(id, 'project_on_hold', !currentlyOnHold ? 'Проект поставлен в стоп от заказчика' : 'Стоп с проекта снят', currentUser ? currentUser.full_name : null);
             showToast(!currentlyOnHold ? 'Проект поставлен в стоп' : 'Стоп снят', !currentlyOnHold ? 'warning' : 'success');
             renderProjects();
         }

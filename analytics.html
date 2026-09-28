@@ -111,6 +111,11 @@
             </div>
         </div>
 
+        <div class="panel" style="margin-bottom:24px;">
+            <div class="panel-header">Сдача в срок</div>
+            <div class="panel-body" id="onTimePanel"></div>
+        </div>
+
         <div class="panel">
             <div class="panel-header">Последние действия по всем кадрам</div>
             <div class="panel-body activity-log" id="recentActivityPanel"></div>
@@ -151,11 +156,11 @@
         // Загружает все проекты, все кадры и прогресс задач по каждому кадру одним проходом,
         // плюс лог активности по всем кадрам сразу (а не по одному кадру, как в project.html/frame.html)
         async function loadAllData() {
-            const { data: projects, error: projErr } = await supabaseClient.from('projects').select('*');
-            if (projErr) { console.error(projErr); showToast('Ошибка загрузки проектов', 'error'); return null; }
+            const { data: projects, error: projErr } = await withRetry(() => supabaseClient.from('projects').select('*'));
+            if (projErr) { console.error(projErr); showToast(isNetworkError(projErr) ? 'Нет соединения — проверьте сеть и обновите страницу' : 'Ошибка загрузки проектов', 'error'); return null; }
 
-            const { data: frames, error: framesErr } = await supabaseClient.from('frames').select('*');
-            if (framesErr) { console.error(framesErr); showToast('Ошибка загрузки кадров', 'error'); return null; }
+            const { data: frames, error: framesErr } = await withRetry(() => supabaseClient.from('frames').select('*'));
+            if (framesErr) { console.error(framesErr); showToast(isNetworkError(framesErr) ? 'Нет соединения — проверьте сеть и обновите страницу' : 'Ошибка загрузки кадров', 'error'); return null; }
 
             const frameIds = frames.map(f => f.id);
             let taskProgressByFrame = {};
@@ -221,6 +226,61 @@
                     <div class="stat-label">${c.label}</div>
                 </div>
             `).join('');
+        }
+
+        // "Сдача в срок" — сравниваем completed_at кадра с его эффективным сроком
+        // (свой due_date или, если не задан, дедлайн проекта). Считаем только кадры,
+        // у которых вообще есть срок для сравнения — иначе метрика была бы неполной
+        // и вводила бы в заблуждение.
+        function renderOnTimeDelivery(frames, projects) {
+            const panel = document.getElementById('onTimePanel');
+            const projectMap = Object.fromEntries(projects.map(p => [p.id, p]));
+            const evaluated = frames
+                .filter(f => f.status === 'done' && f.completed_at)
+                .map(f => ({ frame: f, delivery: getDeliveryStatus(f, projectMap[f.project_id] ? projectMap[f.project_id].deadline : null) }))
+                .filter(x => x.delivery === 'on_time' || x.delivery === 'late');
+
+            if (evaluated.length === 0) {
+                panel.innerHTML = '<div class="panel-empty">Пока нет завершённых кадров со сроком сдачи для оценки</div>';
+                return;
+            }
+            const onTime = evaluated.filter(x => x.delivery === 'on_time').length;
+            const late = evaluated.length - onTime;
+            const percent = Math.round((onTime / evaluated.length) * 100);
+            const percentClass = percent >= 80 ? 'deadline-ok' : percent >= 50 ? 'deadline-soon' : 'deadline-urgent';
+
+            const byProject = {};
+            evaluated.forEach(({ frame, delivery }) => {
+                const pid = frame.project_id;
+                if (!byProject[pid]) byProject[pid] = { onTime: 0, late: 0 };
+                byProject[pid][delivery === 'on_time' ? 'onTime' : 'late']++;
+            });
+            const rows = Object.entries(byProject)
+                .map(([pid, counts]) => ({ project: projectMap[pid], ...counts, total: counts.onTime + counts.late }))
+                .filter(r => r.project)
+                .sort((a, b) => b.total - a.total);
+
+            const summaryRow = `
+                <div class="row">
+                    <div>
+                        <div class="row-title">Всего оценено: ${evaluated.length} завершённых кадров</div>
+                        <div class="row-sub">${onTime} сдано в срок · ${late} с опозданием</div>
+                    </div>
+                    <span class="deadline-badge ${percentClass}">${percent}%</span>
+                </div>`;
+            const projectRows = rows.map(r => {
+                const rowPercent = Math.round((r.onTime / r.total) * 100);
+                const rowClass = r.late === 0 ? 'deadline-ok' : r.onTime === 0 ? 'deadline-urgent' : 'deadline-soon';
+                return `
+                <div class="row">
+                    <div>
+                        <div class="row-title">${escapeHtml(r.project.name)}</div>
+                        <div class="row-sub">${r.onTime} в срок · ${r.late} с опозданием</div>
+                    </div>
+                    <span class="deadline-badge ${rowClass}">${rowPercent}%</span>
+                </div>`;
+            }).join('');
+            panel.innerHTML = summaryRow + projectRows;
         }
 
         function renderDeadlines(projects) {
@@ -363,7 +423,7 @@
             panel.innerHTML = activity.slice(0, 60).map(entry => {
                 const time = new Date(entry.created_at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
                 const frame = frameById[entry.frame_id];
-                const project = frame ? projectById[frame.project_id] : null;
+                const project = frame ? projectById[frame.project_id] : (entry.project_id ? projectById[entry.project_id] : null);
                 const context = [project ? project.name : null, frame ? frame.name : null].filter(Boolean).join(' → ');
                 return `<div class="log-entry">
                     <div class="log-time">${time}${entry.actor_name ? ' · ' + escapeHtml(entry.actor_name) : ''}</div>
@@ -393,6 +453,7 @@
             renderActivityByPerson(activity);
             renderRevisions(stages, frames, projects);
             renderWorkload(frames, profiles);
+            renderOnTimeDelivery(frames, projects);
             renderRecentActivity(activity, frames, projects);
         });
     </script>

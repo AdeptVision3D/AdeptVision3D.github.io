@@ -121,10 +121,10 @@
 
         // ====== Мои проекты (я в команде проекта — project_members) ======
         async function loadMyProjects() {
-            const { data: memberships, error } = await supabaseClient
+            const { data: memberships, error } = await withRetry(() => supabaseClient
                 .from('project_members')
                 .select('project_id')
-                .eq('user_id', currentUser.id);
+                .eq('user_id', currentUser.id));
             if (error) { console.error(error); return []; }
             if (!memberships || memberships.length === 0) return [];
             const projectIds = memberships.map(m => m.project_id);
@@ -160,12 +160,12 @@
 
         // ====== Мои кадры (frames.assigned_to = я), по всем проектам сразу ======
         async function loadMyFrames() {
-            const { data: frames, error } = await supabaseClient
+            const { data: frames, error } = await withRetry(() => supabaseClient
                 .from('frames')
                 .select('*')
                 .eq('assigned_to', currentUser.id)
                 .order('is_priority', { ascending: false })
-                .order('created_at', { ascending: false });
+                .order('created_at', { ascending: false }));
             if (error) { console.error(error); return []; }
             if (!frames || frames.length === 0) return [];
             const projectIds = [...new Set(frames.map(f => f.project_id))];
@@ -197,12 +197,12 @@
 
         // ====== Упоминания (@Имя Фамилия) в комментариях, по всем кадрам ======
         async function loadMyMentions() {
-            const { data: comments, error } = await supabaseClient
+            const { data: comments, error } = await withRetry(() => supabaseClient
                 .from('frame_comments')
                 .select('*')
                 .contains('mentions', [currentUser.id])
                 .order('created_at', { ascending: false })
-                .limit(30);
+                .limit(30));
             if (error) { console.error(error); return []; }
             if (!comments || comments.length === 0) return [];
 

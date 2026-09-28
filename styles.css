@@ -179,3 +179,22 @@ body {
 @media (max-width: 600px) {
     .btn-text { display: none; }
 }
+
+/* Баннер соединения — создаётся и управляется из common.js, работает одинаково
+   на всех страницах без правок в каждом HTML-файле. Поверх всего, включая модалки. */
+#connectivityBanner {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 9999;
+    text-align: center;
+    padding: 10px 16px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+}
+#connectivityBanner.offline { display: block; background: var(--danger); }
+#connectivityBanner.reconnected { display: block; background: var(--success); }

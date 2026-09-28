@@ -83,8 +83,8 @@
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (session) { window.location.href = 'index.html'; return; }
 
-            const { data, error } = await supabaseClient.from('profiles').select('*').order('full_name', { ascending: true });
-            if (error) { console.error(error); showToast('Не удалось загрузить список сотрудников', 'error'); return; }
+            const { data, error } = await withRetry(() => supabaseClient.from('profiles').select('*').order('full_name', { ascending: true }));
+            if (error) { console.error(error); showToast(isNetworkError(error) ? 'Нет соединения — проверьте сеть и обновите страницу' : 'Не удалось загрузить список сотрудников', 'error'); return; }
             // Фильтр по is_active — на клиенте, а не через .eq() в запросе: так список
             // работает даже до того, как в Supabase будет добавлена колонка is_active
             // (в этом случае p.is_active === undefined, и человек считается активным).
