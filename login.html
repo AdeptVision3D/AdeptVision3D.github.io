@@ -64,7 +64,10 @@
 
             const { data, error } = await supabaseClient.from('profiles').select('*').order('full_name', { ascending: true });
             if (error) { console.error(error); showToast('Не удалось загрузить список сотрудников', 'error'); return; }
-            lastLoadedPeople = data || [];
+            // Фильтр по is_active — на клиенте, а не через .eq() в запросе: так список
+            // работает даже до того, как в Supabase будет добавлена колонка is_active
+            // (в этом случае p.is_active === undefined, и человек считается активным).
+            lastLoadedPeople = (data || []).filter(p => p.is_active !== false);
             const list = document.getElementById('peopleList');
             if (!data || data.length === 0) { document.getElementById('emptyHint').style.display = 'block'; return; }
             list.innerHTML = data.map(p => `

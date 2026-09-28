@@ -252,7 +252,7 @@
             if (!session) { window.location.href = 'login.html'; return false; }
             const { data: profile, error } = await supabaseClient.from('profiles').select('*').eq('id', session.user.id).single();
             if (error || !profile) { console.error(error); await supabaseClient.auth.signOut(); window.location.href = 'login.html'; return false; }
-            currentUser = { id: profile.id, full_name: profile.full_name, role: profile.role };
+            currentUser = { id: profile.id, full_name: profile.full_name, role: profile.role, is_admin: !!profile.is_admin };
             renderUserBox();
             return true;
         }
@@ -264,8 +264,8 @@
                 <button class="btn btn-secondary" onclick="doLogout()" style="padding:4px 10px; font-size:12px;">Выйти</button>`;
         }
 
-        function canManageStages() { return currentUser && ['lead', 'art_director', 'ceo'].includes(currentUser.role); }
-        function canDeleteComments() { return currentUser && ['art_director', 'ceo'].includes(currentUser.role); }
+        function canManageStages() { return currentUser && (hasAdminAccess(currentUser) || ['lead', 'art_director', 'ceo'].includes(currentUser.role)); }
+        function canDeleteComments() { return currentUser && (hasAdminAccess(currentUser) || ['art_director', 'ceo'].includes(currentUser.role)); }
 
         const urlParams = new URLSearchParams(window.location.search);
         const projectId = urlParams.get('project');

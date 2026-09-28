@@ -73,7 +73,7 @@
             if (!session) { window.location.href = 'login.html'; return false; }
             const { data: profile, error } = await supabaseClient.from('profiles').select('*').eq('id', session.user.id).single();
             if (error || !profile) { console.error(error); await supabaseClient.auth.signOut(); window.location.href = 'login.html'; return false; }
-            currentUser = { id: profile.id, full_name: profile.full_name, role: profile.role };
+            currentUser = { id: profile.id, full_name: profile.full_name, role: profile.role, is_admin: !!profile.is_admin };
             renderUserBox();
             applyRolePermissions();
             return true;
@@ -87,7 +87,7 @@
         }
 
         function applyRolePermissions() {
-            const canManage = ['lead', 'art_director', 'ceo'].includes(currentUser.role);
+            const canManage = hasAdminAccess(currentUser) || ['lead', 'art_director', 'ceo'].includes(currentUser.role);
             const newBtn = document.getElementById('newFrameBtn');
             if (newBtn) newBtn.style.display = canManage ? '' : 'none';
         }
@@ -213,7 +213,7 @@
 
             const frames = await getFrames();
             const progressMap = await getFramesProgress(frames.map(f => f.id));
-            const canManageFrames = currentUser && ['lead', 'art_director', 'ceo'].includes(currentUser.role);
+            const canManageFrames = currentUser && (hasAdminAccess(currentUser) || ['lead', 'art_director', 'ceo'].includes(currentUser.role));
             const grid = document.getElementById('framesGrid');
             const empty = document.getElementById('emptyState');
             if (frames.length === 0) {

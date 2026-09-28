@@ -62,6 +62,7 @@
                 <a href="analytics.html" class="btn btn-secondary" id="analyticsBtn" style="display:none;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Аналитика</a>
                 <button class="btn btn-primary" id="newProjectBtn" onclick="createProject()">+ Новый проект</button>
                 <button class="btn btn-secondary" id="addEmployeeBtn" onclick="openAddEmployeeModal()" style="display:none;">+ Добавить сотрудника</button>
+                <button class="btn btn-secondary" id="employeesBtn" onclick="openEmployeesModal()" style="display:none;">Сотрудники</button>
                 <div class="user-box" id="userBox" style="display:flex; align-items:center; gap:10px; font-size:13px; color: var(--text-secondary);"></div>
             </div>
         </header>
@@ -91,7 +92,7 @@
     </div>
     <div class="modal" id="addEmployeeModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); z-index:2000; justify-content:center; align-items:center;">
         <div class="employee-modal-box" style="background: var(--bg-primary); border-radius: 8px; padding: 32px; max-width: 420px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: 88vh; overflow-y: auto;">
-            <h3 style="font-size: 20px; font-weight: 700; margin-bottom: 20px;">Добавить сотрудника</h3>
+            <h3 id="empModalTitle" style="font-size: 20px; font-weight: 700; margin-bottom: 20px;">Добавить сотрудника</h3>
             <div style="margin-bottom: 14px;">
                 <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Имя Фамилия</label>
                 <input type="text" id="newEmpName" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
@@ -109,14 +110,29 @@
                 <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Логин (произвольный, например vanya@decard.local)</label>
                 <input type="text" id="newEmpEmail" placeholder="имя@decard.local" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
             </div>
-            <div style="margin-bottom: 20px;">
-                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">PIN (минимум 6 символов)</label>
-                <input type="text" id="newEmpPin" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+            <div style="margin-bottom: 14px;">
+                <label id="empPinLabel" style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">PIN (минимум 6 символов)</label>
+                <input type="text" id="newEmpPin" placeholder="" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+            </div>
+            <div id="empAdminToggleWrap" style="margin-bottom: 20px; display:none;">
+                <label style="display:flex; align-items:center; gap:8px; font-size: 13px; cursor:pointer;">
+                    <input type="checkbox" id="newEmpIsAdmin" style="width:16px; height:16px;">
+                    Админ-доступ (полный доступ ко всем панелям независимо от роли — для тестирования/отладки)
+                </label>
             </div>
             <div style="display:flex; gap:10px; justify-content:flex-end;">
                 <button class="btn btn-secondary" onclick="closeAddEmployeeModal()">Отмена</button>
-                <button class="btn btn-primary" onclick="submitAddEmployee()">Создать</button>
+                <button class="btn btn-primary" id="empSubmitBtn" onclick="submitEmployeeForm()">Создать</button>
             </div>
+        </div>
+    </div>
+    <div class="modal" id="employeesModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); z-index:2000; justify-content:center; align-items:center;">
+        <div class="employee-modal-box" style="background: var(--bg-primary); border-radius: 8px; padding: 32px; max-width: 520px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: 80vh; overflow-y: auto;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+                <h3 style="font-size: 20px; font-weight: 700;">Сотрудники</h3>
+                <button class="btn btn-secondary" onclick="closeEmployeesModal()">Закрыть</button>
+            </div>
+            <div id="employeesList"></div>
         </div>
     </div>
     <div class="toast-container" id="toastContainer"></div>
@@ -130,7 +146,7 @@
             if (!session) { window.location.href = 'login.html'; return false; }
             const { data: profile, error } = await supabaseClient.from('profiles').select('*').eq('id', session.user.id).single();
             if (error || !profile) { console.error(error); await supabaseClient.auth.signOut(); window.location.href = 'login.html'; return false; }
-            currentUser = { id: profile.id, full_name: profile.full_name, role: profile.role };
+            currentUser = { id: profile.id, full_name: profile.full_name, role: profile.role, is_admin: !!profile.is_admin };
             renderUserBox();
             applyRolePermissions();
             return true;
@@ -145,33 +161,71 @@
         }
 
         function applyRolePermissions() {
-            const canManage = ['lead', 'art_director', 'ceo'].includes(currentUser.role);
+            const canManage = hasAdminAccess(currentUser) || ['lead', 'art_director', 'ceo'].includes(currentUser.role);
+            const canManageEmployees = hasAdminAccess(currentUser) || ['ceo', 'art_director'].includes(currentUser.role);
             const newBtn = document.getElementById('newProjectBtn');
             if (newBtn) newBtn.style.display = canManage ? '' : 'none';
             const addEmpBtn = document.getElementById('addEmployeeBtn');
-            if (addEmpBtn) addEmpBtn.style.display = ['ceo', 'art_director'].includes(currentUser.role) ? '' : 'none';
+            if (addEmpBtn) addEmpBtn.style.display = canManageEmployees ? '' : 'none';
+            const employeesBtn = document.getElementById('employeesBtn');
+            if (employeesBtn) employeesBtn.style.display = canManageEmployees ? '' : 'none';
             const analyticsBtn = document.getElementById('analyticsBtn');
             if (analyticsBtn) analyticsBtn.style.display = canManage ? '' : 'none';
         }
 
+        // ====== Форма сотрудника: одна модалка на создание и редактирование ======
+        // editingEmployeeId === null -> форма в режиме "Создать"; иначе -> "Сохранить" правки этого id
+        let editingEmployeeId = null;
+        let allEmployeesCache = [];
+
         function openAddEmployeeModal() {
+            editingEmployeeId = null;
+            document.getElementById('empModalTitle').textContent = 'Добавить сотрудника';
+            document.getElementById('empSubmitBtn').textContent = 'Создать';
             document.getElementById('newEmpName').value = '';
             document.getElementById('newEmpRole').value = 'artist';
             document.getElementById('newEmpEmail').value = '';
             document.getElementById('newEmpPin').value = '';
+            document.getElementById('empPinLabel').textContent = 'PIN (минимум 6 символов)';
+            document.getElementById('newEmpIsAdmin').checked = false;
+            document.getElementById('empAdminToggleWrap').style.display = hasAdminAccess(currentUser) || currentUser.role === 'ceo' || currentUser.role === 'art_director' ? '' : 'none';
             document.getElementById('addEmployeeModal').style.display = 'flex';
         }
+
+        function openEditEmployeeModal(id) {
+            const emp = allEmployeesCache.find(p => p.id === id);
+            if (!emp) return;
+            editingEmployeeId = id;
+            document.getElementById('empModalTitle').textContent = 'Изменить сотрудника';
+            document.getElementById('empSubmitBtn').textContent = 'Сохранить';
+            document.getElementById('newEmpName').value = emp.full_name || '';
+            document.getElementById('newEmpRole').value = emp.role || 'artist';
+            document.getElementById('newEmpEmail').value = emp.login_email || '';
+            document.getElementById('newEmpPin').value = '';
+            document.getElementById('empPinLabel').textContent = 'Новый PIN (оставьте пустым, чтобы не менять)';
+            document.getElementById('newEmpIsAdmin').checked = !!emp.is_admin;
+            document.getElementById('empAdminToggleWrap').style.display = hasAdminAccess(currentUser) || currentUser.role === 'ceo' || currentUser.role === 'art_director' ? '' : 'none';
+            document.getElementById('addEmployeeModal').style.display = 'flex';
+        }
+
         function closeAddEmployeeModal() { document.getElementById('addEmployeeModal').style.display = 'none'; }
 
-        async function submitAddEmployee() {
+        async function submitEmployeeForm() {
             const full_name = document.getElementById('newEmpName').value.trim();
             const role = document.getElementById('newEmpRole').value;
             const email = document.getElementById('newEmpEmail').value.trim();
             const pin = document.getElementById('newEmpPin').value.trim();
-            if (!full_name || !email || !pin) { showToast('Заполните все поля', 'error'); return; }
-            if (pin.length < 6) { showToast('PIN должен быть не короче 6 символов', 'error'); return; }
+            const is_admin = document.getElementById('newEmpIsAdmin').checked;
+
+            if (!full_name || !email) { showToast('Заполните имя и логин', 'error'); return; }
+            if (pin && pin.length < 6) { showToast('PIN должен быть не короче 6 символов', 'error'); return; }
+            if (!editingEmployeeId && !pin) { showToast('Укажите PIN для нового сотрудника', 'error'); return; }
 
             const { data: { session } } = await supabaseClient.auth.getSession();
+            const body = editingEmployeeId
+                ? { action: 'update', id: editingEmployeeId, full_name, role, is_admin, email, ...(pin ? { pin } : {}) }
+                : { action: 'create', full_name, role, email, pin };
+
             try {
                 const response = await fetch(`${SUPABASE_URL}/functions/v1/bright-api`, {
                     method: 'POST',
@@ -180,17 +234,79 @@
                         'Authorization': `Bearer ${session.access_token}`,
                         'apikey': SUPABASE_KEY
                     },
-                    body: JSON.stringify({ full_name, role, email, pin })
+                    body: JSON.stringify(body)
                 });
                 const result = await response.json();
-                if (!response.ok) { showToast(result.error || 'Не удалось создать сотрудника', 'error'); return; }
+                if (!response.ok) { showToast(result.error || 'Не удалось сохранить сотрудника', 'error'); return; }
                 closeAddEmployeeModal();
-                showToast('Сотрудник добавлен!', 'success');
+                showToast(editingEmployeeId ? 'Данные обновлены' : 'Сотрудник добавлен!', 'success');
+                if (editingEmployeeId === currentUser.id) { await requireAuth(); } // если поменяли себя — обновляем свои права в интерфейсе
+                if (document.getElementById('employeesModal').style.display === 'flex') { await loadAndRenderEmployees(); }
             } catch (e) {
                 console.error(e);
                 showToast('Ошибка соединения с сервером', 'error');
             }
         }
+
+        // ====== Список сотрудников: просмотр, редактирование, деактивация ======
+        async function openEmployeesModal() {
+            document.getElementById('employeesModal').style.display = 'flex';
+            await loadAndRenderEmployees();
+        }
+        function closeEmployeesModal() { document.getElementById('employeesModal').style.display = 'none'; }
+
+        async function loadAndRenderEmployees() {
+            const listEl = document.getElementById('employeesList');
+            listEl.innerHTML = '<p style="color: var(--text-secondary); font-size: 13px; text-align: center; padding: 20px 0;">Загрузка...</p>';
+            const { data, error } = await supabaseClient.from('profiles').select('*').order('full_name', { ascending: true });
+            if (error) { console.error(error); listEl.innerHTML = '<p style="color: var(--danger); font-size: 13px;">Не удалось загрузить список</p>'; return; }
+            allEmployeesCache = data || [];
+            if (allEmployeesCache.length === 0) { listEl.innerHTML = '<p style="color: var(--text-secondary); font-size: 13px; text-align: center; padding: 20px 0;">Список пуст</p>'; return; }
+            listEl.innerHTML = allEmployeesCache.map(p => {
+                const isActive = p.is_active !== false;
+                return `<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 0; border-bottom:1px solid var(--border); ${isActive ? '' : 'opacity:0.55;'}">
+                    <div style="min-width:0;">
+                        <div style="font-weight:600; font-size:14px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                            ${escapeHtml(p.full_name)}
+                            ${p.is_admin ? '<span style="font-family:var(--font-mono); font-size:10px; padding:2px 8px; border-radius:999px; background:rgba(39,67,192,0.12); color:var(--accent);">Админ-доступ</span>' : ''}
+                            ${isActive ? '' : '<span style="font-family:var(--font-mono); font-size:10px; padding:2px 8px; border-radius:999px; background:rgba(231,76,60,0.12); color:var(--danger);">Уволен(а)</span>'}
+                        </div>
+                        <div style="font-size:12px; color:var(--text-secondary); margin-top:2px;">${roleLabels[p.role] || p.role} · ${escapeHtml(p.login_email || '')}</div>
+                    </div>
+                    <div style="display:flex; gap:6px; flex-shrink:0;">
+                        <button class="btn btn-secondary" onclick="openEditEmployeeModal('${p.id}')" title="Изменить">${ICON.edit}</button>
+                        ${isActive
+                            ? `<button class="btn btn-secondary" onclick="confirmDeactivateEmployee('${p.id}')" title="Деактивировать" style="color:var(--danger);">${ICON.trash}</button>`
+                            : `<button class="btn btn-secondary" onclick="reactivateEmployee('${p.id}')" title="Восстановить доступ">${ICON.check}</button>`}
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        async function setEmployeeActive(id, isActive) {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            try {
+                const response = await fetch(`${SUPABASE_URL}/functions/v1/bright-api`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}`, 'apikey': SUPABASE_KEY },
+                    body: JSON.stringify({ action: 'update', id, is_active: isActive })
+                });
+                const result = await response.json();
+                if (!response.ok) { showToast(result.error || 'Не удалось выполнить действие', 'error'); return; }
+                showToast(isActive ? 'Доступ восстановлен' : 'Сотрудник деактивирован', 'success');
+                await loadAndRenderEmployees();
+            } catch (e) {
+                console.error(e);
+                showToast('Ошибка соединения с сервером', 'error');
+            }
+        }
+        function confirmDeactivateEmployee(id) {
+            const emp = allEmployeesCache.find(p => p.id === id);
+            if (!emp) return;
+            if (!confirm(`Деактивировать «${emp.full_name}»? Он больше не сможет войти в систему, но история его действий сохранится. Доступ можно будет вернуть в любой момент.`)) return;
+            setEmployeeActive(id, false);
+        }
+        function reactivateEmployee(id) { setEmployeeActive(id, true); }
 
         async function changePin() {
             const newPin = prompt('Новый PIN (минимум 6 символов):');
@@ -335,7 +451,7 @@
         async function renderProjects() {
             const projects = await loadProjectsWithFrames();
             lastLoadedProjects = projects;
-            const canManageProjects = currentUser && ['lead', 'art_director', 'ceo'].includes(currentUser.role);
+            const canManageProjects = currentUser && (hasAdminAccess(currentUser) || ['lead', 'art_director', 'ceo'].includes(currentUser.role));
             const grid = document.getElementById('projectsGrid');
             const empty = document.getElementById('emptyState');
             if (projects.length === 0) {
