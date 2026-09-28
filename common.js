@@ -334,3 +334,111 @@ async function withRetry(queryFn, retries = 2, delayMs = 1200) {
     }
     return result;
 }
+
+// ====== Напоминания о сроках — плавающий колокольчик в углу экрана ======
+// Показывает лично назначенному пользователю кадры (assigned_to) и проекты,
+// в которых он состоит (project_members), если до эффективного срока сдачи
+// осталось REMINDER_THRESHOLD_DAYS дней или меньше — включая уже просроченные.
+// Работает на любой странице без правок вёрстки (кнопка добавляется через JS,
+// как и баннер соединения выше). Каждая страница после успешной авторизации
+// вызывает initDeadlineReminders(currentUser) один раз.
+const REMINDER_THRESHOLD_DAYS = 3;
+
+function daysUntilDate(dueIso) {
+    const due = new Date(dueIso + 'T00:00:00');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return Math.round((due - today) / (1000 * 60 * 60 * 24));
+}
+
+function reminderLabel(daysLeft) {
+    if (daysLeft < 0) return { text: `Просрочено на ${Math.abs(daysLeft)} дн.`, cls: 'danger' };
+    if (daysLeft === 0) return { text: 'Сегодня', cls: 'danger' };
+    if (daysLeft === 1) return { text: 'Завтра', cls: 'warning' };
+    return { text: `Осталось ${daysLeft} дн.`, cls: 'warning' };
+}
+
+async function initDeadlineReminders(user) {
+    if (!user) return;
+    try {
+        const [{ data: myFrames, error: framesErr }, { data: memberships, error: memErr }] = await Promise.all([
+            supabaseClient.from('frames').select('id, name, project_id, due_date, status').eq('assigned_to', user.id).neq('status', 'done'),
+            supabaseClient.from('project_members').select('project_id').eq('user_id', user.id)
+        ]);
+        if (framesErr) console.error(framesErr);
+        if (memErr) console.error(memErr);
+
+        const frames = myFrames || [];
+        const myProjectIds = [...new Set((memberships || []).map(m => m.project_id))];
+        const projectIds = [...new Set([...frames.map(f => f.project_id), ...myProjectIds])];
+        if (projectIds.length === 0) { renderReminderBell([]); return; }
+
+        const { data: projects, error: projErr } = await supabaseClient.from('projects').select('id, name, deadline, completed, on_hold').in('id', projectIds);
+        if (projErr) { console.error(projErr); return; }
+        const projectMap = Object.fromEntries((projects || []).map(p => [p.id, p]));
+
+        const items = [];
+        frames.forEach(f => {
+            const project = projectMap[f.project_id];
+            if (!project || project.completed || project.on_hold) return;
+            const due = f.due_date || project.deadline;
+            if (!due) return;
+            const daysLeft = daysUntilDate(due);
+            if (daysLeft <= REMINDER_THRESHOLD_DAYS) {
+                items.push({ type: 'frame', name: f.name, projectName: project.name, daysLeft, link: `frame.html?project=${f.project_id}&frame=${f.id}` });
+            }
+        });
+        myProjectIds.forEach(pid => {
+            const project = projectMap[pid];
+            if (!project || project.completed || project.on_hold || !project.deadline) return;
+            const daysLeft = daysUntilDate(project.deadline);
+            if (daysLeft <= REMINDER_THRESHOLD_DAYS) {
+                items.push({ type: 'project', name: project.name, projectName: null, daysLeft, link: `project.html?id=${pid}` });
+            }
+        });
+        items.sort((a, b) => a.daysLeft - b.daysLeft);
+        renderReminderBell(items);
+    } catch (e) {
+        console.error('Ошибка загрузки напоминаний:', e);
+    }
+}
+
+function renderReminderBell(items) {
+    let wrap = document.getElementById('reminderBellWrap');
+    if (!wrap) {
+        wrap = document.createElement('div');
+        wrap.id = 'reminderBellWrap';
+        wrap.innerHTML = `
+            <button id="reminderBellBtn" type="button" title="Ближайшие сроки">🔔<span id="reminderBellBadge" class="reminder-badge" style="display:none;"></span></button>
+            <div id="reminderBellPanel" class="reminder-panel"></div>
+        `;
+        document.body.appendChild(wrap);
+        document.getElementById('reminderBellBtn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            document.getElementById('reminderBellPanel').classList.toggle('open');
+        });
+        document.addEventListener('click', (e) => {
+            if (!wrap.contains(e.target)) document.getElementById('reminderBellPanel').classList.remove('open');
+        });
+    }
+    const badge = document.getElementById('reminderBellBadge');
+    const panel = document.getElementById('reminderBellPanel');
+    if (items.length === 0) {
+        badge.style.display = 'none';
+        panel.innerHTML = '<div class="reminder-empty">Нет срочных сроков — всё под контролем</div>';
+        return;
+    }
+    badge.style.display = 'flex';
+    badge.textContent = items.length > 9 ? '9+' : String(items.length);
+    panel.innerHTML = '<div class="reminder-panel-title">Ближайшие сроки</div>' + items.map(item => {
+        const label = reminderLabel(item.daysLeft);
+        const sub = item.type === 'frame' ? `${escapeHtml(item.projectName)} · кадр` : 'проект целиком';
+        return `<a class="reminder-item" href="${item.link}">
+            <div class="reminder-item-text">
+                <div class="reminder-item-name">${escapeHtml(item.name)}</div>
+                <div class="reminder-item-sub">${sub}</div>
+            </div>
+            <span class="reminder-item-badge reminder-${label.cls}">${label.text}</span>
+        </a>`;
+    }).join('');
+}

@@ -256,6 +256,7 @@
             loadTheme();
             const ok = await requireAuth();
             if (!ok) return;
+            initDeadlineReminders(currentUser);
             const [projects, frames, mentions] = await Promise.all([loadMyProjects(), loadMyFrames(), loadMyMentions()]);
             renderMyProjects(projects);
             renderMyFrames(frames);

@@ -437,6 +437,7 @@
             loadTheme();
             const ok = await requireAuth();
             if (!ok) return;
+            initDeadlineReminders(currentUser);
 
             if (!canViewAnalytics()) {
                 document.getElementById('noAccess').style.display = 'block';

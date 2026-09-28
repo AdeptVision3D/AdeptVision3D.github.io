@@ -883,6 +883,7 @@
             const ok = await requireAuth();
             if (!ok) return;
             await renderProjects();
+            initDeadlineReminders(currentUser);
             // Если пришли редиректом с project.html (кто-то ввёл прямую ссылку на
             // проект без доступа) — покажем причину и уберём метку из адреса
             const params = new URLSearchParams(window.location.search);

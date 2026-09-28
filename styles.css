@@ -198,3 +198,57 @@ body {
 }
 #connectivityBanner.offline { display: block; background: var(--danger); }
 #connectivityBanner.reconnected { display: block; background: var(--success); }
+
+/* Плавающий колокольчик напоминаний о сроках — создаётся и управляется из
+   common.js, одинаково работает на всех страницах (см. initDeadlineReminders). */
+#reminderBellWrap { position: fixed; right: 20px; bottom: 20px; z-index: 4000; }
+#reminderBellBtn {
+    position: relative;
+    width: 48px; height: 48px;
+    border-radius: 50%;
+    border: 1px solid var(--card-border);
+    background: var(--card-bg);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+    font-size: 20px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.2s ease;
+}
+#reminderBellBtn:hover { transform: translateY(-2px); }
+.reminder-badge {
+    position: absolute; top: -4px; right: -4px;
+    min-width: 18px; height: 18px; padding: 0 4px;
+    border-radius: 999px;
+    background: var(--danger); color: #fff;
+    font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+    align-items: center; justify-content: center;
+}
+.reminder-panel {
+    display: none;
+    position: absolute; right: 0; bottom: 60px;
+    width: 320px; max-width: calc(100vw - 40px);
+    max-height: 400px; overflow-y: auto;
+    background: var(--modal-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+.reminder-panel.open { display: block; }
+.reminder-panel-title { padding: 14px 16px; font-size: 13px; font-weight: 700; border-bottom: 1px solid var(--border); }
+.reminder-empty { padding: 20px 16px; font-size: 13px; color: var(--text-secondary); text-align: center; }
+.reminder-item {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 10px 16px; border-bottom: 1px solid var(--border);
+    text-decoration: none; color: inherit;
+}
+.reminder-item:last-child { border-bottom: none; }
+.reminder-item:hover { background: var(--border); }
+.reminder-item-name { font-size: 13px; font-weight: 600; }
+.reminder-item-sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+.reminder-item-badge { font-family: var(--font-mono); font-size: 10px; padding: 3px 8px; border-radius: 999px; font-weight: 700; white-space: nowrap; flex-shrink: 0; }
+.reminder-danger { background: rgba(231, 76, 60, 0.15); color: var(--danger); }
+.reminder-warning { background: rgba(243, 156, 18, 0.15); color: var(--warning); }
+
+@media (max-width: 600px) {
+    #reminderBellWrap { right: 14px; bottom: 14px; }
+}

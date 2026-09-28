@@ -868,6 +868,7 @@
             loadWarningsPref();
             const ok = await requireAuth();
             if (!ok) return;
+            initDeadlineReminders(currentUser);
             const frame = await getFrame();
             if (frame) {
                 document.getElementById('frameTitle').textContent = frame.name;
