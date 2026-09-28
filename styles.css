@@ -1,0 +1,165 @@
+/* ============================================================
+   Decard Pipeline — общие стили для всех страниц (login/index/project/frame)
+   Раньше эти правила были продублированы в каждом HTML-файле по отдельности:
+   любое изменение палитры или базового компонента приходилось вносить
+   в 4 местах вручную, и страницы легко могли "разъехаться" между собой.
+   Теперь это единый источник правды — страницы просто подключают файл.
+   Специфичные для конкретной страницы стили (карточки статистики,
+   модалки кадра и т.д.) остаются в <style> самой страницы.
+   ============================================================ */
+
+:root {
+    --bg-primary: #FFFFFF;
+    --bg-secondary: #F5F6F8;
+    --text-primary: #1A1A1A;
+    --text-secondary: #666666;
+    --accent: #2743C0;
+    --accent-rgb: 39, 67, 192;
+    --accent-gradient: linear-gradient(135deg, #2743C0 0%, #4A6FE8 100%);
+    --border: rgba(224, 224, 224, 0.3);
+    --success: #27AE60;
+    --warning: #F39C12;
+    --danger: #E74C3C;
+    --card-shadow: 0 1px 2px rgba(20, 22, 26, 0.05);
+    --card-shadow-hover: 0 4px 14px rgba(20, 22, 26, 0.10);
+    --card-bg: #FFFFFF;
+    --card-border: rgba(20, 22, 26, 0.10);
+    --role-artist: #2743C0;
+    --role-lead: #27AE60;
+    --role-art: #F39C12;
+    --toast-bg: rgba(26, 26, 26, 0.95);
+    --toast-success: #27AE60;
+    --toast-warning: #F39C12;
+    --toast-error: #E74C3C;
+    --glass-blur: blur(10px);
+    --font-mono: 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+    --modal-overlay: rgba(0, 0, 0, 0.5);
+    --modal-bg: #FFFFFF;
+    --input-bg: #FFFFFF;
+    --input-border: rgba(224, 224, 224, 0.5);
+    --btn-secondary-bg: rgba(255, 255, 255, 0.5);
+    --stage-meta-bg: rgba(39, 67, 192, 0.05);
+    --qc-bg: rgba(39, 174, 96, 0.08);
+    --qc-border: rgba(39, 174, 96, 0.3);
+    --progress-bar-bg: rgba(224, 224, 224, 0.3);
+    --progress-bar-fill: var(--accent-gradient);
+}
+[data-theme="dark"] {
+    --bg-primary: #070B16;
+    --bg-secondary: #0D1424;
+    --text-primary: #E9EFFC;
+    --text-secondary: #93A0BE;
+    --accent: #4E86FF;
+    --accent-rgb: 78, 134, 255;
+    --accent-gradient: linear-gradient(135deg, #4E86FF 0%, #6FD3FF 100%);
+    --border: rgba(255, 255, 255, 0.08);
+    --success: #34D399;
+    --warning: #FBBF24;
+    --danger: #F87171;
+    --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+    --card-shadow-hover: 0 8px 28px rgba(78, 134, 255, 0.18);
+    --card-bg: #0F1830;
+    --card-border: rgba(255, 255, 255, 0.09);
+    --role-artist: #4E86FF;
+    --role-lead: #34D399;
+    --role-art: #FBBF24;
+    --toast-bg: rgba(15, 24, 48, 0.95);
+    --modal-overlay: rgba(0, 0, 0, 0.55);
+    --modal-bg: #0D1424;
+    --input-bg: #131E38;
+    --input-border: rgba(255, 255, 255, 0.12);
+    --btn-secondary-bg: rgba(255, 255, 255, 0.06);
+    --stage-meta-bg: rgba(78, 134, 255, 0.12);
+    --qc-bg: rgba(52, 211, 153, 0.10);
+    --qc-border: rgba(52, 211, 153, 0.3);
+    --progress-bar-bg: rgba(255, 255, 255, 0.08);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.6;
+    transition: background 0.4s ease, color 0.4s ease;
+    min-height: 100vh;
+}
+[data-theme="dark"] body {
+    background-image:
+        radial-gradient(ellipse 900px 500px at 15% -10%, rgba(var(--accent-rgb), 0.22), transparent 60%),
+        radial-gradient(ellipse 700px 500px at 95% 5%, rgba(111, 211, 255, 0.13), transparent 60%),
+        radial-gradient(ellipse 900px 600px at 40% 115%, rgba(var(--accent-rgb), 0.12), transparent 60%);
+    background-attachment: fixed;
+}
+
+/* Пилюли-бейджи и кольцевой индикатор прогресса — общие для всех страниц */
+.badge-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.progress-ring { --percent: 0; --ring-size: 56px; width: var(--ring-size); height: var(--ring-size); border-radius: 50%; background: conic-gradient(var(--accent) calc(var(--percent) * 3.6deg), var(--border) 0deg); display: inline-flex; align-items: center; justify-content: center; position: relative; flex-shrink: 0; transition: background 0.4s ease; }
+.progress-ring::before { content: ''; position: absolute; inset: 6px; border-radius: 50%; background: var(--card-bg); }
+.progress-ring-label { position: relative; z-index: 1; font-family: var(--font-mono); font-weight: 700; font-size: 13px; color: var(--text-primary); }
+.progress-ring.small { --ring-size: 44px; }
+.progress-ring.small .progress-ring-label { font-size: 10px; }
+
+.container { max-width: 1400px; margin: 0 auto; }
+
+.btn { padding: 8px 16px; border: none; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 6px; }
+.btn-primary { background: var(--accent); color: white; }
+.btn-primary:hover { opacity: 0.9; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(39, 67, 192, 0.3); }
+.btn-complete { background: var(--accent-gradient); color: white; }
+.btn-complete:hover { opacity: 0.9; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(39, 67, 192, 0.3); }
+.btn-secondary { background: var(--btn-secondary-bg); color: var(--text-primary); border: 1px solid var(--border); }
+.btn-secondary:hover { background: var(--border); transform: translateY(-2px); }
+.btn-back { background: var(--btn-secondary-bg); color: var(--text-primary); border: 1px solid var(--border); }
+.btn-back:hover { background: var(--border); transform: translateY(-2px); }
+.btn-danger { background: var(--danger); color: white; }
+.btn-danger:hover { opacity: 0.9; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3); }
+
+.theme-controls { display: flex; align-items: center; gap: 8px; }
+.theme-btn { padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--card-bg); color: var(--text-primary); font-size: 13px; cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; justify-content: center; }
+.theme-btn:hover { border-color: var(--accent); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(39, 67, 192, 0.1); }
+.theme-btn.active { background: var(--accent-gradient); color: white; border-color: var(--accent); }
+
+.toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 2000; display: flex; flex-direction: column; gap: 8px; }
+.toast { background: var(--toast-bg); color: var(--text-primary); padding: 12px 20px; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); font-size: 14px; font-weight: 500; animation: slideInRight 0.3s cubic-bezier(0.4, 0, 0.2, 1); display: flex; align-items: center; gap: 8px; min-width: 250px; backdrop-filter: blur(10px); }
+.toast.success { border-left: 4px solid var(--toast-success); }
+.toast.warning { border-left: 4px solid var(--toast-warning); }
+.toast.error { border-left: 4px solid var(--toast-error); }
+.toast-icon { font-size: 18px; }
+
+/* Общая "рамка видоискателя" для карточек (проект/кадр/этап) — 4 угловые скобки
+   вместо мягкого свечения; радиус контейнера сознательно меньше радиуса пилюль
+   внутри, чтобы крупные и мелкие формы не сливались в одну "одинаковую скруглённость". */
+.viewfinder-card {
+    background-color: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 3px;
+    overflow: hidden;
+    box-shadow: var(--card-shadow);
+    transition: transform 0.25s ease, box-shadow 0.25s ease, background-position 0.25s ease;
+    position: relative;
+    background-repeat: no-repeat;
+    background-image:
+        linear-gradient(var(--card-border), var(--card-border)), linear-gradient(var(--card-border), var(--card-border)),
+        linear-gradient(var(--card-border), var(--card-border)), linear-gradient(var(--card-border), var(--card-border)),
+        linear-gradient(var(--card-border), var(--card-border)), linear-gradient(var(--card-border), var(--card-border)),
+        linear-gradient(var(--card-border), var(--card-border)), linear-gradient(var(--card-border), var(--card-border));
+    background-size: 16px 2px, 2px 16px, 16px 2px, 2px 16px, 16px 2px, 2px 16px, 16px 2px, 2px 16px;
+    background-position: 0 0, 0 0, 100% 0, 100% 0, 0 100%, 0 100%, 100% 100%, 100% 100%;
+}
+.viewfinder-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--card-shadow-hover);
+    background-image:
+        linear-gradient(var(--accent), var(--accent)), linear-gradient(var(--accent), var(--accent)),
+        linear-gradient(var(--accent), var(--accent)), linear-gradient(var(--accent), var(--accent)),
+        linear-gradient(var(--accent), var(--accent)), linear-gradient(var(--accent), var(--accent)),
+        linear-gradient(var(--accent), var(--accent)), linear-gradient(var(--accent), var(--accent));
+    background-size: 20px 2px, 2px 20px, 20px 2px, 2px 20px, 20px 2px, 2px 20px, 20px 2px, 2px 20px;
+}
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideInRight { from { opacity: 0; transform: translateX(100px); } to { opacity: 1; transform: translateX(0); } }
+
+@media (max-width: 768px) {
+    .toast-container { bottom: 10px; right: 10px; left: 10px; }
+    .toast { min-width: auto; }
+}

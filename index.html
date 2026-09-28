@@ -8,123 +8,22 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600\&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
     <style>
-        :root {
-            --bg-primary: #FFFFFF;
-            --bg-secondary: #F5F6F8;
-            --text-primary: #1A1A1A;
-            --text-secondary: #666666;
-            --accent: #2743C0;
-            --accent-rgb: 39, 67, 192;
-            --accent-gradient: linear-gradient(135deg, #2743C0 0%, #4A6FE8 100%);
-            --border: rgba(224, 224, 224, 0.3);
-            --success: #27AE60;
-            --warning: #F39C12;
-            --danger: #E74C3C;
-            --card-shadow: 0 1px 2px rgba(20, 22, 26, 0.05);
-            --card-shadow-hover: 0 4px 14px rgba(20, 22, 26, 0.10);
-            --card-bg: #FFFFFF;
-            --card-border: rgba(20, 22, 26, 0.10);
-            --role-artist: #2743C0;
-            --role-lead: #27AE60;
-            --role-art: #F39C12;
-            --toast-bg: rgba(26, 26, 26, 0.95);
-            --toast-success: #27AE60;
-            --toast-warning: #F39C12;
-            --toast-error: #E74C3C;
-            --glass-blur: blur(10px);
-            --font-mono: 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
-        }
-        [data-theme="dark"] {
-            --bg-primary: #070B16;
-            --bg-secondary: #0D1424;
-            --text-primary: #E9EFFC;
-            --text-secondary: #93A0BE;
-            --accent: #4E86FF;
-            --accent-rgb: 78, 134, 255;
-            --accent-gradient: linear-gradient(135deg, #4E86FF 0%, #6FD3FF 100%);
-            --border: rgba(255, 255, 255, 0.08);
-            --success: #34D399;
-            --warning: #FBBF24;
-            --danger: #F87171;
-            --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
-            --card-shadow-hover: 0 8px 28px rgba(78, 134, 255, 0.18);
-            --card-bg: #0F1830;
-            --card-border: rgba(255, 255, 255, 0.09);
-            --role-artist: #4E86FF;
-            --role-lead: #34D399;
-            --role-art: #FBBF24;
-            --toast-bg: rgba(15, 24, 48, 0.95);
-        }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background-color: var(--bg-primary);
-            color: var(--text-primary);
-            line-height: 1.6;
-            padding: 40px;
-            transition: background 0.4s ease, color 0.4s ease;
-            min-height: 100vh;
-        }
-        [data-theme="dark"] body {
-            background-image:
-                radial-gradient(ellipse 900px 500px at 15% -10%, rgba(var(--accent-rgb), 0.22), transparent 60%),
-                radial-gradient(ellipse 700px 500px at 95% 5%, rgba(111, 211, 255, 0.13), transparent 60%),
-                radial-gradient(ellipse 900px 600px at 40% 115%, rgba(var(--accent-rgb), 0.12), transparent 60%);
-            background-attachment: fixed;
-        }
-        /* Пилюли-бейджи и кольцевой индикатор прогресса — общие для всех страниц */
-        .badge-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
-        .progress-ring { --percent: 0; --ring-size: 56px; width: var(--ring-size); height: var(--ring-size); border-radius: 50%; background: conic-gradient(var(--accent) calc(var(--percent) * 3.6deg), var(--border) 0deg); display: inline-flex; align-items: center; justify-content: center; position: relative; flex-shrink: 0; transition: background 0.4s ease; }
-        .progress-ring::before { content: ''; position: absolute; inset: 6px; border-radius: 50%; background: var(--card-bg); }
-        .progress-ring-label { position: relative; z-index: 1; font-family: var(--font-mono); font-weight: 700; font-size: 13px; color: var(--text-primary); }
-        .progress-ring.small { --ring-size: 44px; }
-        .progress-ring.small .progress-ring-label { font-size: 10px; }
+        body { padding: 40px; }
         .container { max-width: 1400px; margin: 0 auto; }
         header { margin-bottom: 40px; border-bottom: 2px solid var(--border); padding-bottom: 24px; }
         .header-top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
         .logo-section { display: flex; align-items: center; gap: 16px; }
         .logo { font-size: 24px; font-weight: 700; color: var(--text-primary); letter-spacing: 2px; text-transform: uppercase; }
         .logo span { color: var(--accent); }
-        .btn { padding: 8px 16px; border: none; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 6px; }
-        .btn-primary { background: var(--accent); color: white; }
-        .btn-primary:hover { opacity: 0.9; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(39, 67, 192, 0.3); }
         .btn-secondary { background: var(--card-bg); color: var(--text-primary); border: 1px solid var(--border); }
         .btn-secondary:hover { background: var(--border); transform: translateY(-2px); }
-        .btn-danger { background: var(--danger); color: white; }
-        .btn-danger:hover { opacity: 0.9; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3); }
         .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 40px; }
         .stat-card { background: var(--card-bg); padding: 20px; border-radius: 8px; border: 1px solid var(--card-border); box-shadow: var(--card-shadow); transition: background 0.3s ease; }
         .stat-number { font-size: 32px; font-weight: 700; color: var(--accent); }
         .stat-label { font-size: 14px; color: var(--text-secondary); margin-top: 4px; }
         .projects-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 24px; }
-        .project-card {
-            background-color: var(--card-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 3px;
-            overflow: hidden;
-            box-shadow: var(--card-shadow);
-            transition: transform 0.25s ease, box-shadow 0.25s ease, background-position 0.25s ease;
-            position: relative;
-            background-repeat: no-repeat;
-            background-image:
-                linear-gradient(var(--card-border), var(--card-border)), linear-gradient(var(--card-border), var(--card-border)),
-                linear-gradient(var(--card-border), var(--card-border)), linear-gradient(var(--card-border), var(--card-border)),
-                linear-gradient(var(--card-border), var(--card-border)), linear-gradient(var(--card-border), var(--card-border)),
-                linear-gradient(var(--card-border), var(--card-border)), linear-gradient(var(--card-border), var(--card-border));
-            background-size: 16px 2px, 2px 16px, 16px 2px, 2px 16px, 16px 2px, 2px 16px, 16px 2px, 2px 16px;
-            background-position: 0 0, 0 0, 100% 0, 100% 0, 0 100%, 0 100%, 100% 100%, 100% 100%;
-        }
-        .project-card:hover {
-            transform: translateY(-3px);
-            box-shadow: var(--card-shadow-hover);
-            background-image:
-                linear-gradient(var(--accent), var(--accent)), linear-gradient(var(--accent), var(--accent)),
-                linear-gradient(var(--accent), var(--accent)), linear-gradient(var(--accent), var(--accent)),
-                linear-gradient(var(--accent), var(--accent)), linear-gradient(var(--accent), var(--accent)),
-                linear-gradient(var(--accent), var(--accent)), linear-gradient(var(--accent), var(--accent));
-            background-size: 20px 2px, 2px 20px, 20px 2px, 2px 20px, 20px 2px, 2px 20px, 20px 2px, 2px 20px;
-        }
         .project-card.completed { border-color: var(--success); }
         .project-header { padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
         .project-header-text { flex: 1; min-width: 0; }
@@ -138,24 +37,10 @@
         .deadline-ok { background: rgba(39, 174, 96, 0.15); color: var(--success); }
         .deadline-soon { background: rgba(243, 156, 18, 0.15); color: var(--warning); }
         .deadline-urgent { background: rgba(231, 76, 60, 0.15); color: var(--danger); }
-        .toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 2000; display: flex; flex-direction: column; gap: 8px; }
-        .toast { background: var(--toast-bg); color: var(--text-primary); padding: 12px 20px; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); font-size: 14px; font-weight: 500; animation: slideInRight 0.3s cubic-bezier(0.4, 0, 0.2, 1); display: flex; align-items: center; gap: 8px; min-width: 250px; backdrop-filter: blur(10px); }
-        .toast.success { border-left: 4px solid var(--toast-success); }
-        .toast.warning { border-left: 4px solid var(--toast-warning); }
-        .toast.error { border-left: 4px solid var(--toast-error); }
-        .toast-icon { font-size: 18px; }
-        .theme-controls { display: flex; align-items: center; gap: 8px; }
-        .theme-btn { padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--card-bg); color: var(--text-primary); font-size: 13px; cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; justify-content: center; }
-        .theme-btn:hover { border-color: var(--accent); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(39, 67, 192, 0.1); }
-        .theme-btn.active { background: var(--accent-gradient); color: white; border-color: var(--accent); }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes slideInRight { from { opacity: 0; transform: translateX(100px); } to { opacity: 1; transform: translateX(0); } }
         @media (max-width: 768px) {
             body { padding: 20px; }
             .header-top { flex-direction: column; align-items: flex-start; }
             .projects-grid { grid-template-columns: 1fr; }
-            .toast-container { bottom: 10px; right: 10px; left: 10px; }
-            .toast { min-width: auto; }
         }
     </style>
 </head>
@@ -231,22 +116,8 @@
         </div>
     </div>
     <div class="toast-container" id="toastContainer"></div>
+    <script src="common.js"></script>
     <script>
-        // ====== ПОДКЛЮЧЕНИЕ К SUPABASE ======
-        const SUPABASE_URL = 'https://mcpsnmcvzxzdgllhbrib.supabase.co';
-        const SUPABASE_KEY = 'sb_publishable_ouAuh1fPBDLo3bLxs4FnLA_dJwIN-Un';
-        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-        // =====================================
-
-        const ICON = {
-            calendar: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
-            frames: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
-            edit: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
-            trash: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>',
-            check: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
-        };
-
-        const roleLabels = { artist: 'Художник', lead: 'Тимлид', art_director: 'Арт-директор', ceo: 'Генеральный директор' };
         let currentUser = null; // { id, full_name, role }
 
         // Проверяет вход и подгружает профиль (имя+роль). Если не вошли — отправляет на экран входа.
@@ -322,61 +193,6 @@
             const { error } = await supabaseClient.auth.updateUser({ password: newPin });
             if (error) { console.error(error); showToast('Не удалось сменить PIN', 'error'); return; }
             showToast('PIN обновлён', 'success');
-        }
-
-        async function doLogout() {
-            await supabaseClient.auth.signOut();
-            window.location.href = 'login.html';
-        }
-
-        // Экранирование пользовательского текста перед вставкой в innerHTML —
-        // защита от HTML/JS в названиях проектов (иначе это hранимый XSS)
-        function escapeHtml(str) {
-            if (str === null || str === undefined) return '';
-            return String(str)
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#39;');
-        }
-
-        function showToast(message, type = 'success') {
-            const container = document.getElementById('toastContainer');
-            const toast = document.createElement('div');
-            toast.className = `toast ${type}`;
-            const icon = type === 'success' ? '✓' : type === 'warning' ? '⚠' : '✗';
-            toast.innerHTML = `<span class="toast-icon">${icon}</span><span>${message}</span>`;
-            container.appendChild(toast);
-            setTimeout(() => {
-                toast.style.opacity = '0';
-                toast.style.transform = 'translateX(100px)';
-                setTimeout(() => toast.remove(), 300);
-            }, 3000);
-        }
-        function setTheme(theme) {
-            localStorage.setItem('decardTheme', theme);
-            applyTheme(theme);
-            updateThemeButtons(theme);
-        }
-        function applyTheme(theme) {
-            if (theme === 'system') {
-                const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                document.documentElement.setAttribute('data-theme', systemDark ? 'dark' : 'light');
-            } else {
-                document.documentElement.setAttribute('data-theme', theme);
-            }
-        }
-        function updateThemeButtons(activeTheme) {
-            document.querySelectorAll('.theme-btn').forEach(btn => {
-                btn.classList.remove('active');
-                if (btn.getAttribute('data-theme') === activeTheme) btn.classList.add('active');
-            });
-        }
-        function loadTheme() {
-            const saved = localStorage.getItem('decardTheme') || 'system';
-            applyTheme(saved);
-            updateThemeButtons(saved);
         }
 
         // ====== РАБОТА С ДАННЫМИ ЧЕРЕЗ SUPABASE (вместо localStorage) ======
@@ -550,7 +366,7 @@
                     const deadlineClass = `deadline-${deadlineStatus}`;
                     const createdDisplay = p.created_at ? new Date(p.created_at).toLocaleDateString('ru-RU') : '';
                     return `
-                        <div class="project-card ${p.completed ? 'completed' : ''}">
+                        <div class="project-card viewfinder-card ${p.completed ? 'completed' : ''}">
                             <div class="project-header">
                                 <div class="project-header-text">
                                     <div class="project-title" style="display:flex;align-items:center;gap:8px;">${escapeHtml(p.name)} ${p.completed ? ICON.check : ''}</div>
