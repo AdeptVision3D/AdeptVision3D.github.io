@@ -9,7 +9,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
     <style>
         body { padding: 40px; }
@@ -17,21 +17,21 @@
         header { margin-bottom: 32px; border-bottom: 2px solid var(--border); padding-bottom: 24px; }
         .header-top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
         .header-left { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-        .page-title { font-size: 24px; font-weight: 700; }
+        .page-title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
         .btn-secondary { background: var(--card-bg); color: var(--text-primary); border: 1px solid var(--border); }
         .btn-secondary:hover { background: var(--border); transform: translateY(-2px); }
         .btn-back { background: var(--card-bg); color: var(--text-primary); border: 1px solid var(--border); }
 
         .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 32px; }
         .stat-card { background: var(--card-bg); padding: 20px; border-radius: 8px; border: 1px solid var(--card-border); box-shadow: var(--card-shadow); }
-        .stat-number { font-size: 30px; font-weight: 700; color: var(--accent); }
+        .stat-number { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; color: var(--accent); }
         .stat-label { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
 
         .panels-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 24px; margin-bottom: 24px; align-items: start; }
         @media (max-width: 900px) { .panels-grid { grid-template-columns: 1fr; } }
 
         .panel { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 6px; box-shadow: var(--card-shadow); overflow: hidden; }
-        .panel-header { padding: 16px 20px; border-bottom: 1px solid var(--border); font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+        .panel-header { padding: 16px 20px; border-bottom: 1px solid var(--border); font-size: 15px; font-weight: 700; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; }
         .panel-body { padding: 8px 0; }
         .panel-empty { padding: 24px 20px; color: var(--text-secondary); font-size: 13px; text-align: center; }
 
