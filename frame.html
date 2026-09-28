@@ -53,8 +53,10 @@
         .status-done { background: rgba(39, 174, 96, 0.15); color: var(--success); }
         .expand-icon { font-size: 18px; color: var(--text-secondary); transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); margin-left: 12px; }
         .stage-card.expanded .expand-icon { transform: rotate(180deg); }
-        .stage-content { display: none; padding: 20px; }
-        .stage-card.expanded .stage-content { display: block; animation: fadeIn 0.3s ease; }
+        .stage-content { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        .stage-card.expanded .stage-content { grid-template-rows: 1fr; }
+        .stage-content-inner { overflow: hidden; padding: 0 20px; opacity: 0; transition: opacity 0.25s ease, padding 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        .stage-card.expanded .stage-content-inner { padding: 20px; opacity: 1; transition: opacity 0.3s ease 0.1s, padding 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
         .stage-meta { background: var(--stage-meta-bg); padding: 12px; border-radius: 6px; margin-bottom: 16px; border-left: 3px solid var(--accent); }
         .stage-location { font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 4px; }
         .stage-output { font-size: 12px; color: var(--text-primary); }
@@ -121,7 +123,8 @@
         body.exporting-pdf .task-delete-btn, body.exporting-pdf .task-comment-btn, body.exporting-pdf .comments-compact-btn,
         body.exporting-pdf .add-task-btn, body.exporting-pdf .add-stage-wrap, body.exporting-pdf .delete-stage-btn,
         body.exporting-pdf .expand-icon { display: none !important; }
-        body.exporting-pdf .stage-content { display: block !important; }
+        body.exporting-pdf .stage-content { grid-template-rows: 1fr !important; }
+        body.exporting-pdf .stage-content-inner { overflow: visible !important; opacity: 1 !important; padding: 20px !important; }
         body.exporting-pdf .stage-header { cursor: default; }
         body.exporting-pdf .stages-grid { grid-template-columns: 1fr !important; }
         body.exporting-pdf .task-edit-input { pointer-events: none; }
@@ -425,9 +428,29 @@
             });
         }
 
-        function toggleStageExpand(stageId) { const index = expandedStageIds.indexOf(stageId); if (index > -1) { expandedStageIds.splice(index, 1); } else { expandedStageIds.push(stageId); } renderStages(); }
-        function expandAll() { expandedStageIds = stagesData.map(s => s.id); renderStages(); showToast('Все этапы развёрнуты', 'success'); }
-        function collapseAll() { expandedStageIds = []; renderStages(); showToast('Все этапы свёрнуты', 'success'); }
+        function toggleStageExpand(stageId) {
+            // Точечно переключаем класс у конкретной карточки, а не пересобираем всю сетку —
+            // иначе элемент каждый раз создаётся заново и CSS-анимация не успевает проиграться.
+            const index = expandedStageIds.indexOf(stageId);
+            const cardEl = document.getElementById(`stage-${stageId}`);
+            if (index > -1) {
+                expandedStageIds.splice(index, 1);
+                if (cardEl) cardEl.classList.remove('expanded');
+            } else {
+                expandedStageIds.push(stageId);
+                if (cardEl) cardEl.classList.add('expanded');
+            }
+        }
+        function expandAll() {
+            expandedStageIds = stagesData.map(s => s.id);
+            document.querySelectorAll('.stage-card').forEach(c => c.classList.add('expanded'));
+            showToast('Все этапы развёрнуты', 'success');
+        }
+        function collapseAll() {
+            expandedStageIds = [];
+            document.querySelectorAll('.stage-card').forEach(c => c.classList.remove('expanded'));
+            showToast('Все этапы свёрнуты', 'success');
+        }
 
         function searchStages() {
             const query = document.getElementById('searchInput').value.toLowerCase();
@@ -766,22 +789,24 @@
                     <span class="expand-icon">▼</span>
                 </div>
                 <div class="stage-content">
-                    <div class="stage-meta">${deleteStageBtn}<span class="stage-location" style="display:inline-flex;align-items:center;gap:5px;">${ICON.pin} ${escapeHtml(stage.location || '')}</span><span class="stage-output"><strong>На выходе:</strong> ${escapeHtml(stage.output || '')}</span></div>
-                    <div class="quick-actions" onclick="event.stopPropagation()">
-                        <button class="btn-small" onclick="markAllTasks('${stage.id}')">✓ Отметить всё</button>
-                        <button class="btn-small" onclick="confirmResetStage('${stage.id}')">↺ Сбросить</button>
+                    <div class="stage-content-inner">
+                        <div class="stage-meta">${deleteStageBtn}<span class="stage-location" style="display:inline-flex;align-items:center;gap:5px;">${ICON.pin} ${escapeHtml(stage.location || '')}</span><span class="stage-output"><strong>На выходе:</strong> ${escapeHtml(stage.output || '')}</span></div>
+                        <div class="quick-actions" onclick="event.stopPropagation()">
+                            <button class="btn-small" onclick="markAllTasks('${stage.id}')">✓ Отметить всё</button>
+                            <button class="btn-small" onclick="confirmResetStage('${stage.id}')">↺ Сбросить</button>
+                        </div>
+                        <div class="checklist" onclick="event.stopPropagation">
+                            ${tasksHtml}
+                            <button class="add-task-btn" onclick="event.stopPropagation(); addTask('${stage.id}')">+ Добавить задачу</button>
+                        </div>
+                        <div class="stage-progress-container" style="display:flex; align-items:center; gap:12px;">
+                            <span class="progress-ring small" style="--percent:${progressPercent}"><span class="progress-ring-label">${progressPercent}%</span></span>
+                            <div class="stage-progress">Прогресс: ${completedCount}/${total}</div>
+                        </div>
+                        <button class="comments-compact-btn ${stage.comments.length > 0 ? 'has-comments' : ''}" onclick="openCommentsModal('${stage.id}'); event.stopPropagation()">${ICON.comment} Комментарии (${stage.comments.length})</button>
+                        <div class="qc-section" onclick="event.stopPropagation()"><div class="qc-title">Критерий перехода</div><div class="qc-text">${escapeHtml(stage.qc || '')}</div></div>
+                        <div class="warning-box" onclick="event.stopPropagation()"><div class="warning-text">${ICON.warning}<span>${escapeHtml(stage.warning || '')}</span></div></div>
                     </div>
-                    <div class="checklist" onclick="event.stopPropagation">
-                        ${tasksHtml}
-                        <button class="add-task-btn" onclick="event.stopPropagation(); addTask('${stage.id}')">+ Добавить задачу</button>
-                    </div>
-                    <div class="stage-progress-container" style="display:flex; align-items:center; gap:12px;">
-                        <span class="progress-ring small" style="--percent:${progressPercent}"><span class="progress-ring-label">${progressPercent}%</span></span>
-                        <div class="stage-progress">Прогресс: ${completedCount}/${total}</div>
-                    </div>
-                    <button class="comments-compact-btn ${stage.comments.length > 0 ? 'has-comments' : ''}" onclick="openCommentsModal('${stage.id}'); event.stopPropagation()">${ICON.comment} Комментарии (${stage.comments.length})</button>
-                    <div class="qc-section" onclick="event.stopPropagation()"><div class="qc-title">Критерий перехода</div><div class="qc-text">${escapeHtml(stage.qc || '')}</div></div>
-                    <div class="warning-box" onclick="event.stopPropagation()"><div class="warning-text">${ICON.warning}<span>${escapeHtml(stage.warning || '')}</span></div></div>
                 </div>
             </div>`;
         }
