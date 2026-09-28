@@ -100,6 +100,17 @@
             </div>
         </div>
 
+        <div class="panels-grid">
+            <div class="panel">
+                <div class="panel-header">Платные / бесплатные правки по проектам</div>
+                <div class="panel-body" id="revisionsPanel"></div>
+            </div>
+            <div class="panel">
+                <div class="panel-header">Текущая загрузка по людям</div>
+                <div class="panel-body" id="workloadPanel"></div>
+            </div>
+        </div>
+
         <div class="panel">
             <div class="panel-header">Последние действия по всем кадрам</div>
             <div class="panel-body activity-log" id="recentActivityPanel"></div>
@@ -148,13 +159,15 @@
 
             const frameIds = frames.map(f => f.id);
             let taskProgressByFrame = {};
+            let stages = [];
             if (frameIds.length > 0) {
                 const { data: stageRows, error: stageErr } = await supabaseClient
                     .from('frame_stages')
-                    .select('frame_id, frame_tasks(checked)')
+                    .select('frame_id, stage_type, frame_tasks(checked)')
                     .in('frame_id', frameIds);
                 if (stageErr) { console.error(stageErr); }
-                (stageRows || []).forEach(row => {
+                stages = stageRows || [];
+                stages.forEach(row => {
                     if (!taskProgressByFrame[row.frame_id]) taskProgressByFrame[row.frame_id] = { total: 0, completed: 0 };
                     const tasks = row.frame_tasks || [];
                     taskProgressByFrame[row.frame_id].total += tasks.length;
@@ -172,7 +185,14 @@
                 .limit(500);
             if (actErr) console.error(actErr);
 
-            return { projects, frames, taskProgressByFrame, activity: activity || [] };
+            // Сотрудники — для панели загрузки (кто сколько кадров ведёт прямо сейчас)
+            const { data: profiles, error: profErr } = await supabaseClient
+                .from('profiles')
+                .select('id, full_name')
+                .eq('is_active', true);
+            if (profErr) console.error(profErr);
+
+            return { projects, frames, taskProgressByFrame, activity: activity || [], stages, profiles: profiles || [] };
         }
 
         function renderStats(projects, frames, taskProgressByFrame) {
@@ -249,6 +269,86 @@
             `).join('');
         }
 
+        // Платные/бесплатные правки — считаем по frame_stages.stage_type, группируем по проекту.
+        // Прямая финансовая метрика: сколько доп. работы (за деньги и бесплатно) было по проекту.
+        function renderRevisions(stages, frames, projects) {
+            const panel = document.getElementById('revisionsPanel');
+            const frameById = {};
+            frames.forEach(f => { frameById[f.id] = f; });
+            const projectById = {};
+            projects.forEach(p => { projectById[p.id] = p; });
+
+            const byProject = {};
+            let totalPaid = 0, totalFree = 0;
+            stages.forEach(s => {
+                if (s.stage_type !== 'paid_revision' && s.stage_type !== 'free_revision') return;
+                const frame = frameById[s.frame_id];
+                if (!frame) return;
+                const projectId = frame.project_id;
+                if (!byProject[projectId]) byProject[projectId] = { paid: 0, free: 0 };
+                if (s.stage_type === 'paid_revision') { byProject[projectId].paid++; totalPaid++; }
+                else { byProject[projectId].free++; totalFree++; }
+            });
+
+            const summary = `<div class="row" style="background: var(--bg-secondary);">
+                <div class="row-title">Итого по всем проектам</div>
+                <div style="display:flex; gap:16px; font-family: var(--font-mono); font-size:12px;">
+                    <span style="color: var(--danger);">Платных: ${totalPaid}</span>
+                    <span style="color: var(--text-secondary);">Бесплатных: ${totalFree}</span>
+                </div>
+            </div>`;
+
+            const entries = Object.entries(byProject)
+                .filter(([, v]) => v.paid > 0 || v.free > 0)
+                .sort((a, b) => b[1].paid - a[1].paid);
+
+            if (entries.length === 0) {
+                panel.innerHTML = summary + '<div class="panel-empty">Правок (платных/бесплатных) пока не было</div>';
+                return;
+            }
+            panel.innerHTML = summary + entries.map(([projectId, v]) => {
+                const project = projectById[projectId];
+                return `<div class="row">
+                    <div class="row-title">${escapeHtml(project ? project.name : 'Проект удалён')}</div>
+                    <div style="display:flex; gap:16px; font-family: var(--font-mono); font-size:12px;">
+                        <span style="color: var(--danger);">Платных: ${v.paid}</span>
+                        <span style="color: var(--text-secondary);">Бесплатных: ${v.free}</span>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        // Текущая загрузка по людям — сколько НЕзавершённых кадров сейчас назначено
+        // на каждого (frames.assigned_to), а не что делали в прошлом (это уже
+        // покрывает "Активность по сотрудникам" ниже)
+        function renderWorkload(frames, profiles) {
+            const panel = document.getElementById('workloadPanel');
+            const profileById = {};
+            profiles.forEach(p => { profileById[p.id] = p; });
+
+            const counts = {};
+            frames.forEach(f => {
+                if (!f.assigned_to || f.status === 'done') return;
+                counts[f.assigned_to] = (counts[f.assigned_to] || 0) + 1;
+            });
+            const entries = Object.entries(counts)
+                .map(([id, count]) => ({ name: profileById[id] ? profileById[id].full_name : 'Неизвестный', count }))
+                .sort((a, b) => b.count - a.count);
+
+            if (entries.length === 0) {
+                panel.innerHTML = '<div class="panel-empty">Пока никому не назначены кадры лично (назначает руководитель на странице проекта)</div>';
+                return;
+            }
+            const maxCount = entries[0].count;
+            panel.innerHTML = entries.map(e => `
+                <div class="person-row">
+                    <span class="person-name">${escapeHtml(e.name)}</span>
+                    <div class="person-bar-track"><div class="person-bar-fill" style="width:${Math.round((e.count / maxCount) * 100)}%"></div></div>
+                    <span class="person-count">${e.count} в работе</span>
+                </div>
+            `).join('');
+        }
+
         function renderRecentActivity(activity, frames, projects) {
             const panel = document.getElementById('recentActivityPanel');
             if (activity.length === 0) {
@@ -286,11 +386,13 @@
 
             const data = await loadAllData();
             if (!data) return;
-            const { projects, frames, taskProgressByFrame, activity } = data;
+            const { projects, frames, taskProgressByFrame, activity, stages, profiles } = data;
 
             renderStats(projects, frames, taskProgressByFrame);
             renderDeadlines(projects);
             renderActivityByPerson(activity);
+            renderRevisions(stages, frames, projects);
+            renderWorkload(frames, profiles);
             renderRecentActivity(activity, frames, projects);
         });
     </script>
