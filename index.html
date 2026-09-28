@@ -205,10 +205,20 @@
             document.getElementById('empPinLabel').textContent = 'Новый PIN (оставьте пустым, чтобы не менять)';
             document.getElementById('newEmpIsAdmin').checked = !!emp.is_admin;
             document.getElementById('empAdminToggleWrap').style.display = hasAdminAccess(currentUser) || currentUser.role === 'ceo' || currentUser.role === 'art_director' ? '' : 'none';
+            // Список сотрудников закрываем, чтобы не оставалось два окна друг на друге —
+            // после сохранения/отмены редактирования вернём его обратно.
+            document.getElementById('employeesModal').style.display = 'none';
             document.getElementById('addEmployeeModal').style.display = 'flex';
         }
 
-        function closeAddEmployeeModal() { document.getElementById('addEmployeeModal').style.display = 'none'; }
+        async function closeAddEmployeeModal() {
+            const wasEditing = editingEmployeeId !== null;
+            document.getElementById('addEmployeeModal').style.display = 'none';
+            if (wasEditing) {
+                document.getElementById('employeesModal').style.display = 'flex';
+                await loadAndRenderEmployees();
+            }
+        }
 
         async function submitEmployeeForm() {
             const full_name = document.getElementById('newEmpName').value.trim();
@@ -238,10 +248,10 @@
                 });
                 const result = await response.json();
                 if (!response.ok) { showToast(result.error || 'Не удалось сохранить сотрудника', 'error'); return; }
-                closeAddEmployeeModal();
+                const wasSelf = editingEmployeeId === currentUser.id;
+                await closeAddEmployeeModal(); // сама вернёт список сотрудников, если редактировали из него
                 showToast(editingEmployeeId ? 'Данные обновлены' : 'Сотрудник добавлен!', 'success');
-                if (editingEmployeeId === currentUser.id) { await requireAuth(); } // если поменяли себя — обновляем свои права в интерфейсе
-                if (document.getElementById('employeesModal').style.display === 'flex') { await loadAndRenderEmployees(); }
+                if (wasSelf) { await requireAuth(); } // если поменяли себя — обновляем свои права в интерфейсе
             } catch (e) {
                 console.error(e);
                 showToast('Ошибка соединения с сервером', 'error');
