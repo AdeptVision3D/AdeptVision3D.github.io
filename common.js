@@ -15,6 +15,15 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const roleLabels = { artist: 'Художник', lead: 'Тимлид', art_director: 'Арт-директор', ceo: 'Генеральный директор' };
 
+// PWA: регистрируем service worker на всех страницах, чтобы сайт можно было
+// "установить" на телефон/десктоп (иконка на главном экране, отдельное окно).
+// Сам sw.js ничего не кеширует — см. комментарий в файле.
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(err => console.error('SW registration failed', err));
+    });
+}
+
 // Отдельный флаг "админ-доступа" в profiles.is_admin — даёт полный доступ ко всем
 // панелям НЕЗАВИСИМО от роли в профиле. Нужен, например, когда роль в профиле
 // отражает реальную должность человека (скажем, "Художник"), но ему всё равно

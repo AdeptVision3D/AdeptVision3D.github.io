@@ -6,6 +6,9 @@
     <title>Decard Pipeline — Главная</title>
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0F1830">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -33,6 +36,19 @@
         .project-card.not-assigned { opacity: 0.5; filter: grayscale(0.35); transition: opacity 0.2s ease, filter 0.2s ease; }
         .project-card.not-assigned:hover { opacity: 0.85; filter: grayscale(0.1); }
         .team-badge { font-family: var(--font-mono); font-size: 11px; padding: 4px 12px 4px 9px; border-radius: 999px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; background: rgba(39, 67, 192, 0.12); color: var(--accent); }
+        /* Тулбар сортировки/фильтра над сеткой проектов */
+        .projects-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+        .toolbar-left { display: flex; align-items: center; gap: 8px; }
+        .toolbar-left select { padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--card-bg); color: var(--text-primary); font-size: 13px; }
+        .toolbar-toggle { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); cursor: pointer; user-select: none; }
+        .toolbar-toggle input { width: 15px; height: 15px; }
+        /* "Горящие дедлайны" — компактная полоса самых срочных проектов над основной сеткой */
+        .hot-deadlines { margin-bottom: 24px; padding: 16px 20px; border-radius: 8px; background: rgba(231, 76, 60, 0.06); border: 1px solid rgba(231, 76, 60, 0.25); }
+        .hot-deadlines-title { font-size: 13px; font-weight: 700; color: var(--danger); margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+        .hot-deadlines-list { display: flex; flex-wrap: wrap; gap: 10px; }
+        .hot-deadline-item { display: flex; align-items: center; gap: 8px; padding: 8px 14px; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 999px; font-size: 13px; text-decoration: none; color: var(--text-primary); transition: transform 0.15s ease; }
+        .hot-deadline-item:hover { transform: translateY(-2px); }
+        .hot-deadline-item .deadline-badge { margin-left: 2px; }
         .project-header { padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
         .project-header-text { flex: 1; min-width: 0; }
         .project-title { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.3; margin-bottom: 8px; }
@@ -90,10 +106,26 @@
                 <div class="stat-label">Завершено проектов</div>
             </div>
         </div>
+        <div class="hot-deadlines" id="hotDeadlines" style="display:none;"></div>
+        <div class="projects-toolbar">
+            <div class="toolbar-left">
+                <label for="sortSelect" style="font-size:13px; color:var(--text-secondary); font-weight:600;">Сортировка:</label>
+                <select id="sortSelect" onchange="onProjectsControlsChange()">
+                    <option value="created_desc">Сначала новые</option>
+                    <option value="deadline_asc">По дедлайну (ближе — выше)</option>
+                    <option value="name_asc">По названию (А-Я)</option>
+                    <option value="mine_first">Сначала мои проекты</option>
+                </select>
+            </div>
+            <label class="toolbar-toggle">
+                <input type="checkbox" id="hideCompletedToggle" onchange="onProjectsControlsChange()">
+                Скрыть завершённые
+            </label>
+        </div>
         <div class="projects-grid" id="projectsGrid"></div>
         <div class="empty-state" id="emptyState" style="display: none;">
-            <h3>Нет проектов</h3>
-            <p>Создайте первый проект, чтобы начать работу</p>
+            <h3 id="emptyStateTitle">Нет проектов</h3>
+            <p id="emptyStateText">Создайте первый проект, чтобы начать работу</p>
         </div>
     </div>
     <div class="modal" id="addEmployeeModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); z-index:2100; justify-content:center; align-items:center;">
@@ -589,6 +621,88 @@
             renderProjects();
         }
 
+        // Флаги доступа/принадлежности проекта для текущего пользователя — используются
+        // и в основной сетке карточек, и в виджете "горящие дедлайны", поэтому вынесены
+        // в одну функцию, чтобы логика не разъезжалась между местами.
+        function getProjectFlags(p, canManageProjects) {
+            const isMyTeam = currentUser && Array.isArray(p.memberIds) && p.memberIds.includes(currentUser.id);
+            const notAssigned = Array.isArray(p.memberIds) && p.memberIds.length > 0 && !isMyTeam;
+            const blockedFromEntry = notAssigned && !canManageProjects;
+            return { isMyTeam, notAssigned, blockedFromEntry };
+        }
+
+        // Сортировка списка проектов согласно выбору в тулбаре. Не трогает исходный
+        // массив (map/filter в renderProjects и так создают новую копию).
+        function sortProjects(list, mode, canManageProjects) {
+            const sorted = list.slice();
+            if (mode === 'deadline_asc') {
+                sorted.sort((a, b) => {
+                    if (!a.deadline && !b.deadline) return 0;
+                    if (!a.deadline) return 1; // без дедлайна — в конец
+                    if (!b.deadline) return -1;
+                    return new Date(a.deadline) - new Date(b.deadline);
+                });
+            } else if (mode === 'name_asc') {
+                sorted.sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+            } else if (mode === 'mine_first') {
+                sorted.sort((a, b) => {
+                    const aMine = getProjectFlags(a, canManageProjects).isMyTeam ? 1 : 0;
+                    const bMine = getProjectFlags(b, canManageProjects).isMyTeam ? 1 : 0;
+                    return bMine - aMine; // мои — выше, остальное сохраняет относительный порядок
+                });
+            }
+            // created_desc — порядок уже такой после загрузки (created_at desc), ничего не делаем
+            return sorted;
+        }
+
+        // Сохраняем выбор сортировки/фильтра между визитами — мелочь, но раздражает,
+        // когда после каждого захода нужно заново выбирать "по дедлайну"
+        function restoreProjectsControls() {
+            const savedSort = localStorage.getItem('decardProjectSort');
+            if (savedSort) document.getElementById('sortSelect').value = savedSort;
+            const savedHide = localStorage.getItem('decardHideCompleted') === '1';
+            document.getElementById('hideCompletedToggle').checked = savedHide;
+        }
+
+        function onProjectsControlsChange() {
+            localStorage.setItem('decardProjectSort', document.getElementById('sortSelect').value);
+            localStorage.setItem('decardHideCompleted', document.getElementById('hideCompletedToggle').checked ? '1' : '0');
+            renderProjects();
+        }
+
+        // "Горящие дедлайны" — до 5 незавершённых проектов с ближайшим/просроченным
+        // сроком, доступных текущему пользователю (не показываем то, что он всё равно
+        // не может открыть). Считается от полного списка, а не от отфильтрованного
+        // тулбаром — иначе "Скрыть завершённые" неожиданно повлияет на виджет.
+        function renderHotDeadlines(projects, canManageProjects) {
+            const widget = document.getElementById('hotDeadlines');
+            const candidates = projects
+                .filter(p => !p.completed && p.deadline)
+                .filter(p => getDeadlineStatus(p.deadline) !== 'ok')
+                .filter(p => !getProjectFlags(p, canManageProjects).blockedFromEntry)
+                .sort((a, b) => new Date(a.deadline) - new Date(b.deadline))
+                .slice(0, 5);
+
+            if (candidates.length === 0) {
+                widget.style.display = 'none';
+                widget.innerHTML = '';
+                return;
+            }
+            widget.style.display = 'block';
+            widget.innerHTML = `
+                <div class="hot-deadlines-title">${ICON.warning} Горящие дедлайны</div>
+                <div class="hot-deadlines-list">
+                    ${candidates.map(p => {
+                        const status = getDeadlineStatus(p.deadline);
+                        return `<a class="hot-deadline-item" href="project.html?id=${p.id}">
+                            <span>${escapeHtml(p.name)}</span>
+                            <span class="deadline-badge deadline-${status}"><span class="badge-dot"></span>${getDeadlineLabel(status)}: ${formatDateRu(p.deadline)}</span>
+                        </a>`;
+                    }).join('')}
+                </div>
+            `;
+        }
+
         async function renderProjects() {
             const projects = await loadProjectsWithFrames();
             lastLoadedProjects = projects;
@@ -596,14 +710,32 @@
             // "Завершить проект" — более узкий доступ, чем управление проектом:
             // только админ-доступ, ceo или арт-директор (тимлид — не может завершать)
             const canCompleteProject = currentUser && (hasAdminAccess(currentUser) || ['ceo', 'art_director'].includes(currentUser.role));
+
+            renderHotDeadlines(projects, canManageProjects);
+
+            const hideCompleted = document.getElementById('hideCompletedToggle').checked;
+            const sortMode = document.getElementById('sortSelect').value;
+            const displayProjects = sortProjects(
+                hideCompleted ? projects.filter(p => !p.completed) : projects,
+                sortMode,
+                canManageProjects
+            );
+
             const grid = document.getElementById('projectsGrid');
             const empty = document.getElementById('emptyState');
             if (projects.length === 0) {
                 grid.innerHTML = '';
                 empty.style.display = 'block';
+                document.getElementById('emptyStateTitle').textContent = 'Нет проектов';
+                document.getElementById('emptyStateText').textContent = 'Создайте первый проект, чтобы начать работу';
+            } else if (displayProjects.length === 0) {
+                grid.innerHTML = '';
+                empty.style.display = 'block';
+                document.getElementById('emptyStateTitle').textContent = 'Ничего не найдено';
+                document.getElementById('emptyStateText').textContent = 'Под текущий фильтр не попал ни один проект — попробуйте показать завершённые';
             } else {
                 empty.style.display = 'none';
-                grid.innerHTML = projects.map(p => {
+                grid.innerHTML = displayProjects.map(p => {
                     const totalFrames = p.frames.length;
                     const completedFrames = p.frames.filter(f => f.status === 'done').length;
                     const progress = totalFrames > 0 ? Math.round((completedFrames / totalFrames) * 100) : 0;
@@ -611,11 +743,7 @@
                     const deadlineLabel = getDeadlineLabel(deadlineStatus);
                     const deadlineClass = `deadline-${deadlineStatus}`;
                     const createdDisplay = p.created_at ? new Date(p.created_at).toLocaleDateString('ru-RU') : '';
-                    const isMyTeam = currentUser && Array.isArray(p.memberIds) && p.memberIds.includes(currentUser.id);
-                    // Заблокирован вход: у проекта есть назначенная команда, пользователь в неё
-                    // не входит, и он не руководитель/админ (руководители видят и открывают всё всегда)
-                    const notAssigned = Array.isArray(p.memberIds) && p.memberIds.length > 0 && !isMyTeam;
-                    const blockedFromEntry = notAssigned && !canManageProjects;
+                    const { isMyTeam, notAssigned, blockedFromEntry } = getProjectFlags(p, canManageProjects);
                     return `
                         <div class="project-card viewfinder-card ${p.completed ? 'completed' : ''} ${notAssigned ? 'not-assigned' : ''}">
                             <div class="project-header">
@@ -660,6 +788,7 @@
 
         document.addEventListener('DOMContentLoaded', async function() {
             loadTheme();
+            restoreProjectsControls();
             const ok = await requireAuth();
             if (!ok) return;
             await renderProjects();

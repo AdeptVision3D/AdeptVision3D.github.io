@@ -6,6 +6,9 @@
     <title>Decard Pipeline — Проект</title>
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0F1830">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -27,6 +30,9 @@
         .frame-meta { font-size: 13px; color: var(--text-secondary); display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
         .frame-body { padding: 20px; }
         .frame-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        .frame-card.priority { border-color: var(--danger); }
+        .priority-badge { font-family: var(--font-mono); font-size: 11px; padding: 4px 12px 4px 9px; border-radius: 999px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; background: rgba(231, 76, 60, 0.12); color: var(--danger); }
+        .btn-priority-on { color: var(--danger); border-color: var(--danger); }
         .empty-state { text-align: center; padding: 80px 20px; color: var(--text-secondary); }
         .empty-state h3 { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 8px; color: var(--text-primary); }
         .status-badge { font-family: var(--font-mono); font-size: 11px; padding: 4px 12px 4px 9px; border-radius: 999px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
@@ -217,6 +223,23 @@
             renderFrames();
         }
 
+        // "Горящий" кадр — ручная пометка приоритета, не связана со статусом/дедлайном
+        // проекта. Ставить/снимать может любой (как и смену статуса выше) — это просто
+        // сигнал "обратите внимание", а не право доступа.
+        async function toggleFramePriority(frameId, currentlyPriority) {
+            const { error } = await supabaseClient
+                .from('frames')
+                .update({ is_priority: !currentlyPriority })
+                .eq('id', frameId);
+            if (error) {
+                console.error(error);
+                showToast('Не удалось изменить приоритет', 'error');
+                return;
+            }
+            showToast(!currentlyPriority ? 'Кадр отмечен как горящий' : 'Пометка приоритета снята', 'success');
+            renderFrames();
+        }
+
         function getFrameStatusLabel(status) {
             if (status === 'done') return 'Готов';
             if (status === 'in_progress') return 'В работе';
@@ -237,6 +260,9 @@
             document.getElementById('projectTitle').textContent = project.name;
 
             const frames = await getFrames();
+            // Горящие кадры — наверх списка; порядок внутри каждой группы сохраняется
+            // (Array.sort в JS стабилен), created_at desc уже задан запросом в getFrames()
+            frames.sort((a, b) => (b.is_priority ? 1 : 0) - (a.is_priority ? 1 : 0));
             const progressMap = await getFramesProgress(frames.map(f => f.id));
             const canManageFrames = currentUser && (hasAdminAccess(currentUser) || ['lead', 'art_director', 'ceo'].includes(currentUser.role));
             const grid = document.getElementById('framesGrid');
@@ -252,8 +278,9 @@
                     const createdDisplay = f.created_at ? new Date(f.created_at).toLocaleDateString('ru-RU') : '';
                     const frameProgress = progressMap[f.id] || { total: 0, completed: 0 };
                     const progressPercent = frameProgress.total > 0 ? Math.round((frameProgress.completed / frameProgress.total) * 100) : 0;
+                    const isPriority = !!f.is_priority;
                     return `
-                        <div class="frame-card viewfinder-card">
+                        <div class="frame-card viewfinder-card ${isPriority ? 'priority' : ''}">
                             <div class="frame-header">
                                 <div class="frame-header-text">
                                     <div class="frame-title">${escapeHtml(f.name)}</div>
@@ -261,6 +288,7 @@
                                         <span style="display:inline-flex;align-items:center;gap:5px;">${ICON.calendar}${createdDisplay}</span>
                                         <span class="status-badge ${statusClass}"><span class="badge-dot"></span>${statusLabel}</span>
                                         <span>${frameProgress.completed}/${frameProgress.total} задач</span>
+                                        ${isPriority ? `<span class="priority-badge">${ICON.warning} Горит</span>` : ''}
                                     </div>
                                 </div>
                                 <div class="progress-ring" style="--percent:${progressPercent}"><span class="progress-ring-label">${progressPercent}%</span></div>
@@ -268,6 +296,7 @@
                             <div class="frame-body">
                                 <div class="frame-actions">
                                     <a href="frame.html?project=${projectId}&frame=${f.id}" class="btn btn-primary">Открыть чек-лист</a>
+                                    <button class="btn btn-secondary ${isPriority ? 'btn-priority-on' : ''}" onclick="toggleFramePriority('${f.id}', ${isPriority})" title="${isPriority ? 'Снять пометку приоритета' : 'Отметить как горящий'}">${ICON.warning}</button>
                                     <button class="btn btn-secondary" onclick="setFrameStatus('${f.id}', 'in_progress')">${ICON.clock} В работу</button>
                                     <button class="btn btn-secondary" onclick="setFrameStatus('${f.id}', 'done')">${ICON.check} Готов</button>
                                     ${canManageFrames ? `<button class="btn btn-secondary" onclick="deleteFrame('${f.id}')" style="color: var(--danger);">${ICON.trash}</button>` : ''}
