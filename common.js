@@ -93,3 +93,24 @@ async function doLogout() {
     await supabaseClient.auth.signOut();
     window.location.href = 'login.html';
 }
+
+// ====== Дедлайны проектов (общая логика для главной страницы и аналитики) ======
+function getDeadlineStatus(deadlineIso) {
+    if (!deadlineIso) return 'ok';
+    const dl = new Date(deadlineIso);
+    const now = new Date();
+    const diffDays = (dl - now) / (1000 * 60 * 60 * 24);
+    if (diffDays < 0) return 'urgent';
+    if (diffDays <= 7) return 'soon';
+    return 'ok';
+}
+function getDeadlineLabel(status) {
+    if (status === 'urgent') return 'Просрочено';
+    if (status === 'soon') return 'Скоро';
+    return 'В срок';
+}
+function formatDateRu(isoDate) {
+    if (!isoDate) return '';
+    const [year, month, day] = isoDate.split('-');
+    return `${day}.${month}.${year}`;
+}

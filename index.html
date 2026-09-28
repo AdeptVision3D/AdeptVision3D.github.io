@@ -56,6 +56,7 @@
                         <button class="theme-btn" data-theme="system" onclick="setTheme('system')" title="Системная тема"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></button>
                     </div>
                 </div>
+                <a href="analytics.html" class="btn btn-secondary" id="analyticsBtn" style="display:none;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Аналитика</a>
                 <button class="btn btn-primary" id="newProjectBtn" onclick="createProject()">+ Новый проект</button>
                 <button class="btn btn-secondary" id="addEmployeeBtn" onclick="openAddEmployeeModal()" style="display:none;">+ Добавить сотрудника</button>
                 <div class="user-box" id="userBox" style="display:flex; align-items:center; gap:10px; font-size:13px; color: var(--text-secondary);"></div>
@@ -146,6 +147,8 @@
             if (newBtn) newBtn.style.display = canManage ? '' : 'none';
             const addEmpBtn = document.getElementById('addEmployeeBtn');
             if (addEmpBtn) addEmpBtn.style.display = ['ceo', 'art_director'].includes(currentUser.role) ? '' : 'none';
+            const analyticsBtn = document.getElementById('analyticsBtn');
+            if (analyticsBtn) analyticsBtn.style.display = canManage ? '' : 'none';
         }
 
         function openAddEmployeeModal() {
@@ -324,26 +327,6 @@
             }
             showToast('Проект обновлён', 'success');
             renderProjects();
-        }
-
-        function getDeadlineStatus(deadlineIso) {
-            if (!deadlineIso) return 'ok';
-            const dl = new Date(deadlineIso);
-            const now = new Date();
-            const diffDays = (dl - now) / (1000 * 60 * 60 * 24);
-            if (diffDays < 0) return 'urgent';
-            if (diffDays <= 7) return 'soon';
-            return 'ok';
-        }
-        function getDeadlineLabel(status) {
-            if (status === 'urgent') return 'Просрочено';
-            if (status === 'soon') return 'Скоро';
-            return 'В срок';
-        }
-        function formatDateRu(isoDate) {
-            if (!isoDate) return '';
-            const [year, month, day] = isoDate.split('-');
-            return `${day}.${month}.${year}`;
         }
 
         async function renderProjects() {
