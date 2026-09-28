@@ -254,15 +254,27 @@ body {
 }
 
 /* Подпись автора внизу страницы — добавляется из common.js (initSiteCredit) */
+/* position:fixed — принципиально важно: как обычный элемент потока (последний
+   ребёнок <body>) эта подпись ломала вёрстку на страницах, где body сам является
+   flex/grid-контейнером для контента (например login.html — там body: display:flex
+   центрирует .login-box, а лишний соседний div сдвигал и сужал его, из-за чего
+   на мобильных обрезалась кнопка "Войти" в пин-панели). Фиксированное позиционирование
+   полностью выводит подпись из потока страницы — так же, как баннер и колокольчик выше. */
 .site-credit {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10;
     text-align: center;
-    padding: 28px 16px 18px;
+    padding: 6px 16px calc(6px + env(safe-area-inset-bottom, 0px));
     font-size: 11px;
     font-family: var(--font-mono);
     color: var(--text-secondary);
     opacity: 0.5;
+    pointer-events: none;
 }
-.site-credit a { color: inherit; text-decoration: none; }
+.site-credit a { color: inherit; text-decoration: none; pointer-events: auto; }
 .site-credit a:hover { opacity: 1; text-decoration: underline; }
 
 /* Маскот-рендербот для пустых состояний (см. MASCOT_SVG в common.js) */
