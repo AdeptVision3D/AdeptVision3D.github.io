@@ -120,6 +120,12 @@
                 <label id="empPinLabel" style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">PIN (минимум 6 символов)</label>
                 <input type="text" id="newEmpPin" placeholder="" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
             </div>
+            <div style="margin-bottom: 14px;">
+                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Команда (группа для списка входа, необязательно)</label>
+                <input type="text" id="newEmpTeamGroup" list="teamGroupOptions" placeholder="Например: Команда 1" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+                <datalist id="teamGroupOptions"></datalist>
+                <div style="font-size:11px; color:var(--text-secondary); margin-top:4px;">Для руководства (тимлид/арт-директор/директор) не важно — они всегда отдельным блоком "Руководство".</div>
+            </div>
             <div id="empAdminToggleWrap" style="margin-bottom: 20px; display:none;">
                 <label style="display:flex; align-items:center; gap:8px; font-size: 13px; cursor:pointer;">
                     <input type="checkbox" id="newEmpIsAdmin" style="width:16px; height:16px;">
@@ -211,8 +217,21 @@
             document.getElementById('newEmpPin').value = '';
             document.getElementById('empPinLabel').textContent = 'PIN (минимум 6 символов)';
             document.getElementById('newEmpIsAdmin').checked = false;
+            document.getElementById('newEmpTeamGroup').value = '';
+            fillTeamGroupOptions();
             document.getElementById('empAdminToggleWrap').style.display = hasAdminAccess(currentUser) || currentUser.role === 'ceo' || currentUser.role === 'art_director' ? '' : 'none';
             document.getElementById('addEmployeeModal').style.display = 'flex';
+        }
+
+        // Подсказки для поля "Команда" — берём уже существующие названия групп,
+        // чтобы не плодить дубли из-за опечаток ("команда 1" / "Команда 1").
+        // Запрашиваем напрямую (а не из allEmployeesCache), т.к. модалка "Добавить
+        // сотрудника" может открываться до того, как список сотрудников вообще загружался.
+        async function fillTeamGroupOptions() {
+            const { data, error } = await supabaseClient.from('profiles').select('team_group');
+            if (error) { console.error(error); return; }
+            const existing = [...new Set((data || []).map(p => p.team_group).filter(Boolean))].sort();
+            document.getElementById('teamGroupOptions').innerHTML = existing.map(g => `<option value="${escapeHtml(g)}">`).join('');
         }
 
         function openEditEmployeeModal(id) {
@@ -227,6 +246,8 @@
             document.getElementById('newEmpPin').value = '';
             document.getElementById('empPinLabel').textContent = 'Новый PIN (оставьте пустым, чтобы не менять)';
             document.getElementById('newEmpIsAdmin').checked = !!emp.is_admin;
+            document.getElementById('newEmpTeamGroup').value = emp.team_group || '';
+            fillTeamGroupOptions();
             document.getElementById('empAdminToggleWrap').style.display = hasAdminAccess(currentUser) || currentUser.role === 'ceo' || currentUser.role === 'art_director' ? '' : 'none';
             // Список сотрудников закрываем, чтобы не оставалось два окна друг на друге —
             // после сохранения/отмены редактирования вернём его обратно.
@@ -249,6 +270,7 @@
             const email = document.getElementById('newEmpEmail').value.trim();
             const pin = document.getElementById('newEmpPin').value.trim();
             const is_admin = document.getElementById('newEmpIsAdmin').checked;
+            const team_group = document.getElementById('newEmpTeamGroup').value.trim();
 
             if (!full_name || !email) { showToast('Заполните имя и логин', 'error'); return; }
             if (pin && pin.length < 6) { showToast('PIN должен быть не короче 6 символов', 'error'); return; }
@@ -256,8 +278,8 @@
 
             const { data: { session } } = await supabaseClient.auth.getSession();
             const body = editingEmployeeId
-                ? { action: 'update', id: editingEmployeeId, full_name, role, is_admin, email, ...(pin ? { pin } : {}) }
-                : { action: 'create', full_name, role, email, pin };
+                ? { action: 'update', id: editingEmployeeId, full_name, role, is_admin, email, team_group, ...(pin ? { pin } : {}) }
+                : { action: 'create', full_name, role, email, pin, team_group };
 
             try {
                 const response = await fetch(`${SUPABASE_URL}/functions/v1/bright-api`, {
@@ -304,7 +326,7 @@
                             ${p.is_admin ? '<span style="font-family:var(--font-mono); font-size:10px; padding:2px 8px; border-radius:999px; background:rgba(39,67,192,0.12); color:var(--accent);">Админ-доступ</span>' : ''}
                             ${isActive ? '' : '<span style="font-family:var(--font-mono); font-size:10px; padding:2px 8px; border-radius:999px; background:rgba(231,76,60,0.12); color:var(--danger);">Уволен(а)</span>'}
                         </div>
-                        <div style="font-size:12px; color:var(--text-secondary); margin-top:2px;">${roleLabels[p.role] || p.role} · ${escapeHtml(p.login_email || '')}</div>
+                        <div style="font-size:12px; color:var(--text-secondary); margin-top:2px;">${roleLabels[p.role] || p.role}${p.team_group ? ' · ' + escapeHtml(p.team_group) : ''} · ${escapeHtml(p.login_email || '')}</div>
                     </div>
                     <div style="display:flex; gap:6px; flex-shrink:0;">
                         <button class="btn btn-secondary" onclick="openEditEmployeeModal('${p.id}')" title="Изменить">${ICON.edit}</button>
