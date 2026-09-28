@@ -124,16 +124,40 @@
         .search-results { font-size: 13px; color: var(--text-secondary); white-space: nowrap; }
         .hide-warnings .warning-box { display: none; }
         .theme-controls { display: flex; gap: 8px; }
-        .theme-btn { padding: 6px 10px; border: 1px solid var(--border); background: var(--btn-secondary-bg); color: var(--text-primary); border-radius: 4px; cursor: pointer; transition: all 0.2s ease; font-size: 16px; }
+        .theme-btn { padding: 7px 10px; border: 1px solid var(--border); background: var(--btn-secondary-bg); color: var(--text-primary); border-radius: 4px; cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; }
         .theme-btn:hover { background: var(--border); transform: translateY(-2px); }
         .theme-btn.active { background: var(--accent-gradient); color: white; border-color: transparent; }
         .stages-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 24px; margin-top: 16px; align-items: start; }
-        .stage-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; overflow: hidden; box-shadow: var(--card-shadow); transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); position: relative; }
-        .stage-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--accent-gradient); opacity: 0; transition: opacity 0.3s ease; }
-        .stage-card:hover::before { opacity: 1; }
-        .stage-card::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 45%; background: linear-gradient(to top, rgba(var(--accent-rgb), 0.14), transparent); opacity: 0; transition: opacity 0.35s ease; pointer-events: none; z-index: -1; }
-        .stage-card:hover::after { opacity: 1; }
-        .stage-card:hover { transform: translateY(-4px); box-shadow: var(--card-shadow-hover); }
+        /* Карточка этапа: угловые скобки видоискателя вместо мягкого свечения — "кадр" в буквальном смысле.
+           Технический приём (4 background-слоя = 4 уголка), радиус контейнера меньше, чем у пилюль внутри —
+           так крупная форма и мелкие элементы визуально не смешиваются в одну "одинаковую скруглённость". */
+        .stage-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 3px;
+            overflow: hidden;
+            box-shadow: var(--card-shadow);
+            transition: transform 0.25s ease, box-shadow 0.25s ease, background-position 0.25s ease;
+            position: relative;
+            background-repeat: no-repeat;
+            background-image:
+                linear-gradient(var(--card-border), var(--card-border)), linear-gradient(var(--card-border), var(--card-border)),
+                linear-gradient(var(--card-border), var(--card-border)), linear-gradient(var(--card-border), var(--card-border)),
+                linear-gradient(var(--card-border), var(--card-border)), linear-gradient(var(--card-border), var(--card-border)),
+                linear-gradient(var(--card-border), var(--card-border)), linear-gradient(var(--card-border), var(--card-border));
+            background-size: 16px 2px, 2px 16px, 16px 2px, 2px 16px, 16px 2px, 2px 16px, 16px 2px, 2px 16px;
+            background-position: 0 0, 0 0, 100% 0, 100% 0, 0 100%, 0 100%, 100% 100%, 100% 100%;
+        }
+        .stage-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--card-shadow-hover);
+            background-image:
+                linear-gradient(var(--accent), var(--accent)), linear-gradient(var(--accent), var(--accent)),
+                linear-gradient(var(--accent), var(--accent)), linear-gradient(var(--accent), var(--accent)),
+                linear-gradient(var(--accent), var(--accent)), linear-gradient(var(--accent), var(--accent)),
+                linear-gradient(var(--accent), var(--accent)), linear-gradient(var(--accent), var(--accent));
+            background-size: 20px 2px, 2px 20px, 20px 2px, 2px 20px, 20px 2px, 2px 20px, 20px 2px, 2px 20px;
+        }
         .stage-card.custom-free { border-left: 4px solid var(--success); }
         .stage-card.custom-paid { border-left: 4px solid var(--warning); }
         .stage-card.custom-base { border-left: 4px solid var(--accent); }
@@ -145,7 +169,7 @@
         .stage-number { font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: var(--accent); background: rgba(39, 67, 192, 0.1); padding: 4px 12px; border-radius: 4px; }
         [data-theme="dark"] .stage-number { background: rgba(74, 111, 232, 0.2); }
         .stage-title { font-size: 16px; font-weight: 600; flex: 1; }
-        .revision-badge { font-family: var(--font-mono); font-size: 10px; padding: 3px 10px; border-radius: 999px; font-weight: 600; }
+        .revision-badge { font-family: var(--font-mono); font-size: 10px; padding: 3px 10px 3px 8px; border-radius: 999px; font-weight: 600; display: inline-flex; align-items: center; gap: 5px; }
         .revision-free { background: rgba(39, 174, 96, 0.15); color: var(--success); }
         .revision-paid { background: rgba(243, 156, 18, 0.15); color: var(--warning); }
         .revision-base { background: rgba(39, 67, 192, 0.12); color: var(--accent); }
@@ -161,10 +185,10 @@
         .stage-location { font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 4px; }
         .stage-output { font-size: 12px; color: var(--text-primary); }
         .stage-output strong { color: var(--accent); }
-        .delete-stage-btn { float: right; background: none; border: 1px solid var(--danger); color: var(--danger); border-radius: 4px; padding: 4px 10px; font-size: 12px; cursor: pointer; transition: all 0.2s ease; }
+        .delete-stage-btn { float: right; background: none; border: 1px solid var(--danger); color: var(--danger); border-radius: 4px; padding: 4px 10px; font-size: 12px; cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 5px; }
         .delete-stage-btn:hover { background: var(--danger); color: white; }
         .quick-actions { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
-        .btn-small { padding: 4px 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--btn-secondary-bg); color: var(--text-primary); font-size: 12px; cursor: pointer; transition: all 0.2s ease; }
+        .btn-small { padding: 4px 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--btn-secondary-bg); color: var(--text-primary); font-size: 12px; cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 5px; }
         .btn-small:hover { border-color: var(--accent); background: rgba(39, 67, 192, 0.05); transform: translateY(-1px); }
         [data-theme="dark"] .btn-small:hover { background: rgba(74, 111, 232, 0.1); }
         .checklist { margin-bottom: 20px; }
@@ -174,9 +198,9 @@
         .checklist-item .task-edit-input:hover { border-color: var(--input-border); background: var(--input-bg); }
         .checklist-item .task-edit-input:focus { outline: none; border-color: var(--accent); background: var(--input-bg); }
         .checklist-item.checked .task-edit-input { color: var(--text-secondary); text-decoration: line-through; }
-        .task-delete-btn { background: none; border: none; color: var(--danger); cursor: pointer; font-size: 14px; padding: 4px; opacity: 0.6; transition: all 0.2s ease; flex-shrink: 0; }
+        .task-delete-btn { background: none; border: none; color: var(--danger); cursor: pointer; font-size: 14px; padding: 4px; opacity: 0.6; transition: all 0.2s ease; flex-shrink: 0; display: inline-flex; align-items: center; }
         .task-delete-btn:hover { opacity: 1; transform: scale(1.15); }
-        .task-comment-btn { padding: 4px 8px; border: 1px solid var(--border); background: var(--btn-secondary-bg); color: var(--text-primary); border-radius: 4px; cursor: pointer; transition: all 0.2s ease; font-size: 12px; flex-shrink: 0; }
+        .task-comment-btn { padding: 4px 8px; border: 1px solid var(--border); background: var(--btn-secondary-bg); color: var(--text-primary); border-radius: 4px; cursor: pointer; transition: all 0.2s ease; font-size: 12px; flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px; }
         .task-comment-btn:hover { background: var(--border); transform: translateY(-2px); }
         .task-comment-btn.has-comment { background: var(--accent-gradient); color: white; border-color: transparent; }
         .comments-compact-btn.has-comments { color: var(--accent); border-color: var(--accent); }
@@ -192,7 +216,8 @@
         .qc-title { font-size: 12px; font-weight: 700; color: var(--success); margin-bottom: 6px; }
         .qc-text { font-size: 13px; color: var(--text-primary); line-height: 1.5; }
         .warning-box { background: var(--warning); border-left: 3px solid rgba(0,0,0,0.2); padding: 12px; border-radius: 0 4px 4px 0; }
-        .warning-text { font-size: 13px; color: #FFFFFF; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+        .warning-text { font-size: 13px; color: #FFFFFF; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.2); display: flex; align-items: flex-start; gap: 7px; }
+        .warning-text svg { flex-shrink: 0; margin-top: 2px; }
         .add-stage-wrap { grid-column: 1 / -1; display: flex; justify-content: center; margin-top: 8px; }
         .add-stage-btn { background: var(--accent-gradient); color: white; border: none; border-radius: 6px; padding: 10px 20px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(39, 67, 192, 0.2); }
         .add-stage-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(39, 67, 192, 0.3); }
@@ -258,21 +283,22 @@
                 <div class="btn-group">
                     <button class="btn btn-secondary" onclick="expandAll()">Развернуть все</button>
                     <button class="btn btn-secondary" onclick="collapseAll()">Свернуть все</button>
-                    <button class="btn btn-secondary" id="warningsToggleBtn" onclick="toggleWarnings()">⚠️ Скрыть предупреждения</button>
-                    <button class="btn btn-secondary" onclick="openLogModal()">📜 Лог изменений</button>
-                    <button class="btn btn-secondary" onclick="exportFramePDF()">📄 Экспорт в PDF</button>
+                    <button class="btn btn-secondary" id="warningsToggleBtn" onclick="toggleWarnings()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20Z"/><line x1="12" y1="9" x2="12" y2="14"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Скрыть предупреждения</button>
+                    <button class="btn btn-secondary" onclick="openLogModal()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> Лог изменений</button>
+                    <button class="btn btn-secondary" onclick="exportFramePDF()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M9.5 15.5 12 18l2.5-2.5"/><path d="M12 12v6"/></svg> Экспорт в PDF</button>
                     <div class="theme-controls">
-                        <button class="theme-btn" data-theme="light" onclick="setTheme('light')" title="Светлая тема">☀️</button>
-                        <button class="theme-btn" data-theme="dark" onclick="setTheme('dark')" title="Тёмная тема">🌙</button>
-                        <button class="theme-btn" data-theme="system" onclick="setTheme('system')" title="Системная тема">💻</button>
+                        <button class="theme-btn" data-theme="light" onclick="setTheme('light')" title="Светлая тема"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+                        <button class="theme-btn" data-theme="dark" onclick="setTheme('dark')" title="Тёмная тема"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.5A9 9 0 1 1 11.5 3a7 7 0 0 0 9.5 9.5Z"/></svg></button>
+                        <button class="theme-btn" data-theme="system" onclick="setTheme('system')" title="Системная тема"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></button>
                     </div>
                     <button class="btn btn-complete" onclick="completeFrame()">✓ Завершить кадр</button>
                     <div class="user-box" id="userBox" style="display:flex; align-items:center; gap:10px; font-size:13px; color: var(--text-secondary);"></div>
                 </div>
             </div>
         </header>
-        <div class="search-box" style="margin-bottom: 16px;">
-            <input type="text" class="search-input" id="searchInput" placeholder="🔍 Поиск этапа..." oninput="searchStages()">
+        <div class="search-box" style="margin-bottom: 16px; position: relative;">
+            <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-secondary); pointer-events: none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+            <input type="text" class="search-input" id="searchInput" placeholder="Поиск этапа..." oninput="searchStages()" style="padding-left: 34px;">
             <span class="search-results" id="searchResults"></span>
         </div>
         <div class="stages-grid" id="stagesGrid"></div>
@@ -312,7 +338,7 @@
     <div class="modal" id="logModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3 class="modal-title">📜 Лог изменений</h3>
+                <h3 class="modal-title" style="display:flex; align-items:center; gap:8px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> Лог изменений</h3>
                 <button class="modal-close" onclick="closeLogModal()">×</button>
             </div>
             <div class="modal-body" id="logModalList"></div>
@@ -335,9 +361,9 @@
                 <div class="form-group">
                     <label class="form-label">Тип этапа</label>
                     <select class="form-select" id="newStageType">
-                        <option value="base">🔵 Базовый (обычный доп. этап)</option>
-                        <option value="free_revision">🟢 Бесплатная правка</option>
-                        <option value="paid_revision">🟡 Платная правка</option>
+                        <option value="base">Базовый (обычный доп. этап)</option>
+                        <option value="free_revision">Бесплатная правка</option>
+                        <option value="paid_revision">Платная правка</option>
                     </select>
                 </div>
             </div>
@@ -354,6 +380,22 @@
         const SUPABASE_KEY = 'sb_publishable_ouAuh1fPBDLo3bLxs4FnLA_dJwIN-Un';
         const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         // =====================================
+
+        // Набор простых линейных иконок взамен эмодзи — единый визуальный язык, без "клипарта"
+        const ICON = {
+            calendar: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg>',
+            trash: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/></svg>',
+            edit: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+            comment: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+            log: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+            pdf: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M9.5 15.5 12 18l2.5-2.5"/><path d="M12 12v6"/></svg>',
+            warning: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20Z"/><line x1="12" y1="9" x2="12" y2="14"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+            search: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+            sun: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
+            moon: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.5A9 9 0 1 1 11.5 3a7 7 0 0 0 9.5 9.5Z"/></svg>',
+            monitor: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>',
+            pin: '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-7.5 7-12a7 7 0 1 0-14 0c0 4.5 7 12 7 12Z"/><circle cx="12" cy="9" r="2.3"/></svg>'
+        };
 
         const roleLabels = { artist: 'Художник', lead: 'Тимлид', art_director: 'Арт-директор', ceo: 'Генеральный директор' };
         let currentUser = null;
@@ -448,7 +490,7 @@
         }
         function updateWarningsToggleLabel(hidden) {
             const btn = document.getElementById('warningsToggleBtn');
-            if (btn) btn.textContent = hidden ? '⚠️ Показать предупреждения' : '⚠️ Скрыть предупреждения';
+            if (btn) btn.innerHTML = `${ICON.warning} ${hidden ? 'Показать предупреждения' : 'Скрыть предупреждения'}`;
         }
 
         // ====== РАБОТА С ДАННЫМИ ЧЕРЕЗ SUPABASE ======
@@ -790,7 +832,7 @@
             }
             el.innerHTML = comments.map(c => {
                 const date = new Date(c.created_at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-                const deleteBtn = canDeleteComments() ? `<button onclick="deleteComment('${c.id}')" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:12px;margin-left:auto;">🗑</button>` : '';
+                const deleteBtn = canDeleteComments() ? `<button onclick="deleteComment('${c.id}')" style="background:none;border:none;color:var(--danger);cursor:pointer;margin-left:auto;display:inline-flex;align-items:center;">${ICON.trash}</button>` : '';
                 return `<div class="comment"><div class="comment-meta"><strong>${escapeHtml(c.author_name)}</strong><span>${date}</span>${deleteBtn}</div><div class="comment-text">${escapeHtml(c.text)}</div></div>`;
             }).join('');
         }
@@ -855,13 +897,13 @@
             const stage = stagesData.find(s => s.id === stageId);
             if (!cardEl || !stage) return;
             const btn = cardEl.querySelector('.comments-compact-btn');
-            if (btn) { btn.textContent = `💬 Комментарии (${stage.comments.length})`; btn.classList.toggle('has-comments', stage.comments.length > 0); }
+            if (btn) { btn.innerHTML = `${ICON.comment} Комментарии (${stage.comments.length})`; btn.classList.toggle('has-comments', stage.comments.length > 0); }
         }
         function refreshTaskCommentButton(taskId, stageId) {
             const stage = stagesData.find(s => s.id === stageId);
             const task = stage.tasks.find(t => t.id === taskId);
             const btn = document.querySelector(`.task-comment-btn[onclick*="'${taskId}'"]`);
-            if (btn) { btn.textContent = `💬${task.comments.length > 0 ? ' (' + task.comments.length + ')' : ''}`; btn.classList.toggle('has-comment', task.comments.length > 0); }
+            if (btn) { btn.innerHTML = `${ICON.comment}${task.comments.length > 0 ? ' (' + task.comments.length + ')' : ''}`; btn.classList.toggle('has-comment', task.comments.length > 0); }
         }
 
         // ====== Рендер ======
@@ -882,20 +924,20 @@
             if (expandedStageIds.includes(stage.id)) cardClass += ' expanded';
 
             let revisionBadge = '';
-            if (stage.stage_type === 'free_revision') revisionBadge = '<span class="revision-badge revision-free">🟢 Бесплатная правка</span>';
-            else if (stage.stage_type === 'paid_revision') revisionBadge = '<span class="revision-badge revision-paid">🟡 Платная правка</span>';
-            else if (stage.is_custom) revisionBadge = '<span class="revision-badge revision-base">🔵 Доп. этап</span>';
+            if (stage.stage_type === 'free_revision') revisionBadge = '<span class="revision-badge revision-free"><span class="badge-dot"></span>Бесплатная правка</span>';
+            else if (stage.stage_type === 'paid_revision') revisionBadge = '<span class="revision-badge revision-paid"><span class="badge-dot"></span>Платная правка</span>';
+            else if (stage.is_custom) revisionBadge = '<span class="revision-badge revision-base"><span class="badge-dot"></span>Доп. этап</span>';
 
             const tasksHtml = stage.tasks.map(task => {
                 return `<div class="checklist-item ${task.checked ? 'checked' : ''}">
                     <input type="checkbox" id="task-${task.id}" ${task.checked ? 'checked' : ''} onclick="event.stopPropagation(); toggleTask('${task.id}', '${stage.id}')">
                     <input type="text" class="task-edit-input" value="${escapeHtml(task.text)}" onclick="event.stopPropagation()" onchange="editTaskText('${task.id}', '${stage.id}', this.value)">
-                    <button class="task-delete-btn" onclick="event.stopPropagation(); deleteTask('${task.id}', '${stage.id}')" title="Удалить задачу">🗑</button>
-                    <button class="task-comment-btn ${task.comments.length > 0 ? 'has-comment' : ''}" onclick="event.stopPropagation(); openTaskCommentModal('${task.id}', '${stage.id}')" title="Комментарии к задаче">💬${task.comments.length > 0 ? ' (' + task.comments.length + ')' : ''}</button>
+                    <button class="task-delete-btn" onclick="event.stopPropagation(); deleteTask('${task.id}', '${stage.id}')" title="Удалить задачу">${ICON.trash}</button>
+                    <button class="task-comment-btn ${task.comments.length > 0 ? 'has-comment' : ''}" onclick="event.stopPropagation(); openTaskCommentModal('${task.id}', '${stage.id}')" title="Комментарии к задаче">${ICON.comment}${task.comments.length > 0 ? ' (' + task.comments.length + ')' : ''}</button>
                 </div>`;
             }).join('');
 
-            const deleteStageBtn = (stage.is_custom && canManageStages()) ? `<button class="delete-stage-btn" onclick="event.stopPropagation(); confirmDeleteStage('${stage.id}')">🗑 Удалить этап</button>` : '';
+            const deleteStageBtn = (stage.is_custom && canManageStages()) ? `<button class="delete-stage-btn" onclick="event.stopPropagation(); confirmDeleteStage('${stage.id}')">${ICON.trash} Удалить этап</button>` : '';
 
             return `<div class="${cardClass}" id="stage-${stage.id}" onclick="toggleStageExpand('${stage.id}')">
                 <div class="stage-header">
@@ -904,7 +946,7 @@
                     <span class="expand-icon">▼</span>
                 </div>
                 <div class="stage-content">
-                    <div class="stage-meta">${deleteStageBtn}<span class="stage-location">📍 ${escapeHtml(stage.location || '')}</span><span class="stage-output"><strong>На выходе:</strong> ${escapeHtml(stage.output || '')}</span></div>
+                    <div class="stage-meta">${deleteStageBtn}<span class="stage-location" style="display:inline-flex;align-items:center;gap:5px;">${ICON.pin} ${escapeHtml(stage.location || '')}</span><span class="stage-output"><strong>На выходе:</strong> ${escapeHtml(stage.output || '')}</span></div>
                     <div class="quick-actions" onclick="event.stopPropagation()">
                         <button class="btn-small" onclick="markAllTasks('${stage.id}')">✓ Отметить всё</button>
                         <button class="btn-small" onclick="confirmResetStage('${stage.id}')">↺ Сбросить</button>
@@ -917,9 +959,9 @@
                         <span class="progress-ring small" style="--percent:${progressPercent}"><span class="progress-ring-label">${progressPercent}%</span></span>
                         <div class="stage-progress">Прогресс: ${completedCount}/${total}</div>
                     </div>
-                    <button class="comments-compact-btn ${stage.comments.length > 0 ? 'has-comments' : ''}" onclick="openCommentsModal('${stage.id}'); event.stopPropagation()">💬 Комментарии (${stage.comments.length})</button>
+                    <button class="comments-compact-btn ${stage.comments.length > 0 ? 'has-comments' : ''}" onclick="openCommentsModal('${stage.id}'); event.stopPropagation()">${ICON.comment} Комментарии (${stage.comments.length})</button>
                     <div class="qc-section" onclick="event.stopPropagation()"><div class="qc-title">Критерий перехода</div><div class="qc-text">${escapeHtml(stage.qc || '')}</div></div>
-                    <div class="warning-box" onclick="event.stopPropagation()"><div class="warning-text">⚠️ ${escapeHtml(stage.warning || '')}</div></div>
+                    <div class="warning-box" onclick="event.stopPropagation()"><div class="warning-text">${ICON.warning}<span>${escapeHtml(stage.warning || '')}</span></div></div>
                 </div>
             </div>`;
         }
