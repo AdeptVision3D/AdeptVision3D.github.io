@@ -571,6 +571,9 @@
             const projects = await loadProjectsWithFrames();
             lastLoadedProjects = projects;
             const canManageProjects = currentUser && (hasAdminAccess(currentUser) || ['lead', 'art_director', 'ceo'].includes(currentUser.role));
+            // "Завершить проект" — более узкий доступ, чем управление проектом:
+            // только админ-доступ, ceo или арт-директор (тимлид — не может завершать)
+            const canCompleteProject = currentUser && (hasAdminAccess(currentUser) || ['ceo', 'art_director'].includes(currentUser.role));
             const grid = document.getElementById('projectsGrid');
             const empty = document.getElementById('emptyState');
             if (projects.length === 0) {
@@ -587,7 +590,10 @@
                     const deadlineClass = `deadline-${deadlineStatus}`;
                     const createdDisplay = p.created_at ? new Date(p.created_at).toLocaleDateString('ru-RU') : '';
                     const isMyTeam = currentUser && Array.isArray(p.memberIds) && p.memberIds.includes(currentUser.id);
+                    // Заблокирован вход: у проекта есть назначенная команда, пользователь в неё
+                    // не входит, и он не руководитель/админ (руководители видят и открывают всё всегда)
                     const notAssigned = Array.isArray(p.memberIds) && p.memberIds.length > 0 && !isMyTeam;
+                    const blockedFromEntry = notAssigned && !canManageProjects;
                     return `
                         <div class="project-card viewfinder-card ${p.completed ? 'completed' : ''} ${notAssigned ? 'not-assigned' : ''}">
                             <div class="project-header">
@@ -604,11 +610,13 @@
                             </div>
                             <div class="project-body">
                                 <div class="project-actions">
-                                    <a href="project.html?id=${p.id}" class="btn btn-primary">Открыть</a>
+                                    ${blockedFromEntry
+                                        ? `<button class="btn btn-secondary" onclick="showToast('Вы не назначены в команду этого проекта', 'error')" style="opacity:0.6; cursor:not-allowed;" title="Нет доступа — вы не в команде проекта">🔒 Нет доступа</button>`
+                                        : `<a href="project.html?id=${p.id}" class="btn btn-primary">Открыть</a>`}
                                     ${canManageProjects ? `<button class="btn btn-secondary" onclick="openProjectTeamModal('${p.id}')" title="Команда проекта">${ICON.team}</button>` : ''}
                                     ${canManageProjects ? `<button class="btn btn-secondary" onclick="editProject('${p.id}')">${ICON.edit}</button>` : ''}
                                     ${canManageProjects ? `<button class="btn btn-secondary" onclick="deleteProject('${p.id}')" style="color: var(--danger);">${ICON.trash}</button>` : ''}
-                                    <button class="btn ${p.completed ? 'btn-secondary' : 'btn-danger'}" onclick="completeProject('${p.id}', ${p.completed})">${p.completed ? '↺ Вернуть' : '✓ Завершить'}</button>
+                                    ${canCompleteProject ? `<button class="btn ${p.completed ? 'btn-secondary' : 'btn-danger'}" onclick="completeProject('${p.id}', ${p.completed})">${p.completed ? '↺ Вернуть' : '✓ Завершить'}</button>` : ''}
                                 </div>
                             </div>
                         </div>
@@ -632,8 +640,16 @@
             loadTheme();
             const ok = await requireAuth();
             if (!ok) return;
-            renderProjects();
-            showToast('Добро пожаловать!', 'success');
+            await renderProjects();
+            // Если пришли редиректом с project.html (кто-то ввёл прямую ссылку на
+            // проект без доступа) — покажем причину и уберём метку из адреса
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('denied') === '1') {
+                showToast('У вас нет доступа к этому проекту — вы не в его команде', 'error');
+                window.history.replaceState({}, '', 'index.html');
+            } else {
+                showToast('Добро пожаловать!', 'success');
+            }
         });
     </script>
 </body>

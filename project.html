@@ -95,6 +95,31 @@
         const urlParams = new URLSearchParams(window.location.search);
         const projectId = urlParams.get('id'); // теперь это uuid-строка, а не число
 
+        // Проверка доступа: руководители/админ видят и открывают любой проект всегда.
+        // Остальным вход закрыт, если у проекта назначена команда, а их в ней нет
+        // (нет назначенной команды вообще — значит проект открыт всем, как раньше).
+        async function checkProjectAccess() {
+            const canManage = hasAdminAccess(currentUser) || ['lead', 'art_director', 'ceo'].includes(currentUser.role);
+            if (canManage) return true;
+
+            const { data: members, error } = await supabaseClient
+                .from('project_members')
+                .select('user_id')
+                .eq('project_id', projectId);
+            if (error) {
+                // Не смогли проверить команду — не блокируем (как и раньше, до этой проверки)
+                console.error(error);
+                return true;
+            }
+            if (!members || members.length === 0) return true;
+            const isMember = members.some(m => m.user_id === currentUser.id);
+            if (!isMember) {
+                window.location.href = 'index.html?denied=1';
+                return false;
+            }
+            return true;
+        }
+
         // ====== РАБОТА С ДАННЫМИ ЧЕРЕЗ SUPABASE ======
 
         async function getProject() {
@@ -258,6 +283,8 @@
             loadTheme();
             const ok = await requireAuth();
             if (!ok) return;
+            const allowed = await checkProjectAccess();
+            if (!allowed) return;
             renderFrames();
             showToast('Добро пожаловать!', 'success');
         });
