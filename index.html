@@ -35,6 +35,8 @@
            и открывается как обычно, просто приглушена, чтобы не отвлекать. */
         .project-card.not-assigned { opacity: 0.5; filter: grayscale(0.35); transition: opacity 0.2s ease, filter 0.2s ease; }
         .project-card.not-assigned:hover { opacity: 0.85; filter: grayscale(0.1); }
+        .project-card.on-hold { border-color: var(--warning); }
+        .on-hold-badge { font-family: var(--font-mono); font-size: 11px; padding: 4px 12px 4px 9px; border-radius: 999px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; background: rgba(243, 156, 18, 0.15); color: var(--warning); }
         .team-badge { font-family: var(--font-mono); font-size: 11px; padding: 4px 12px 4px 9px; border-radius: 999px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; background: rgba(39, 67, 192, 0.12); color: var(--accent); }
         /* Тулбар сортировки/фильтра над сеткой проектов */
         .projects-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
@@ -110,6 +112,10 @@
                 <div class="stat-number" id="hotFramesCount" style="color: var(--danger);">0</div>
                 <div class="stat-label">Горящих кадров сейчас</div>
             </div>
+            <div class="stat-card">
+                <div class="stat-number" id="onHoldCount" style="color: var(--warning);">0</div>
+                <div class="stat-label">Проектов в стопе</div>
+            </div>
         </div>
         <div class="hot-deadlines" id="hotDeadlines" style="display:none;"></div>
         <div class="projects-toolbar">
@@ -122,10 +128,16 @@
                     <option value="mine_first">Сначала мои проекты</option>
                 </select>
             </div>
-            <label class="toolbar-toggle">
-                <input type="checkbox" id="hideCompletedToggle" onchange="onProjectsControlsChange()">
-                Скрыть завершённые
-            </label>
+            <div style="display:flex; gap:16px; flex-wrap:wrap;">
+                <label class="toolbar-toggle">
+                    <input type="checkbox" id="hideCompletedToggle" onchange="onProjectsControlsChange()">
+                    Скрыть завершённые
+                </label>
+                <label class="toolbar-toggle">
+                    <input type="checkbox" id="hideOnHoldToggle" onchange="onProjectsControlsChange()">
+                    Скрыть проекты в стопе
+                </label>
+            </div>
         </div>
         <div class="projects-grid" id="projectsGrid"></div>
         <div class="empty-state" id="emptyState" style="display: none;">
@@ -665,13 +677,23 @@
         function restoreProjectsControls() {
             const savedSort = localStorage.getItem('decardProjectSort');
             if (savedSort) document.getElementById('sortSelect').value = savedSort;
-            const savedHide = localStorage.getItem('decardHideCompleted') === '1';
-            document.getElementById('hideCompletedToggle').checked = savedHide;
+            document.getElementById('hideCompletedToggle').checked = localStorage.getItem('decardHideCompleted') === '1';
+            document.getElementById('hideOnHoldToggle').checked = localStorage.getItem('decardHideOnHold') === '1';
         }
 
         function onProjectsControlsChange() {
             localStorage.setItem('decardProjectSort', document.getElementById('sortSelect').value);
             localStorage.setItem('decardHideCompleted', document.getElementById('hideCompletedToggle').checked ? '1' : '0');
+            localStorage.setItem('decardHideOnHold', document.getElementById('hideOnHoldToggle').checked ? '1' : '0');
+            renderProjects();
+        }
+
+        // "Стоп от заказчика" — переключают только ceo/art_director/is_admin (тот же
+        // круг, что может завершать проект)
+        async function toggleProjectHold(id, currentlyOnHold) {
+            const { error } = await supabaseClient.from('projects').update({ on_hold: !currentlyOnHold }).eq('id', id);
+            if (error) { console.error(error); showToast('Не удалось изменить статус стопа', 'error'); return; }
+            showToast(!currentlyOnHold ? 'Проект поставлен в стоп' : 'Стоп снят', !currentlyOnHold ? 'warning' : 'success');
             renderProjects();
         }
 
@@ -710,7 +732,7 @@
         function renderHotDeadlines(projects, canManageProjects) {
             const widget = document.getElementById('hotDeadlines');
             const candidates = projects
-                .filter(p => !p.completed && p.deadline)
+                .filter(p => !p.completed && !p.on_hold && p.deadline)
                 .filter(p => getDeadlineStatus(p.deadline) !== 'ok')
                 .filter(p => !getProjectFlags(p, canManageProjects).blockedFromEntry)
                 .sort((a, b) => new Date(a.deadline) - new Date(b.deadline))
@@ -747,9 +769,13 @@
             renderHotDeadlines(projects, canManageProjects);
 
             const hideCompleted = document.getElementById('hideCompletedToggle').checked;
+            const hideOnHold = document.getElementById('hideOnHoldToggle').checked;
             const sortMode = document.getElementById('sortSelect').value;
+            let filteredProjects = projects;
+            if (hideCompleted) filteredProjects = filteredProjects.filter(p => !p.completed);
+            if (hideOnHold) filteredProjects = filteredProjects.filter(p => !p.on_hold);
             const displayProjects = sortProjects(
-                hideCompleted ? projects.filter(p => !p.completed) : projects,
+                filteredProjects,
                 sortMode,
                 canManageProjects
             );
@@ -778,7 +804,7 @@
                     const createdDisplay = p.created_at ? new Date(p.created_at).toLocaleDateString('ru-RU') : '';
                     const { isMyTeam, notAssigned, blockedFromEntry } = getProjectFlags(p, canManageProjects);
                     return `
-                        <div class="project-card viewfinder-card ${p.completed ? 'completed' : ''} ${notAssigned ? 'not-assigned' : ''}">
+                        <div class="project-card viewfinder-card ${p.completed ? 'completed' : ''} ${notAssigned ? 'not-assigned' : ''} ${p.on_hold ? 'on-hold' : ''}">
                             <div class="project-header">
                                 <div class="project-header-text">
                                     <div class="project-title" style="display:flex;align-items:center;gap:8px;">${escapeHtml(p.name)} ${p.completed ? ICON.check : ''}</div>
@@ -787,6 +813,7 @@
                                         <span style="display:inline-flex;align-items:center;gap:5px;">${ICON.frames}${totalFrames} кадров</span>
                                         ${p.deadline ? `<span class="deadline-badge ${deadlineClass}"><span class="badge-dot"></span>${deadlineLabel}: ${formatDateRu(p.deadline)}</span>` : ''}
                                         ${isMyTeam ? `<span class="team-badge"><span class="badge-dot"></span>Моя команда</span>` : ''}
+                                        ${p.on_hold ? `<span class="on-hold-badge">⏸ Стоп от заказчика</span>` : ''}
                                     </div>
                                 </div>
                                 <div class="progress-ring" style="--percent:${progress}"><span class="progress-ring-label">${progress}%</span></div>
@@ -800,6 +827,7 @@
                                     ${canManageProjects ? `<button class="btn btn-secondary" onclick="editProject('${p.id}')">${ICON.edit}</button>` : ''}
                                     ${canManageProjects ? `<button class="btn btn-secondary" onclick="deleteProject('${p.id}')" style="color: var(--danger);">${ICON.trash}</button>` : ''}
                                     ${canCompleteProject ? `<button class="btn ${p.completed ? 'btn-secondary' : 'btn-danger'}" onclick="completeProject('${p.id}', ${p.completed})">${p.completed ? '↺ Вернуть' : '✓ Завершить'}</button>` : ''}
+                                    ${canCompleteProject ? `<button class="btn btn-secondary" onclick="toggleProjectHold('${p.id}', ${p.on_hold})" title="${p.on_hold ? 'Снять стоп' : 'Поставить в стоп от заказчика'}">${p.on_hold ? '▶ Снять стоп' : '⏸ Стоп'}</button>` : ''}
                                 </div>
                             </div>
                         </div>
@@ -817,11 +845,14 @@
                 if (getProjectFlags(p, canManageProjects).blockedFromEntry) return sum;
                 return sum + p.frames.filter(f => f.is_priority).length;
             }, 0);
+            const onHoldCount = projects.filter(p => p.on_hold).length;
             document.getElementById('totalProjects').textContent = projects.length;
             document.getElementById('totalFrames').textContent = totalFrames;
             document.getElementById('completedProjects').textContent = completedProjects;
             const hotEl = document.getElementById('hotFramesCount');
             if (hotEl) hotEl.textContent = hotFrames;
+            const onHoldEl = document.getElementById('onHoldCount');
+            if (onHoldEl) onHoldEl.textContent = onHoldCount;
         }
 
         // "Живые" виджеты: тихо обновляем цифры каждые 60 секунд, не трогая сетку карточек,
