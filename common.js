@@ -442,3 +442,18 @@ function renderReminderBell(items) {
         </a>`;
     }).join('');
 }
+
+// ====== Подпись автора внизу страницы — добавляется на все страницы через JS,
+// без правок вёрстки в каждом файле (как баннер соединения и колокольчик выше) ======
+(function initSiteCredit() {
+    function inject() {
+        if (document.getElementById('siteCredit')) return;
+        const el = document.createElement('div');
+        el.id = 'siteCredit';
+        el.className = 'site-credit';
+        el.innerHTML = 'Create by Adept · <a href="https://t.me/cute_adept" target="_blank" rel="noopener">tg: @cute_adept</a>';
+        document.body.appendChild(el);
+    }
+    if (document.body) inject();
+    else document.addEventListener('DOMContentLoaded', inject);
+})();
