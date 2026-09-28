@@ -103,7 +103,7 @@
                 </div>
                 <a href="my.html" class="btn btn-secondary">Моё</a>
                 <a href="analytics.html" class="btn btn-secondary" id="analyticsBtn" style="display:none;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Аналитика</a>
-                <button class="btn btn-primary" id="newProjectBtn" onclick="createProject()">+ Новый проект</button>
+                <button class="btn btn-primary" id="newProjectBtn" onclick="openProjectFormModal()">+ Новый проект</button>
                 <button class="btn btn-secondary" id="addEmployeeBtn" onclick="openAddEmployeeModal()" style="display:none;">+ Добавить сотрудника</button>
                 <button class="btn btn-secondary" id="employeesBtn" onclick="openEmployeesModal()" style="display:none;">Сотрудники</button>
                 <div class="user-box" id="userBox" style="display:flex; align-items:center; gap:10px; font-size:13px; color: var(--text-secondary);"></div>
@@ -199,6 +199,31 @@
             <div style="display:flex; gap:10px; justify-content:flex-end;">
                 <button class="btn btn-secondary" onclick="closeAddEmployeeModal()">Отмена</button>
                 <button class="btn btn-primary" id="empSubmitBtn" onclick="submitEmployeeForm()">Создать</button>
+            </div>
+        </div>
+    </div>
+    <div class="modal" id="projectFormModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); z-index:2100; justify-content:center; align-items:center;">
+        <div class="employee-modal-box" style="background: var(--bg-primary); border-radius: 8px; padding: 32px; max-width: 460px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: 88vh; overflow-y: auto;">
+            <h3 id="projectFormTitle" style="font-size: 20px; font-weight: 700; margin-bottom: 20px;">Новый проект</h3>
+            <div style="margin-bottom: 14px;">
+                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Заказчик</label>
+                <input type="text" id="projectFormClient" placeholder="Компания или ФИО" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+            </div>
+            <div style="margin-bottom: 14px;">
+                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Название проекта *</label>
+                <input type="text" id="projectFormName" placeholder="Например: ЖК «Северный», корпус 3" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+            </div>
+            <div style="margin-bottom: 14px;">
+                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Дата финала</label>
+                <input type="date" id="projectFormDeadline" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Заметка (необязательно)</label>
+                <textarea id="projectFormNotes" rows="3" placeholder="Любая дополнительная информация по проекту" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px; font-family:inherit; resize:vertical;"></textarea>
+            </div>
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+                <button class="btn btn-secondary" onclick="closeProjectFormModal()">Отмена</button>
+                <button class="btn btn-primary" id="projectFormSubmitBtn" onclick="submitProjectForm()">Создать</button>
             </div>
         </div>
     </div>
@@ -609,33 +634,52 @@
             }));
         }
 
-        async function createProject() {
-            const name = prompt('Название проекта:');
-            if (!name) return;
-            const deadlineRaw = prompt('Дедлайн (ДД.ММ.ГГГГ):');
+        // ====== Форма создания/редактирования проекта — единая модалка вместо
+        // серии window.prompt() (те выглядели по-разному в каждом браузере,
+        // например через Яндекс.Браузер, и не позволяли добавить новые поля) ======
+        let editingProjectId = null; // null — создаём новый проект, иначе редактируем существующий
 
-            // Supabase хранит дату в формате ГГГГ-ММ-ДД, конвертируем из ДД.ММ.ГГГГ
-            let deadlineIso = null;
-            if (deadlineRaw) {
-                const parts = deadlineRaw.split('.');
-                if (parts.length === 3) {
-                    const [day, month, year] = parts;
-                    deadlineIso = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-                }
+        function openProjectFormModal(id) {
+            editingProjectId = id || null;
+            const project = editingProjectId ? lastLoadedProjects.find(p => p.id === editingProjectId) : null;
+            document.getElementById('projectFormTitle').textContent = editingProjectId ? 'Изменить проект' : 'Новый проект';
+            document.getElementById('projectFormSubmitBtn').textContent = editingProjectId ? 'Сохранить' : 'Создать';
+            document.getElementById('projectFormClient').value = project ? (project.client_name || '') : '';
+            document.getElementById('projectFormName').value = project ? project.name : '';
+            document.getElementById('projectFormDeadline').value = project ? (project.deadline || '') : '';
+            document.getElementById('projectFormNotes').value = project ? (project.notes || '') : '';
+            document.getElementById('projectFormModal').style.display = 'flex';
+        }
+        function closeProjectFormModal() {
+            document.getElementById('projectFormModal').style.display = 'none';
+            editingProjectId = null;
+        }
+
+        async function submitProjectForm() {
+            const name = document.getElementById('projectFormName').value.trim();
+            if (!name) { showToast('Укажите название проекта', 'error'); return; }
+            const clientName = document.getElementById('projectFormClient').value.trim() || null;
+            const deadlineIso = document.getElementById('projectFormDeadline').value || null; // input type="date" уже отдаёт ГГГГ-ММ-ДД
+            const notes = document.getElementById('projectFormNotes').value.trim() || null;
+
+            if (editingProjectId) {
+                const { error } = await supabaseClient
+                    .from('projects')
+                    .update({ name, client_name: clientName, deadline: deadlineIso, notes })
+                    .eq('id', editingProjectId);
+                if (error) { console.error(error); showToast('Не удалось обновить проект', 'error'); return; }
+                logProjectActivity(editingProjectId, 'project_edit', 'Изменены данные проекта', currentUser ? currentUser.full_name : null);
+                showToast('Проект обновлён', 'success');
+            } else {
+                const { data, error } = await supabaseClient
+                    .from('projects')
+                    .insert({ name, client_name: clientName, deadline: deadlineIso, notes, completed: false })
+                    .select()
+                    .single();
+                if (error) { console.error(error); showToast('Не удалось создать проект', 'error'); return; }
+                showToast('Проект создан!', 'success');
             }
-
-            const { error } = await supabaseClient.from('projects').insert({
-                name: name,
-                deadline: deadlineIso,
-                completed: false
-            });
-
-            if (error) {
-                console.error(error);
-                showToast('Не удалось создать проект', 'error');
-                return;
-            }
-            showToast('Проект создан!', 'success');
+            closeProjectFormModal();
             renderProjects();
         }
 
@@ -675,44 +719,6 @@
         // апостроф ('), HTML-атрибут ломался и кнопка редактирования переставала работать.
         // Теперь берём данные из последнего загруженного списка проектов по id.
         let lastLoadedProjects = [];
-
-        async function editProject(id) {
-            const project = lastLoadedProjects.find(p => p.id === id);
-            const currentName = project ? project.name : '';
-            const currentDeadlineIso = project ? project.deadline : null;
-            const newName = prompt('Новое название:', currentName);
-            if (!newName) return;
-
-            // Конвертируем текущий дедлайн обратно в ДД.ММ.ГГГГ для удобства редактирования
-            let currentDeadlineDisplay = '';
-            if (currentDeadlineIso) {
-                const [year, month, day] = currentDeadlineIso.split('-');
-                currentDeadlineDisplay = `${day}.${month}.${year}`;
-            }
-            const newDeadlineRaw = prompt('Новый дедлайн (ДД.ММ.ГГГГ):', currentDeadlineDisplay);
-
-            let deadlineIso = null;
-            if (newDeadlineRaw) {
-                const parts = newDeadlineRaw.split('.');
-                if (parts.length === 3) {
-                    const [day, month, year] = parts;
-                    deadlineIso = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-                }
-            }
-
-            const { error } = await supabaseClient
-                .from('projects')
-                .update({ name: newName, deadline: deadlineIso })
-                .eq('id', id);
-
-            if (error) {
-                console.error(error);
-                showToast('Не удалось обновить проект', 'error');
-                return;
-            }
-            showToast('Проект обновлён', 'success');
-            renderProjects();
-        }
 
         // Флаги доступа/принадлежности проекта для текущего пользователя — используются
         // и в основной сетке карточек, и в виджете "горящие дедлайны", поэтому вынесены
@@ -885,6 +891,7 @@
                             <div class="project-header">
                                 <div class="project-header-text">
                                     <div class="project-title" style="display:flex;align-items:center;gap:8px;">${escapeHtml(p.name)} ${p.completed ? ICON.check : ''}</div>
+                                    ${p.client_name ? `<div style="font-size:13px; color:var(--text-secondary); margin-bottom:6px;">Заказчик: ${escapeHtml(p.client_name)}</div>` : ''}
                                     <div class="project-meta">
                                         <span style="display:inline-flex;align-items:center;gap:5px;">${ICON.calendar}Создан: ${createdDisplay}</span>
                                         <span style="display:inline-flex;align-items:center;gap:5px;">${ICON.frames}${totalFrames} кадров</span>
@@ -901,7 +908,7 @@
                                         ? `<button class="btn btn-secondary" onclick="showToast('Вы не назначены в команду этого проекта', 'error')" style="opacity:0.6; cursor:not-allowed;" title="Нет доступа — вы не в команде проекта">🔒 Нет доступа</button>`
                                         : `<a href="project.html?id=${p.id}" class="btn btn-primary">Открыть</a>`}
                                     ${canManageProjects ? `<button class="btn btn-secondary" onclick="openProjectTeamModal('${p.id}')" title="Команда проекта">${ICON.team}</button>` : ''}
-                                    ${canManageProjects ? `<button class="btn btn-secondary" onclick="editProject('${p.id}')">${ICON.edit}</button>` : ''}
+                                    ${canManageProjects ? `<button class="btn btn-secondary" onclick="openProjectFormModal('${p.id}')">${ICON.edit}</button>` : ''}
                                     ${canManageProjects ? `<button class="btn btn-secondary" onclick="deleteProject('${p.id}')" style="color: var(--danger);">${ICON.trash}</button>` : ''}
                                     ${canCompleteProject ? `<button class="btn ${p.completed ? 'btn-secondary' : 'btn-danger'}" onclick="completeProject('${p.id}', ${p.completed})">${p.completed ? '↺ Вернуть' : '✓ Завершить'}</button>` : ''}
                                     ${canCompleteProject ? `<button class="btn btn-secondary" onclick="toggleProjectHold('${p.id}', ${p.on_hold})" title="${p.on_hold ? 'Снять стоп' : 'Поставить в стоп от заказчика'}">${p.on_hold ? '▶ Снять стоп' : '⏸ Стоп'}</button>` : ''}
@@ -936,7 +943,7 @@
         // чтобы не сбивать открытые модалки/выделение текста. Полный renderProjects()
         // вызывается только по явным действиям пользователя.
         function isAnyModalOpen() {
-            return ['addEmployeeModal', 'employeesModal', 'projectTeamModal'].some(id => {
+            return ['addEmployeeModal', 'employeesModal', 'projectTeamModal', 'projectFormModal'].some(id => {
                 const el = document.getElementById(id);
                 return el && el.style.display === 'flex';
             });
