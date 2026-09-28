@@ -1,0 +1,44 @@
+name: Backup Supabase data
+
+# Ежедневный автоматический бэкап базы Decard Pipeline в отдельный
+# приватный репозиторий. Требует двух секретов в настройках ЭТОГО
+# репозитория (Settings → Secrets and variables → Actions):
+#   BACKUP_REPO_TOKEN         — токен с правом записи в приватный репозиторий бэкапов
+#   SUPABASE_SERVICE_ROLE_KEY — service role ключ из Supabase (Project Settings → API)
+# См. также scripts/backup-supabase.js и README рядом с этим файлом.
+
+on:
+  schedule:
+    - cron: '0 3 * * *' # каждый день в 03:00 UTC (06:00 по Москве)
+  workflow_dispatch: {} # плюс можно запустить вручную кнопкой во вкладке Actions
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout site repo (нужен только сам скрипт)
+        uses: actions/checkout@v4
+        with:
+          path: site
+
+      - name: Checkout backup repo
+        uses: actions/checkout@v4
+        with:
+          repository: AdeptVision3D/decard-backups
+          token: ${{ secrets.BACKUP_REPO_TOKEN }}
+          path: backups-repo
+
+      - name: Run backup script
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OUTPUT_DIR: ${{ github.workspace }}/backups-repo
+        run: node site/scripts/backup-supabase.js
+
+      - name: Commit and push backup
+        working-directory: backups-repo
+        run: |
+          git config user.name "decard-backup-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add .
+          git diff --cached --quiet || git commit -m "Backup $(date -u +%Y-%m-%d)"
+          git push
