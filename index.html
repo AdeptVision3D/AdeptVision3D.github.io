@@ -103,10 +103,6 @@
                 <div class="stat-label">Кадров</div>
             </div>
             <div class="stat-card">
-                <div class="stat-number" id="completedFrames">0</div>
-                <div class="stat-label">Завершено</div>
-            </div>
-            <div class="stat-card">
                 <div class="stat-number" id="completedProjects">0</div>
                 <div class="stat-label">Завершено проектов</div>
             </div>
@@ -815,7 +811,6 @@
 
         function updateStats(projects, canManageProjects) {
             const totalFrames = projects.reduce((sum, p) => sum + p.frames.length, 0);
-            const completedFrames = projects.reduce((sum, p) => sum + p.frames.filter(f => f.status === 'done').length, 0);
             const completedProjects = projects.filter(p => p.completed).length;
             // "Живой" показатель — горящие кадры только по доступным пользователю проектам
             const hotFrames = projects.reduce((sum, p) => {
@@ -824,7 +819,6 @@
             }, 0);
             document.getElementById('totalProjects').textContent = projects.length;
             document.getElementById('totalFrames').textContent = totalFrames;
-            document.getElementById('completedFrames').textContent = completedFrames;
             document.getElementById('completedProjects').textContent = completedProjects;
             const hotEl = document.getElementById('hotFramesCount');
             if (hotEl) hotEl.textContent = hotFrames;
