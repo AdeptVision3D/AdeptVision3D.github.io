@@ -156,8 +156,8 @@
         <div class="projects-grid" id="projectsGrid"></div>
         <div class="empty-state" id="emptyState" style="display: none;">
             <div class="mascot-wrap" id="emptyStateMascot"></div>
-            <h3 id="emptyStateTitle">Нет проектов</h3>
-            <p id="emptyStateText">Создайте первый проект, чтобы начать работу</p>
+            <h3 id="emptyStateTitle">Менеджеры ещё ничего не продали</h3>
+            <p id="emptyStateText">Ожидайте — или создайте первый проект сами, чтобы начать работу</p>
         </div>
     </div>
     <div class="modal" id="addEmployeeModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); z-index:2100; justify-content:center; align-items:center;">
@@ -862,8 +862,8 @@
             if (projects.length === 0) {
                 grid.innerHTML = '';
                 empty.style.display = 'block';
-                document.getElementById('emptyStateTitle').textContent = 'Нет проектов';
-                document.getElementById('emptyStateText').textContent = 'Создайте первый проект, чтобы начать работу';
+                document.getElementById('emptyStateTitle').textContent = 'Менеджеры ещё ничего не продали';
+                document.getElementById('emptyStateText').textContent = 'Ожидайте — или создайте первый проект сами, чтобы начать работу';
             } else if (displayProjects.length === 0) {
                 grid.innerHTML = '';
                 empty.style.display = 'block';
