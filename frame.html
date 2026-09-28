@@ -47,51 +47,64 @@
             --progress-bar-fill: var(--accent-gradient);
         }
         [data-theme="dark"] {
-            --bg-primary: #0E0E0E;
-            --bg-secondary: #1A1A1A;
-            --text-primary: #E8E8E8;
-            --text-secondary: #999999;
-            --accent: #4A6FE8;
-            --accent-rgb: 74, 111, 232;
-            --accent-gradient: linear-gradient(135deg, #4A6FE8 0%, #6B8EFF 100%);
-            --border: rgba(42, 42, 42, 0.3);
-            --success: #2ECC71;
-            --warning: #F5B041;
-            --danger: #E74C3C;
-            --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-            --card-shadow-hover: 0 4px 14px rgba(0, 0, 0, 0.4);
-            --card-bg: #17181B;
-            --card-border: rgba(255, 255, 255, 0.08);
-            --role-artist: #4A6FE8;
-            --role-lead: #2ECC71;
-            --role-art: #F5B041;
-            --toast-bg: rgba(232, 232, 232, 0.95);
-            --modal-overlay: rgba(255, 255, 255, 0.1);
-            --modal-bg: #1A1A1A;
-            --input-bg: #212121;
-            --input-border: rgba(42, 42, 42, 0.5);
-            --btn-secondary-bg: rgba(255, 255, 255, 0.1);
-            --stage-meta-bg: rgba(74, 111, 232, 0.1);
-            --qc-bg: rgba(46, 204, 113, 0.1);
-            --qc-border: rgba(46, 204, 113, 0.3);
-            --progress-bar-bg: rgba(42, 42, 42, 0.5);
+            --bg-primary: #070B16;
+            --bg-secondary: #0D1424;
+            --text-primary: #E9EFFC;
+            --text-secondary: #93A0BE;
+            --accent: #4E86FF;
+            --accent-rgb: 78, 134, 255;
+            --accent-gradient: linear-gradient(135deg, #4E86FF 0%, #6FD3FF 100%);
+            --border: rgba(255, 255, 255, 0.08);
+            --success: #34D399;
+            --warning: #FBBF24;
+            --danger: #F87171;
+            --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+            --card-shadow-hover: 0 8px 28px rgba(78, 134, 255, 0.18);
+            --card-bg: #0F1830;
+            --card-border: rgba(255, 255, 255, 0.09);
+            --role-artist: #4E86FF;
+            --role-lead: #34D399;
+            --role-art: #FBBF24;
+            --toast-bg: rgba(15, 24, 48, 0.95);
+            --modal-overlay: rgba(0, 0, 0, 0.55);
+            --modal-bg: #0D1424;
+            --input-bg: #131E38;
+            --input-border: rgba(255, 255, 255, 0.12);
+            --btn-secondary-bg: rgba(255, 255, 255, 0.06);
+            --stage-meta-bg: rgba(78, 134, 255, 0.12);
+            --qc-bg: rgba(52, 211, 153, 0.10);
+            --qc-border: rgba(52, 211, 153, 0.3);
+            --progress-bar-bg: rgba(255, 255, 255, 0.08);
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: var(--bg-primary);
+            background-color: var(--bg-primary);
             color: var(--text-primary);
             line-height: 1.6;
             padding: 40px;
             transition: background 0.4s ease, color 0.4s ease;
             min-height: 100vh;
         }
+        [data-theme="dark"] body {
+            background-image:
+                radial-gradient(ellipse 900px 500px at 15% -10%, rgba(var(--accent-rgb), 0.22), transparent 60%),
+                radial-gradient(ellipse 700px 500px at 95% 5%, rgba(111, 211, 255, 0.13), transparent 60%),
+                radial-gradient(ellipse 900px 600px at 40% 115%, rgba(var(--accent-rgb), 0.12), transparent 60%);
+            background-attachment: fixed;
+        }
+        .badge-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+        .progress-ring { --percent: 0; --ring-size: 56px; width: var(--ring-size); height: var(--ring-size); border-radius: 50%; background: conic-gradient(var(--accent) calc(var(--percent) * 3.6deg), var(--border) 0deg); display: inline-flex; align-items: center; justify-content: center; position: relative; flex-shrink: 0; transition: background 0.4s ease; }
+        .progress-ring::before { content: ''; position: absolute; inset: 6px; border-radius: 50%; background: var(--card-bg); }
+        .progress-ring-label { position: relative; z-index: 1; font-family: var(--font-mono); font-weight: 700; font-size: 13px; color: var(--text-primary); }
+        .progress-ring.small { --ring-size: 44px; }
+        .progress-ring.small .progress-ring-label { font-size: 10px; }
         .container { max-width: 1400px; margin: 0 auto; }
         header { margin-bottom: 24px; border-bottom: 2px solid var(--border); padding-bottom: 24px; }
         .header-top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
         .header-left { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
         .frame-title { font-size: 24px; font-weight: 700; }
-        .overall-progress { font-size: 14px; color: var(--text-secondary); background: var(--bg-secondary); padding: 8px 16px; border-radius: 6px; }
+        .overall-progress { font-size: 14px; color: var(--text-secondary); background: var(--bg-secondary); padding: 8px 16px 8px 10px; border-radius: 999px; display: inline-flex; align-items: center; gap: 10px; }
         .overall-progress strong { color: var(--accent); }
         .btn { padding: 8px 16px; border: none; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 6px; }
         .btn-primary { background: var(--accent); color: white; }
@@ -132,11 +145,11 @@
         .stage-number { font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: var(--accent); background: rgba(39, 67, 192, 0.1); padding: 4px 12px; border-radius: 4px; }
         [data-theme="dark"] .stage-number { background: rgba(74, 111, 232, 0.2); }
         .stage-title { font-size: 16px; font-weight: 600; flex: 1; }
-        .revision-badge { font-family: var(--font-mono); font-size: 10px; padding: 2px 8px; border-radius: 3px; font-weight: 600; }
+        .revision-badge { font-family: var(--font-mono); font-size: 10px; padding: 3px 10px; border-radius: 999px; font-weight: 600; }
         .revision-free { background: rgba(39, 174, 96, 0.15); color: var(--success); }
         .revision-paid { background: rgba(243, 156, 18, 0.15); color: var(--warning); }
         .revision-base { background: rgba(39, 67, 192, 0.12); color: var(--accent); }
-        .stage-status { font-family: var(--font-mono); font-size: 11px; padding: 4px 8px; border-radius: 4px; font-weight: 600; }
+        .stage-status { font-family: var(--font-mono); font-size: 11px; padding: 4px 10px 4px 8px; border-radius: 999px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
         .status-not-started { background: rgba(102, 102, 102, 0.1); color: var(--text-secondary); }
         .status-in-progress { background: rgba(243, 156, 18, 0.15); color: var(--warning); }
         .status-done { background: rgba(39, 174, 96, 0.15); color: var(--success); }
@@ -240,7 +253,7 @@
                 <div class="header-left">
                     <a href="project.html?id=1" class="btn btn-back" id="backBtn">← Назад</a>
                     <span class="frame-title" id="frameTitle">Загрузка...</span>
-                    <span class="overall-progress" id="overallProgress">Общий прогресс: <strong>0%</strong> (0/0)</span>
+                    <span class="overall-progress" id="overallProgress"><span class="progress-ring small" id="overallProgressRing" style="--percent:0"><span class="progress-ring-label">0%</span></span><span id="overallProgressText">Общий прогресс: 0/0</span></span>
                 </div>
                 <div class="btn-group">
                     <button class="btn btn-secondary" onclick="expandAll()">Развернуть все</button>
@@ -581,16 +594,19 @@
             const completed = stage.tasks.filter(t => t.checked).length;
             const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
             const progressText = cardEl.querySelector('.stage-progress');
-            const progressFill = cardEl.querySelector('.progress-fill');
-            if (progressText) progressText.textContent = `Прогресс: ${completed}/${total} (${percent}%)`;
-            if (progressFill) progressFill.style.width = `${percent}%`;
+            const progressRing = cardEl.querySelector('.stage-progress-container .progress-ring');
+            if (progressText) progressText.textContent = `Прогресс: ${completed}/${total}`;
+            if (progressRing) { progressRing.style.setProperty('--percent', percent); progressRing.querySelector('.progress-ring-label').textContent = `${percent}%`; }
         }
 
         function updateOverallProgress() {
             let totalTasks = 0, completedTasks = 0;
             stagesData.forEach(stage => { totalTasks += stage.tasks.length; completedTasks += stage.tasks.filter(t => t.checked).length; });
             const percent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-            document.getElementById('overallProgress').innerHTML = `Общий прогресс: <strong>${percent}%</strong> (${completedTasks}/${totalTasks})`;
+            const overallRing = document.getElementById('overallProgressRing');
+            if (overallRing) { overallRing.style.setProperty('--percent', percent); overallRing.querySelector('.progress-ring-label').textContent = `${percent}%`; }
+            const overallText = document.getElementById('overallProgressText');
+            if (overallText) overallText.textContent = `Общий прогресс: ${completedTasks}/${totalTasks}`;
         }
 
         function refreshStageStatusBadge(stageId) {
@@ -601,9 +617,9 @@
             const badge = cardEl.querySelector('.stage-status');
             if (!badge) return;
             badge.className = 'stage-status';
-            if (status === 'in-progress') { badge.classList.add('status-in-progress'); badge.textContent = 'В работе'; }
-            else if (status === 'done') { badge.classList.add('status-done'); badge.textContent = 'Готово'; }
-            else { badge.classList.add('status-not-started'); badge.textContent = 'Не начато'; }
+            if (status === 'in-progress') { badge.classList.add('status-in-progress'); badge.innerHTML = '<span class="badge-dot"></span>В работе'; }
+            else if (status === 'done') { badge.classList.add('status-done'); badge.innerHTML = '<span class="badge-dot"></span>Готово'; }
+            else { badge.classList.add('status-not-started'); badge.innerHTML = '<span class="badge-dot"></span>Не начато'; }
         }
 
         // ====== ЗАДАЧИ: отметка, редактирование текста, добавление, удаление ======
@@ -884,7 +900,7 @@
             return `<div class="${cardClass}" id="stage-${stage.id}" onclick="toggleStageExpand('${stage.id}')">
                 <div class="stage-header">
                     <div class="stage-header-left"><div class="stage-number">Этап ${stage.stage_number}</div><div class="stage-title">${escapeHtml(stage.title)}</div>${revisionBadge}</div>
-                    <span class="stage-status ${statusClass}">${statusText}</span>
+                    <span class="stage-status ${statusClass}"><span class="badge-dot"></span>${statusText}</span>
                     <span class="expand-icon">▼</span>
                 </div>
                 <div class="stage-content">
@@ -897,7 +913,10 @@
                         ${tasksHtml}
                         <button class="add-task-btn" onclick="event.stopPropagation(); addTask('${stage.id}')">+ Добавить задачу</button>
                     </div>
-                    <div class="stage-progress-container"><div class="progress-bar"><div class="progress-fill" style="width: ${progressPercent}%"></div></div><div class="stage-progress">Прогресс: ${completedCount}/${total} (${progressPercent}%)</div></div>
+                    <div class="stage-progress-container" style="display:flex; align-items:center; gap:12px;">
+                        <span class="progress-ring small" style="--percent:${progressPercent}"><span class="progress-ring-label">${progressPercent}%</span></span>
+                        <div class="stage-progress">Прогресс: ${completedCount}/${total}</div>
+                    </div>
                     <button class="comments-compact-btn ${stage.comments.length > 0 ? 'has-comments' : ''}" onclick="openCommentsModal('${stage.id}'); event.stopPropagation()">💬 Комментарии (${stage.comments.length})</button>
                     <div class="qc-section" onclick="event.stopPropagation()"><div class="qc-title">Критерий перехода</div><div class="qc-text">${escapeHtml(stage.qc || '')}</div></div>
                     <div class="warning-box" onclick="event.stopPropagation()"><div class="warning-text">⚠️ ${escapeHtml(stage.warning || '')}</div></div>
