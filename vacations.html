@@ -41,11 +41,13 @@
 
         /* ====== Таймлайн-грид ====== */
         .vac-grid-wrap { overflow-x: auto; }
-        .vac-grid { border-collapse: collapse; width: 100%; }
+        .vac-grid { border-collapse: collapse; width: 100%; table-layout: fixed; }
         .vac-grid th, .vac-grid td { border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); text-align: center; }
-        .vac-name-col { position: sticky; left: 0; background: var(--card-bg); z-index: 2; text-align: left !important; padding: 8px 12px; min-width: 190px; max-width: 190px; }
+        .vac-name-col { position: sticky; left: 0; background: var(--card-bg); z-index: 2; text-align: left !important; padding: 8px 12px; width: 190px; }
         .vac-grid thead .vac-name-col { z-index: 3; }
-        .vac-daynum-th { padding: 6px 2px 2px; font-size: 12px; font-weight: 700; color: var(--text-secondary); min-width: 27px; width: 27px; }
+        /* Ширину дневных колонок не фиксируем — table-layout:fixed сам растягивает
+           их равномерно на всё оставшееся место (вместо пустого пространства справа). */
+        .vac-daynum-th { padding: 6px 2px 2px; font-size: 12px; font-weight: 700; color: var(--text-secondary); }
         .vac-dayweek-th { padding: 0 2px 6px; font-size: 10px; font-weight: 500; color: var(--text-secondary); }
         .vac-weekend { background: var(--bg-secondary); }
         .vac-holiday { background: rgba(230, 126, 34, 0.22) !important; }
