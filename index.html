@@ -294,9 +294,13 @@
 
         function applyRolePermissions() {
             const canManage = hasAdminAccess(currentUser) || ['lead', 'art_director', 'ceo'].includes(currentUser.role);
+            // Менеджер только заводит новый проект после сделки (create-only) — дальше
+            // им управляет производство, поэтому у него нет доступа к Аналитике и
+            // редактированию/удалению существующих проектов (это остаётся в canManage).
+            const canCreateProjects = canManage || currentUser.role === 'manager';
             const canManageEmployees = hasAdminAccess(currentUser) || ['ceo', 'art_director'].includes(currentUser.role);
             const newBtn = document.getElementById('newProjectBtn');
-            if (newBtn) newBtn.style.display = canManage ? '' : 'none';
+            if (newBtn) newBtn.style.display = canCreateProjects ? '' : 'none';
             const addEmpBtn = document.getElementById('addEmployeeBtn');
             if (addEmpBtn) addEmpBtn.style.display = canManageEmployees ? '' : 'none';
             const employeesBtn = document.getElementById('employeesBtn');
