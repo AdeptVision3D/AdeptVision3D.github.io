@@ -119,7 +119,6 @@
                 <a href="my.html" class="btn btn-secondary nav-my-link">Моё</a>
                 <a href="analytics.html" class="btn btn-secondary" id="analyticsBtn" style="display:none;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Аналитика</a>
                 <button class="btn btn-primary" id="newProjectBtn" onclick="openProjectFormModal()">+ Новый проект</button>
-                <button class="btn btn-secondary" id="addEmployeeBtn" onclick="openAddEmployeeModal()" style="display:none;">+ Добавить сотрудника</button>
                 <button class="btn btn-secondary" id="employeesBtn" onclick="openEmployeesModal()" style="display:none;">Сотрудники</button>
                 <div class="user-box" id="userBox" style="display:flex; align-items:center; gap:10px; font-size:13px; color: var(--text-secondary);"></div>
             </div>
@@ -260,9 +259,12 @@
     </div>
     <div class="modal z2000" id="employeesModal" style="display:none;">
         <div class="employee-modal-box" style="max-width: 520px; max-height: 80vh;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px; gap:10px; flex-wrap:wrap;">
                 <h3 style="font-size: 20px; font-weight: 700;">Сотрудники</h3>
-                <button class="btn btn-secondary" onclick="closeEmployeesModal()">Закрыть</button>
+                <div style="display:flex; gap:8px;">
+                    <button class="btn btn-primary" onclick="openAddEmployeeModal()">+ Добавить сотрудника</button>
+                    <button class="btn btn-secondary" onclick="closeEmployeesModal()">Закрыть</button>
+                </div>
             </div>
             <div id="employeesList"></div>
         </div>
@@ -316,11 +318,11 @@
             // им управляет производство, поэтому у него нет доступа к Аналитике и
             // редактированию/удалению существующих проектов (это остаётся в canManage).
             const canCreateProjects = canManage || currentUser.role === 'manager';
-            const canManageEmployees = hasAdminAccess(currentUser) || ['ceo', 'art_director'].includes(currentUser.role);
+            // Единая проверка из common.js — включает тимлида (по решению Леонида:
+            // добавлять/менять сотрудников может тимлид, арт-директор, CEO и админ).
+            const canManageEmployees = canManageEmployeesRole(currentUser);
             const newBtn = document.getElementById('newProjectBtn');
             if (newBtn) newBtn.style.display = canCreateProjects ? '' : 'none';
-            const addEmpBtn = document.getElementById('addEmployeeBtn');
-            if (addEmpBtn) addEmpBtn.style.display = canManageEmployees ? '' : 'none';
             const employeesBtn = document.getElementById('employeesBtn');
             if (employeesBtn) employeesBtn.style.display = canManageEmployees ? '' : 'none';
             const analyticsBtn = document.getElementById('analyticsBtn');
@@ -347,6 +349,10 @@
             document.getElementById('newEmpBirthday').value = '';
             fillTeamGroupOptions();
             document.getElementById('empAdminToggleWrap').style.display = hasAdminAccess(currentUser) || currentUser.role === 'ceo' || currentUser.role === 'art_director' ? '' : 'none';
+            // Кнопка "Добавить сотрудника" теперь живёт внутри модалки "Сотрудники" —
+            // прячем список под формой добавления, чтобы два окна не стояли друг на
+            // друге, и вернём список обратно в closeAddEmployeeModal().
+            document.getElementById('employeesModal').style.display = 'none';
             document.getElementById('addEmployeeModal').style.display = 'flex';
         }
 
@@ -402,12 +408,11 @@
         }
 
         async function closeAddEmployeeModal() {
-            const wasEditing = editingEmployeeId !== null;
             document.getElementById('addEmployeeModal').style.display = 'none';
-            if (wasEditing) {
-                document.getElementById('employeesModal').style.display = 'flex';
-                await loadAndRenderEmployees();
-            }
+            // И "Добавить", и "Изменить" теперь всегда открываются из списка
+            // "Сотрудники" — всегда возвращаемся туда же.
+            document.getElementById('employeesModal').style.display = 'flex';
+            await loadAndRenderEmployees();
         }
 
         async function submitEmployeeForm() {

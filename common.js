@@ -108,12 +108,12 @@ const ICON = {
 // Единая проверка ролей для пунктов сайдбара — та же логика, что раньше была
 // продублирована в applyRolePermissions() на index.html. canManageProjectsRole
 // решает доступ к "Аналитике" (тимлид и выше), canManageEmployeesRole — к
-// "Сотрудникам" (только арт-директор/CEO/админ, тимлид не входит).
+// "Сотрудникам" (тимлид, арт-директор, CEO, админ — по решению Леонида).
 function canManageProjectsRole(user) {
     return !!(user && (hasAdminAccess(user) || ['lead', 'art_director', 'ceo'].includes(user.role)));
 }
 function canManageEmployeesRole(user) {
-    return !!(user && (hasAdminAccess(user) || ['ceo', 'art_director'].includes(user.role)));
+    return !!(user && (hasAdminAccess(user) || ['lead', 'art_director', 'ceo'].includes(user.role)));
 }
 // Отдельная проверка для раздела "Клиенты": помимо руководителей производства
 // (canManageProjectsRole), сюда же пускаем менеджеров — они ведут свои сделки,

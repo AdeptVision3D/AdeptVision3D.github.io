@@ -1,6 +1,11 @@
 import { withSupabase } from 'npm:@supabase/server@^1'
 
-const ADMIN_ROLES = ['ceo', 'art_director']
+// Кто может вызывать эту функцию (добавлять/менять сотрудников) — тимлид,
+// арт-директор, CEO, плюс отдельно auth_admin проверяется ниже через is_admin.
+const ADMIN_ROLES = ['lead', 'art_director', 'ceo']
+// Более узкий круг — кто может выдавать/снимать сам флаг "Админ-доступ"
+// (см. проверку в action === 'update' ниже). Тимлид сюда не входит.
+const ADMIN_ROLES_FOR_ADMIN_GRANT = ['art_director', 'ceo']
 // ВАЖНО: 'manager' был добавлен как роль в БД/интерфейсе, но здесь список
 // не обновили — из-за этого создать/изменить сотрудника с ролью "Менеджер"
 // через эту форму было невозможно (валидация отклоняла роль). Чиним заодно.
@@ -68,6 +73,14 @@ export default {
       }
       if (role !== undefined && !VALID_ROLES.includes(role)) {
         return Response.json({ error: 'Неверная роль' }, { status: 400 })
+      }
+      // Флаг "Админ-доступ" — самый мощный рычаг (полный доступ независимо от
+      // роли), поэтому его может выдавать/снимать только тот, у кого он уже
+      // есть, или арт-директор/CEO — тимлиду это недоступно, даже если он
+      // получит право добавлять/менять сотрудников через эту же функцию.
+      const callerCanGrantAdmin = !!callerProfile.is_admin || ADMIN_ROLES_FOR_ADMIN_GRANT.includes(callerProfile.role)
+      if (is_admin !== undefined && !callerCanGrantAdmin) {
+        return Response.json({ error: 'Только арт-директор, директор или админ может менять админ-доступ' }, { status: 403 })
       }
 
       // Смена логина и/или PIN — это Supabase Auth, не просто таблица
