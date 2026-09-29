@@ -62,6 +62,17 @@
         .log-desc { color: var(--text-primary); }
         .log-context { color: var(--text-secondary); font-size: 12px; }
 
+        .month-chart { display: flex; align-items: flex-end; gap: 10px; padding: 20px 20px 16px; height: 170px; }
+        .month-chart-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; min-width: 0; }
+        .month-chart-count { font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; }
+        .month-chart-bar { width: 100%; max-width: 36px; background: var(--accent-gradient); border-radius: 4px 4px 0 0; min-height: 3px; }
+        .month-chart-label { font-size: 11px; color: var(--text-secondary); margin-top: 8px; white-space: nowrap; }
+        .month-chart-foot { padding: 0 20px 16px; font-size: 12px; color: var(--text-secondary); border-top: 1px solid var(--border); padding-top: 12px; margin: 0 20px; text-align: center; }
+
+        .status-chip { font-size: 11px; padding: 3px 10px; border-radius: 999px; font-weight: 600; white-space: nowrap; }
+        .status-chip.hold { background: rgba(243, 156, 18, 0.15); color: var(--warning); }
+        .status-chip.pending { background: rgba(52, 152, 219, 0.15); color: #3498db; }
+
         .no-access { text-align: center; padding: 100px 20px; color: var(--text-secondary); }
         .no-access h3 { color: var(--text-primary); margin-bottom: 8px; }
 
@@ -114,6 +125,22 @@
         <div class="panel" style="margin-bottom:24px;">
             <div class="panel-header">Сдача в срок</div>
             <div class="panel-body" id="onTimePanel"></div>
+        </div>
+
+        <div class="panels-grid">
+            <div class="panel">
+                <div class="panel-header">Новые клиенты (по месяцам)</div>
+                <div class="panel-body" id="newClientsPanel"></div>
+            </div>
+            <div class="panel">
+                <div class="panel-header">Проекты в стопе</div>
+                <div class="panel-body" id="onHoldPanel"></div>
+            </div>
+        </div>
+
+        <div class="panel" style="margin-bottom:24px;">
+            <div class="panel-header">Проекты на согласовании у директора</div>
+            <div class="panel-body" id="pendingApprovalPanel"></div>
         </div>
 
         <div class="panel">
@@ -198,10 +225,25 @@
                 .eq('is_active', true);
             if (profErr) console.error(profErr);
 
-            return { projects, frames, taskProgressByFrame, activity: activity || [], stages, profiles: profiles || [] };
+            // Все сотрудники (включая неактивных) — нужны, чтобы подписать создателя
+            // заявки на проект в панели согласований, даже если он уже не работает
+            const { data: allProfiles, error: allProfErr } = await supabaseClient
+                .from('profiles')
+                .select('id, full_name');
+            if (allProfErr) console.error(allProfErr);
+
+            // Клиенты — для панели "Новые клиенты". RLS уже сама ограничивает выборку
+            // (менеджер видит только своих), но аналитика доступна лишь руководству,
+            // которое и так видит всех клиентов
+            const { data: clients, error: clientsErr } = await supabaseClient
+                .from('clients')
+                .select('id, name, created_at');
+            if (clientsErr) console.error(clientsErr);
+
+            return { projects, frames, taskProgressByFrame, activity: activity || [], stages, profiles: profiles || [], allProfiles: allProfiles || [], clients: clients || [] };
         }
 
-        function renderStats(projects, frames, taskProgressByFrame) {
+        function renderStats(projects, frames, taskProgressByFrame, clients) {
             const totalProjects = projects.length;
             const activeProjects = projects.filter(p => !p.completed).length;
             const completedProjects = projects.filter(p => p.completed).length;
@@ -213,13 +255,21 @@
             Object.values(taskProgressByFrame).forEach(p => { totalTasks += p.total; completedTasks += p.completed; });
             const overallPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
+            const onHoldCount = projects.filter(p => p.on_hold && !p.completed && p.approval_status !== 'pending').length;
+            const pendingCount = projects.filter(p => p.approval_status === 'pending').length;
+            const newClientsCutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+            const newClientsCount = (clients || []).filter(c => c.created_at && new Date(c.created_at).getTime() >= newClientsCutoff).length;
+
             const cards = [
                 { number: activeProjects, label: 'Активных проектов' },
                 { number: completedProjects, label: 'Завершено проектов' },
                 { number: totalFrames, label: 'Кадров всего' },
                 { number: framesByStatus.in_progress || 0, label: 'Кадров в работе' },
                 { number: framesByStatus.done || 0, label: 'Кадров готово' },
-                { number: `${overallPercent}%`, label: 'Задач выполнено всего' }
+                { number: `${overallPercent}%`, label: 'Задач выполнено всего' },
+                { number: onHoldCount, label: 'Проектов в стопе' },
+                { number: pendingCount, label: 'На согласовании у CEO' },
+                { number: newClientsCount, label: 'Новых клиентов за 30 дней' }
             ];
             document.getElementById('statsRow').innerHTML = cards.map(c => `
                 <div class="stat-card">
@@ -434,6 +484,91 @@
             }).join('');
         }
 
+        // Новые клиенты по месяцам — простой столбчатый график за последние 6 месяцев,
+        // чтобы сразу видеть, растёт приток новых клиентов или проседает
+        function renderNewClients(clients) {
+            const panel = document.getElementById('newClientsPanel');
+            const now = new Date();
+            const months = [];
+            for (let i = 5; i >= 0; i--) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                months.push({ key: `${d.getFullYear()}-${d.getMonth()}`, label: d.toLocaleString('ru-RU', { month: 'short' }), count: 0 });
+            }
+            const monthByKey = Object.fromEntries(months.map(m => [m.key, m]));
+            let withDate = 0;
+            clients.forEach(c => {
+                if (!c.created_at) return;
+                const d = new Date(c.created_at);
+                const key = `${d.getFullYear()}-${d.getMonth()}`;
+                if (monthByKey[key]) { monthByKey[key].count++; withDate++; }
+            });
+
+            if (clients.length === 0) {
+                panel.innerHTML = '<div class="panel-empty">Клиентов пока нет в базе</div>';
+                return;
+            }
+            const maxCount = Math.max(1, ...months.map(m => m.count));
+            const totalInPeriod = months.reduce((s, m) => s + m.count, 0);
+            const chart = `<div class="month-chart">${months.map(m => `
+                <div class="month-chart-col">
+                    <span class="month-chart-count">${m.count || ''}</span>
+                    <div class="month-chart-bar" style="height:${Math.round((m.count / maxCount) * 100)}%"></div>
+                    <span class="month-chart-label">${m.label}</span>
+                </div>
+            `).join('')}</div>`;
+            const foot = `<div class="month-chart-foot">Всего клиентов в базе: ${clients.length} · за 6 месяцев: ${totalInPeriod}</div>`;
+            panel.innerHTML = chart + foot;
+        }
+
+        // Проекты "в стопе" — активные (не завершённые), но приостановленные.
+        // Отдельный блок специально, чтобы не терялись среди обычных дедлайнов
+        function renderOnHoldProjects(projects) {
+            const panel = document.getElementById('onHoldPanel');
+            const onHold = projects
+                .filter(p => p.on_hold && !p.completed && p.approval_status !== 'pending')
+                .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ru'));
+
+            if (onHold.length === 0) {
+                panel.innerHTML = '<div class="panel-empty">Сейчас ни один проект не стоит на паузе</div>';
+                return;
+            }
+            panel.innerHTML = onHold.map(p => `
+                <div class="row">
+                    <div>
+                        <div class="row-title">${escapeHtml(p.name)}</div>
+                        <div class="row-sub">${p.deadline ? 'Дедлайн: ' + formatDateRu(p.deadline) : 'Без дедлайна'}</div>
+                    </div>
+                    <span class="status-chip hold">На паузе</span>
+                </div>
+            `).join('');
+        }
+
+        // Проекты, заведённые менеджером и ожидающие решения CEO/арт-директора —
+        // отдельный блок, чтобы согласования не терялись и было видно, кто и когда подал заявку
+        function renderPendingApprovals(projects, allProfiles) {
+            const panel = document.getElementById('pendingApprovalPanel');
+            const profileById = Object.fromEntries(allProfiles.map(p => [p.id, p]));
+            const pending = projects
+                .filter(p => p.approval_status === 'pending')
+                .sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
+
+            if (pending.length === 0) {
+                panel.innerHTML = '<div class="panel-empty">Нет проектов, ожидающих согласования</div>';
+                return;
+            }
+            panel.innerHTML = pending.map(p => {
+                const author = p.created_by && profileById[p.created_by] ? profileById[p.created_by].full_name : 'Неизвестно';
+                return `
+                <div class="row">
+                    <div>
+                        <div class="row-title">${escapeHtml(p.name)}</div>
+                        <div class="row-sub">Заявка от: ${escapeHtml(author)}${p.created_at ? ' · ' + formatDateRu(p.created_at) : ''}</div>
+                    </div>
+                    <span class="status-chip pending">Ждёт решения</span>
+                </div>`;
+            }).join('');
+        }
+
         document.addEventListener('DOMContentLoaded', async function() {
             loadTheme();
             const ok = await requireAuth();
@@ -448,14 +583,17 @@
 
             const data = await loadAllData();
             if (!data) return;
-            const { projects, frames, taskProgressByFrame, activity, stages, profiles } = data;
+            const { projects, frames, taskProgressByFrame, activity, stages, profiles, allProfiles, clients } = data;
 
-            renderStats(projects, frames, taskProgressByFrame);
+            renderStats(projects, frames, taskProgressByFrame, clients);
             renderDeadlines(projects);
             renderActivityByPerson(activity);
             renderRevisions(stages, frames, projects);
             renderWorkload(frames, profiles);
             renderOnTimeDelivery(frames, projects);
+            renderNewClients(clients);
+            renderOnHoldProjects(projects);
+            renderPendingApprovals(projects, allProfiles);
             renderRecentActivity(activity, frames, projects);
         });
     </script>
