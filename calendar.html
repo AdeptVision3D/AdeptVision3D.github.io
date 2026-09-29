@@ -39,10 +39,12 @@
         .cal-day.today { background: rgba(var(--accent-rgb), 0.08); }
         .cal-day.can-add { cursor: pointer; }
         .cal-day.can-add:hover { background: rgba(var(--accent-rgb), 0.05); }
+        .cal-day.holiday { background: rgba(230, 126, 34, 0.1); }
         .cal-daynum { font-size: 12px; font-weight: 700; color: var(--text-secondary); }
         .cal-day.today .cal-daynum { color: var(--accent); }
         .cal-event-chip { font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(var(--accent-rgb), 0.14); color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
         .cal-event-chip:hover { background: rgba(var(--accent-rgb), 0.24); }
+        .cal-holiday-chip { font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(230, 126, 34, 0.25); color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
         .cal-event-more { font-size: 10px; color: var(--text-secondary); }
 
         .event-invitee-list { max-height: 160px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; }
@@ -104,6 +106,7 @@
         let activeEmployeesCache = [];
         let allProfilesNameMap = {}; // id -> full_name (включая уволенных — для отображения старых событий)
         let invitesByEventId = {}; // event_id -> [user_id, ...]
+        let holidaysCache = []; // праздники (нерабочие дни) — показываем в сетке отдельным блоком, не как обычное событие
         const WEEKDAY_MON_FIRST = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
         const MONTH_NAMES_NOM = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 
@@ -151,15 +154,18 @@
         }
 
         async function loadEmployeesAndProfiles() {
-            const [{ data: active, error: activeErr }, { data: all, error: allErr }] = await Promise.all([
+            const [{ data: active, error: activeErr }, { data: all, error: allErr }, { data: holidays, error: holErr }] = await Promise.all([
                 supabaseClient.from('profiles').select('id, full_name').eq('is_active', true).order('full_name', { ascending: true }),
-                supabaseClient.from('profiles').select('id, full_name')
+                supabaseClient.from('profiles').select('id, full_name'),
+                supabaseClient.from('company_holidays').select('holiday_date, name, is_day_off')
             ]);
             if (activeErr) console.error(activeErr);
             if (allErr) console.error(allErr);
+            if (holErr) console.error(holErr);
             activeEmployeesCache = active || [];
             allProfilesNameMap = {};
             (all || []).forEach(p => { allProfilesNameMap[p.id] = p.full_name; });
+            holidaysCache = (holidays || []).filter(h => h.is_day_off);
         }
 
         async function loadMonthEvents() {
@@ -209,6 +215,8 @@
                 if (!eventsByDate[e.event_date]) eventsByDate[e.event_date] = [];
                 eventsByDate[e.event_date].push(e);
             });
+            const holidayByIso = {};
+            holidaysCache.forEach(h => { holidayByIso[h.holiday_date] = h; });
 
             let html = '';
             for (let i = 0; i < 42; i++) {
@@ -217,9 +225,11 @@
                 const iso = toIso(d);
                 const isOtherMonth = d.getMonth() !== viewMonth;
                 const isToday = iso === todayIsoStr;
+                const holiday = holidayByIso[iso];
                 const dayEvents = eventsByDate[iso] || [];
                 const shown = dayEvents.slice(0, 3);
                 const extra = dayEvents.length - shown.length;
+                const holidayChip = holiday ? `<div class="cal-holiday-chip" title="${escapeHtml(holiday.name)}">${ICON.palm || ''} ${escapeHtml(holiday.name)}</div>` : '';
                 const chips = shown.map(e => {
                     const timeLabel = e.event_time ? e.event_time.slice(0, 5) + ' ' : '';
                     const inviteeCount = (invitesByEventId[e.id] || []).length;
@@ -230,11 +240,12 @@
                 const classes = ['cal-day'];
                 if (isOtherMonth) classes.push('other-month');
                 if (isToday) classes.push('today');
+                if (holiday) classes.push('holiday');
                 if (canManage) classes.push('can-add');
                 const onclick = canManage ? ` onclick="openEventFormModal(null, '${iso}')"` : '';
                 html += `<div class="${classes.join(' ')}"${onclick}>
                     <div class="cal-daynum">${d.getDate()}</div>
-                    ${chips}${moreLabel}
+                    ${holidayChip}${chips}${moreLabel}
                 </div>`;
             }
             document.getElementById('calWeeks').innerHTML = html;
