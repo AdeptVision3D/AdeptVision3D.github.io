@@ -189,10 +189,13 @@
 
         // Сотрудники для назначения ответственного за кадр ("Моё") — загружаем один раз
         let allProfilesCache = [];
+        // Кто сейчас в отпуске/на больничном — чтобы серым показать в селекте назначения
+        let currentLeaveMap = {};
         async function loadProfilesCache() {
             const { data, error } = await supabaseClient.from('profiles').select('id, full_name').eq('is_active', true).order('full_name', { ascending: true });
             if (error) { console.error(error); return; }
             allProfilesCache = data || [];
+            currentLeaveMap = await fetchCurrentLeaveMap();
         }
 
         async function assignFrame(frameId, userId) {
@@ -384,7 +387,14 @@
                     const assigneeSelect = canManageFrames ? `
                         <select class="assignee-select" onchange="assignFrame('${f.id}', this.value)" title="Назначить ответственного">
                             <option value="">Не назначено</option>
-                            ${allProfilesCache.map(p => `<option value="${p.id}" ${f.assigned_to === p.id ? 'selected' : ''}>${escapeHtml(p.full_name)}</option>`).join('')}
+                            ${allProfilesCache.map(p => {
+                                // <option> не поддерживает HTML/SVG-иконки — единственный способ показать
+                                // тип отсутствия внутри нативного select это текстовый маркер (эмодзи).
+                                const leave = currentLeaveMap[p.id];
+                                const marker = leave ? (leave.type === 'vacation' ? ' 🌴 в отпуске' : ' 💊 на больничном') : '';
+                                const style = leave ? ' style="color: var(--text-secondary);"' : '';
+                                return `<option value="${p.id}" ${f.assigned_to === p.id ? 'selected' : ''}${style}>${escapeHtml(p.full_name)}${marker}</option>`;
+                            }).join('')}
                         </select>` : '';
                     return `
                         <div class="frame-card viewfinder-card ${isPriority ? 'priority' : ''}">

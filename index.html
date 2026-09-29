@@ -523,10 +523,10 @@
             document.getElementById('projectTeamList').innerHTML = `<p style="color: var(--text-secondary); font-size: 13px; text-align: center; padding: 20px 0;">${randomLoadingPhrase()}</p>`;
             document.getElementById('projectTeamModal').style.display = 'flex';
 
-            const { data, error } = await supabaseClient
-                .from('profiles')
-                .select('*')
-                .order('full_name', { ascending: true });
+            const [{ data, error }, teamLeaveMap] = await Promise.all([
+                supabaseClient.from('profiles').select('*').order('full_name', { ascending: true }),
+                fetchCurrentLeaveMap()
+            ]);
             if (error) {
                 console.error(error);
                 document.getElementById('projectTeamList').innerHTML = '<p style="color: var(--danger); font-size: 13px;">Не удалось загрузить список сотрудников</p>';
@@ -545,9 +545,12 @@
             listEl.innerHTML = visible.map(p => {
                 const checked = currentMemberIds.has(p.id) ? 'checked' : '';
                 const isActive = p.is_active !== false;
-                return `<label style="display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--border); cursor:pointer; ${isActive ? '' : 'opacity:0.55;'}">
+                const leave = teamLeaveMap[p.id];
+                const dim = (!isActive || leave) ? 'opacity:0.55;' : '';
+                const leaveBadge = leave ? `<span style="display:inline-flex; align-items:center; gap:4px; margin-left:8px; font-size:11px; color:${leave.type === 'vacation' ? 'var(--success)' : 'var(--danger)'};">${leave.type === 'vacation' ? ICON.palm : ICON.pill} ${LEAVE_TYPE_LABELS[leave.type]}</span>` : '';
+                return `<label style="display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--border); cursor:pointer; ${dim}">
                     <input type="checkbox" class="team-member-checkbox" value="${p.id}" ${checked} style="width:16px; height:16px; flex-shrink:0;">
-                    <span style="font-size:14px; min-width:0;">${escapeHtml(p.full_name)} <span style="color:var(--text-secondary); font-size:12px;">· ${roleLabels[p.role] || p.role}${isActive ? '' : ' · уволен(а)'}</span></span>
+                    <span style="font-size:14px; min-width:0;">${escapeHtml(p.full_name)} <span style="color:var(--text-secondary); font-size:12px;">· ${roleLabels[p.role] || p.role}${isActive ? '' : ' · уволен(а)'}</span>${leaveBadge}</span>
                 </label>`;
             }).join('');
         }

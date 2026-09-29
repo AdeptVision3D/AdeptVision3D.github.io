@@ -57,7 +57,9 @@ const ICON = {
     logout: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>',
     menu: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>',
     close: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
-    user: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
+    user: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+    palm: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22V12"/><path d="M12 12c0-4 -3-6-7-6 0 4 3 6 7 6Z"/><path d="M12 12c0-5 3-8 8-8 0 5 -3 8-8 8Z"/><path d="M12 12c0-3 -2-5 -5-5"/><path d="M12 12c0-3 2-5 5-5"/></svg>',
+    pill: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="9.5" width="15" height="7" rx="3.5" transform="rotate(-45 12 13)"/><line x1="9.5" y1="10" x2="14.5" y2="15" /></svg>'
 };
 
 // Единая проверка ролей для пунктов сайдбара — та же логика, что раньше была
@@ -69,6 +71,48 @@ function canManageProjectsRole(user) {
 }
 function canManageEmployeesRole(user) {
     return !!(user && (hasAdminAccess(user) || ['ceo', 'art_director'].includes(user.role)));
+}
+
+// ====== Отпуска и больничные (employee_leaves) — общие хелперы ======
+// Используются и на vacations.html (полный календарь), и в местах выбора
+// исполнителя (project.html — назначение на кадр, index.html — команда
+// проекта), чтобы показать "сотрудник сейчас недоступен".
+const LEAVE_TYPE_LABELS = { vacation: 'Отпуск', sick: 'Больничный' };
+
+function leaveDaysCount(startDate, endDate) {
+    const ms = new Date(endDate + 'T00:00:00') - new Date(startDate + 'T00:00:00');
+    return Math.round(ms / 86400000) + 1;
+}
+
+function todayIso() {
+    return new Date().toISOString().slice(0, 10);
+}
+
+// Отпуска/больничные, актуальные ПРЯМО СЕЙЧАС (today между start и end) —
+// один период на сотрудника (если вдруг пересекаются несколько — берём любой,
+// это ошибка данных, а не нормальный случай).
+async function fetchCurrentLeaveMap() {
+    const today = todayIso();
+    const { data, error } = await supabaseClient
+        .from('employee_leaves')
+        .select('user_id, type, end_date')
+        .lte('start_date', today)
+        .gte('end_date', today);
+    if (error) { console.error(error); return {}; }
+    const map = {};
+    (data || []).forEach(l => { map[l.user_id] = l; });
+    return map;
+}
+
+// Остаток дней отпуска в текущем календарном году: норма минус уже
+// использованные (type='vacation') дни, где start_date попадает в этот год.
+function calcVacationBalance(user, leavesOfUser) {
+    const year = new Date().getFullYear();
+    const norm = (user && user.vacation_days_per_year) || 28;
+    const used = (leavesOfUser || [])
+        .filter(l => l.type === 'vacation' && new Date(l.start_date + 'T00:00:00').getFullYear() === year)
+        .reduce((sum, l) => sum + leaveDaysCount(l.start_date, l.end_date), 0);
+    return { norm, used, remaining: norm - used };
 }
 
 // Смена PIN (пароля) — раньше была продублирована на index.html, вынесена сюда,
@@ -535,6 +579,7 @@ const MASCOT_SVG = `
 const APP_NAV_ITEMS = [
     { key: 'dashboard', label: 'Дашборд', href: 'index.html', icon: 'home', match: ['index.html', 'project.html', 'frame.html', ''] },
     { key: 'my', label: 'Моё', href: 'my.html', icon: 'user', match: ['my.html'] },
+    { key: 'vacations', label: 'Отпуска', href: 'vacations.html', icon: 'palm', match: ['vacations.html'] },
     { key: 'analytics', label: 'Аналитика', href: 'analytics.html', icon: 'chart', match: ['analytics.html'], gate: canManageProjectsRole },
     { key: 'employees', label: 'Сотрудники', href: 'index.html?open=employees', icon: 'team', match: [], gate: canManageEmployeesRole }
 ];

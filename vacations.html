@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Decard Pipeline — Отпуска</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0F1830">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        body { padding: 40px; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        header { margin-bottom: 32px; border-bottom: 2px solid var(--border); padding-bottom: 24px; }
+        .header-top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+        .header-left { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+        .page-title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
+        .btn-back { background: var(--card-bg); color: var(--text-primary); border: 1px solid var(--border); }
+
+        .panel { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 6px; box-shadow: var(--card-shadow); overflow: hidden; margin-bottom: 24px; }
+        .panel-header { padding: 16px 20px; border-bottom: 1px solid var(--border); font-size: 15px; font-weight: 700; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; justify-content: space-between; flex-wrap: wrap; }
+        .panel-body { padding: 4px 0; }
+        .panel-empty { padding: 28px 20px; color: var(--text-secondary); font-size: 13px; text-align: center; }
+
+        /* ====== Переключатель месяца ====== */
+        .month-nav { display: flex; align-items: center; gap: 10px; }
+        .month-nav-btn { width: 32px; height: 32px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 15px; }
+        .month-nav-btn:hover { border-color: var(--accent); }
+        .month-nav-label { font-weight: 700; font-size: 14px; min-width: 150px; text-align: center; text-transform: capitalize; }
+
+        /* ====== Легенда ====== */
+        .vac-legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--text-secondary); padding: 10px 20px; border-bottom: 1px solid var(--border); }
+        .vac-legend-item { display: flex; align-items: center; gap: 6px; }
+        .vac-legend-swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+
+        /* ====== Таймлайн-грид ====== */
+        .vac-grid-wrap { overflow-x: auto; }
+        .vac-grid { border-collapse: collapse; width: 100%; }
+        .vac-grid th, .vac-grid td { border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); text-align: center; }
+        .vac-name-col { position: sticky; left: 0; background: var(--card-bg); z-index: 2; text-align: left !important; padding: 8px 12px; min-width: 190px; max-width: 190px; }
+        .vac-grid thead .vac-name-col { z-index: 3; }
+        .vac-daynum-th { padding: 6px 2px 2px; font-size: 12px; font-weight: 700; color: var(--text-secondary); min-width: 27px; width: 27px; }
+        .vac-dayweek-th { padding: 0 2px 6px; font-size: 10px; font-weight: 500; color: var(--text-secondary); }
+        .vac-weekend { background: var(--bg-secondary); }
+        .vac-cell { height: 34px; cursor: default; position: relative; }
+        .vac-cell.has-leave { cursor: pointer; }
+        .vac-cell.leave-vacation { background: rgba(39, 174, 96, 0.35); }
+        .vac-cell.leave-sick { background: rgba(231, 76, 60, 0.35); }
+        .vac-cell.leave-vacation:hover, .vac-cell.leave-sick:hover { filter: brightness(1.15); }
+        .vac-emp-name { font-weight: 600; font-size: 13px; }
+        .vac-emp-meta { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+        .vac-emp-role { font-size: 11px; color: var(--text-secondary); }
+        .vac-balance-badge { font-family: var(--font-mono); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: rgba(var(--accent-rgb), 0.12); color: var(--accent); white-space: nowrap; }
+        .vac-balance-badge.low { background: rgba(231, 76, 60, 0.15); color: var(--danger); }
+        .vac-add-row-btn { border: none; background: none; color: var(--text-secondary); cursor: pointer; padding: 2px 4px; border-radius: 4px; display: inline-flex; align-items: center; }
+        .vac-add-row-btn:hover { color: var(--accent); background: rgba(var(--accent-rgb), 0.1); }
+
+        /* ====== Личная сводка (не-админ) ====== */
+        .vac-balance-card { display: flex; align-items: center; gap: 20px; padding: 20px; flex-wrap: wrap; }
+        .vac-balance-number { font-family: var(--font-mono); font-size: 32px; font-weight: 800; color: var(--accent); line-height: 1; }
+        .vac-balance-sub { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+        .vac-my-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 20px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+        .vac-my-row:last-child { border-bottom: none; }
+        .vac-type-badge { font-family: var(--font-mono); font-size: 11px; padding: 4px 12px 4px 9px; border-radius: 999px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
+        .vac-type-badge.vacation { background: rgba(39, 174, 96, 0.15); color: var(--success); }
+        .vac-type-badge.sick { background: rgba(231, 76, 60, 0.15); color: var(--danger); }
+
+        @media (max-width: 768px) {
+            body { padding: 20px; }
+            .header-top { flex-direction: column; align-items: flex-start; }
+            .vac-balance-card { padding: 16px; }
+            .vac-my-row { flex-direction: column; align-items: flex-start; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-top">
+                <div class="header-left">
+                    <a href="index.html" class="btn btn-back">← Назад</a>
+                    <span class="page-title">Отпуска</span>
+                </div>
+                <div class="user-box" id="userBox" style="display:flex; align-items:center; gap:10px; font-size:13px; color: var(--text-secondary);"></div>
+            </div>
+        </header>
+
+        <div id="vacationsRoot"></div>
+    </div>
+
+    <!-- Форма добавления отпуска/больничного (только для админов) -->
+    <div class="modal" id="leaveFormModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); z-index:2100; justify-content:center; align-items:center;">
+        <div class="employee-modal-box" style="background: var(--bg-primary); border-radius: 8px; padding: 32px; max-width: 440px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: 88vh; overflow-y: auto;">
+            <h3 style="font-size: 20px; font-weight: 700; margin-bottom: 20px;">Добавить отпуск / больничный</h3>
+            <div style="margin-bottom: 14px;">
+                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Сотрудник</label>
+                <select id="leaveFormEmployee" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;"></select>
+            </div>
+            <div style="margin-bottom: 14px;">
+                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Тип</label>
+                <div style="display:flex; gap:16px;">
+                    <label style="display:flex; align-items:center; gap:7px; font-size:14px; cursor:pointer;">
+                        <input type="radio" name="leaveFormType" value="vacation" checked> Отпуск
+                    </label>
+                    <label style="display:flex; align-items:center; gap:7px; font-size:14px; cursor:pointer;">
+                        <input type="radio" name="leaveFormType" value="sick"> Больничный
+                    </label>
+                </div>
+            </div>
+            <div style="display:flex; gap:12px; margin-bottom: 14px;">
+                <div style="flex:1;">
+                    <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">С</label>
+                    <input type="date" id="leaveFormStart" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+                </div>
+                <div style="flex:1;">
+                    <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">По</label>
+                    <input type="date" id="leaveFormEnd" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+                </div>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Заметка (необязательно)</label>
+                <textarea id="leaveFormNote" rows="2" placeholder="Например: причина, договорённости по замене" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px; font-family:inherit; resize:vertical;"></textarea>
+            </div>
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+                <button class="btn btn-secondary" onclick="closeLeaveFormModal()">Отмена</button>
+                <button class="btn btn-primary" onclick="submitLeaveForm()">Добавить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Норма отпуска на сотрудника -->
+    <div class="modal" id="leaveNormModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); z-index:2100; justify-content:center; align-items:center;">
+        <div class="employee-modal-box" style="background: var(--bg-primary); border-radius: 8px; padding: 32px; max-width: 360px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+            <h3 id="leaveNormTitle" style="font-size: 18px; font-weight: 700; margin-bottom: 20px;">Норма отпуска</h3>
+            <div style="margin-bottom: 20px;">
+                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Дней в год</label>
+                <input type="number" id="leaveNormValue" min="0" max="60" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+            </div>
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+                <button class="btn btn-secondary" onclick="closeLeaveNormModal()">Отмена</button>
+                <button class="btn btn-primary" onclick="submitLeaveNorm()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+    <script src="common.js"></script>
+    <script>
+        let currentUser = null;
+        let viewYear, viewMonth; // viewMonth: 0-11
+        let activeEmployeesCache = [];
+        let allLeavesCache = [];
+        let leaveFormPresetUserId = null;
+        let leaveNormUserId = null;
+
+        const MONTH_NAMES = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+        const MONTH_NAMES_NOM = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+        const WEEKDAY_SHORT = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+
+        async function requireAuth() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) { window.location.href = 'login.html'; return false; }
+            const { data: profile, error } = await supabaseClient.from('profiles').select('*').eq('id', session.user.id).single();
+            if (error || !profile) { console.error(error); await supabaseClient.auth.signOut(); window.location.href = 'login.html'; return false; }
+            currentUser = { id: profile.id, full_name: profile.full_name, role: profile.role, is_admin: !!profile.is_admin, vacation_days_per_year: profile.vacation_days_per_year };
+            renderUserBox();
+            initAppSidebar(currentUser);
+            return true;
+        }
+
+        function renderUserBox() {
+            const box = document.getElementById('userBox');
+            if (!box || !currentUser) return;
+            box.innerHTML = `<span>${currentUser.full_name} · ${roleLabels[currentUser.role] || currentUser.role}</span>
+                <button class="btn btn-secondary" onclick="doLogout()" style="padding:4px 10px; font-size:12px;">Выйти</button>`;
+        }
+
+        function fmtDate(iso) {
+            const d = new Date(iso + 'T00:00:00');
+            return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        }
+
+        // ====== АДМИНСКИЙ ВИД: тайм-лайн всей команды ======
+
+        async function loadAdminView() {
+            const [{ data: employees, error: empErr }, { data: leaves, error: leavesErr }] = await Promise.all([
+                supabaseClient.from('profiles').select('id, full_name, role, is_active, vacation_days_per_year').eq('is_active', true).order('full_name', { ascending: true }),
+                supabaseClient.from('employee_leaves').select('*').order('start_date', { ascending: true })
+            ]);
+            if (empErr || leavesErr) {
+                console.error(empErr || leavesErr);
+                document.getElementById('vacationsRoot').innerHTML = '<div class="panel"><div class="panel-empty">Не удалось загрузить данные об отпусках</div></div>';
+                return;
+            }
+            activeEmployeesCache = employees || [];
+            allLeavesCache = leaves || [];
+            renderAdminView();
+        }
+
+        function renderAdminView() {
+            const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+            const today = todayIso();
+
+            let headHtml = '<tr><th class="vac-name-col" rowspan="2">Сотрудник</th>';
+            let weekHtml = '<tr>';
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateObj = new Date(viewYear, viewMonth, d);
+                const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
+                headHtml += `<th class="vac-daynum-th${isWeekend ? ' vac-weekend' : ''}">${d}</th>`;
+                weekHtml += `<th class="vac-dayweek-th${isWeekend ? ' vac-weekend' : ''}">${WEEKDAY_SHORT[dateObj.getDay()]}</th>`;
+            }
+            headHtml += '</tr>';
+            weekHtml += '</tr>';
+
+            const rowsHtml = activeEmployeesCache.map(emp => {
+                const empLeaves = allLeavesCache.filter(l => l.user_id === emp.id);
+                const balance = calcVacationBalance(emp, empLeaves);
+                const balanceClass = balance.remaining <= 3 ? 'low' : '';
+                let cells = '';
+                for (let d = 1; d <= daysInMonth; d++) {
+                    const dateObj = new Date(viewYear, viewMonth, d);
+                    const iso = dateObj.toISOString().slice(0, 10);
+                    const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
+                    const leave = empLeaves.find(l => l.start_date <= iso && l.end_date >= iso);
+                    const classes = ['vac-cell'];
+                    if (isWeekend) classes.push('vac-weekend');
+                    let title = '';
+                    let onclick = '';
+                    if (leave) {
+                        classes.push('has-leave', leave.type === 'vacation' ? 'leave-vacation' : 'leave-sick');
+                        title = `${LEAVE_TYPE_LABELS[leave.type]}: ${fmtDate(leave.start_date)} – ${fmtDate(leave.end_date)}${leave.note ? ' · ' + leave.note.replace(/"/g, '&quot;') : ''}`;
+                        onclick = ` onclick="handleLeaveCellClick('${leave.id}')"`;
+                    }
+                    cells += `<td class="${classes.join(' ')}" title="${escapeHtml(title)}"${onclick}></td>`;
+                }
+                return `<tr>
+                    <td class="vac-name-col">
+                        <div class="vac-emp-name">${escapeHtml(emp.full_name)}</div>
+                        <div class="vac-emp-meta">
+                            <span class="vac-emp-role">${roleLabels[emp.role] || emp.role}</span>
+                            <span class="vac-balance-badge ${balanceClass}" title="Осталось дней отпуска в этом году">${balance.remaining}/${balance.norm}</span>
+                            <button class="vac-add-row-btn" title="Изменить норму отпуска" onclick="openLeaveNormModal('${emp.id}', '${escapeHtml(emp.full_name)}', ${balance.norm})">${ICON.edit}</button>
+                            <button class="vac-add-row-btn" title="Добавить отпуск/больничный" onclick="openLeaveFormModal('${emp.id}')">+</button>
+                        </div>
+                    </td>
+                    ${cells}
+                </tr>`;
+            }).join('');
+
+            document.getElementById('vacationsRoot').innerHTML = `
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="month-nav">
+                            <button class="month-nav-btn" onclick="shiftMonth(-1)">‹</button>
+                            <span class="month-nav-label">${MONTH_NAMES_NOM[viewMonth]} ${viewYear}</span>
+                            <button class="month-nav-btn" onclick="shiftMonth(1)">›</button>
+                            <button class="btn btn-secondary" style="padding:6px 12px; font-size:12px;" onclick="goToday()">Сегодня</button>
+                        </div>
+                        <button class="btn btn-primary" onclick="openLeaveFormModal()">+ Добавить отпуск/больничный</button>
+                    </div>
+                    <div class="vac-legend">
+                        <span class="vac-legend-item"><span class="vac-legend-swatch" style="background: rgba(39,174,96,0.5);"></span>${ICON.palm} Отпуск</span>
+                        <span class="vac-legend-item"><span class="vac-legend-swatch" style="background: rgba(231,76,60,0.5);"></span>${ICON.pill} Больничный</span>
+                        <span class="vac-legend-item">Нажмите на закрашенный день, чтобы удалить запись</span>
+                    </div>
+                    ${activeEmployeesCache.length === 0 ? '<div class="panel-empty">Нет активных сотрудников</div>' : `
+                    <div class="vac-grid-wrap">
+                        <table class="vac-grid">
+                            <thead>${headHtml}${weekHtml}</thead>
+                            <tbody>${rowsHtml}</tbody>
+                        </table>
+                    </div>`}
+                </div>
+            `;
+        }
+
+        function shiftMonth(delta) {
+            viewMonth += delta;
+            if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+            if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+            renderAdminView();
+        }
+
+        function goToday() {
+            const now = new Date();
+            viewYear = now.getFullYear();
+            viewMonth = now.getMonth();
+            renderAdminView();
+        }
+
+        function handleLeaveCellClick(leaveId) {
+            const leave = allLeavesCache.find(l => l.id === leaveId);
+            if (!leave) return;
+            const emp = activeEmployeesCache.find(e => e.id === leave.user_id);
+            const label = `${emp ? emp.full_name : 'Сотрудник'} — ${LEAVE_TYPE_LABELS[leave.type]}, ${fmtDate(leave.start_date)} – ${fmtDate(leave.end_date)}`;
+            if (!confirm(`Удалить запись?\n${label}`)) return;
+            deleteLeave(leaveId);
+        }
+
+        async function deleteLeave(leaveId) {
+            const { error } = await supabaseClient.from('employee_leaves').delete().eq('id', leaveId);
+            if (error) { console.error(error); showToast(isNetworkError(error) ? 'Нет соединения — попробуйте ещё раз' : 'Не удалось удалить запись', 'error'); return; }
+            showToast('Запись удалена', 'success');
+            await loadAdminView();
+        }
+
+        // ====== Форма добавления отпуска/больничного ======
+
+        function openLeaveFormModal(presetUserId) {
+            leaveFormPresetUserId = presetUserId || null;
+            const sel = document.getElementById('leaveFormEmployee');
+            sel.innerHTML = activeEmployeesCache.map(e => `<option value="${e.id}" ${e.id === presetUserId ? 'selected' : ''}>${escapeHtml(e.full_name)}</option>`).join('');
+            document.querySelector('input[name="leaveFormType"][value="vacation"]').checked = true;
+            document.getElementById('leaveFormStart').value = '';
+            document.getElementById('leaveFormEnd').value = '';
+            document.getElementById('leaveFormNote').value = '';
+            document.getElementById('leaveFormModal').style.display = 'flex';
+        }
+
+        function closeLeaveFormModal() {
+            document.getElementById('leaveFormModal').style.display = 'none';
+        }
+
+        async function submitLeaveForm() {
+            const userId = document.getElementById('leaveFormEmployee').value;
+            const type = document.querySelector('input[name="leaveFormType"]:checked').value;
+            const start = document.getElementById('leaveFormStart').value;
+            const end = document.getElementById('leaveFormEnd').value;
+            const note = document.getElementById('leaveFormNote').value.trim();
+            if (!userId) { showToast('Выберите сотрудника', 'error'); return; }
+            if (!start || !end) { showToast('Укажите обе даты', 'error'); return; }
+            if (end < start) { showToast('Дата "по" раньше даты "с"', 'error'); return; }
+            const { error } = await supabaseClient.from('employee_leaves').insert({
+                user_id: userId, type, start_date: start, end_date: end,
+                note: note || null, created_by: currentUser.id
+            });
+            if (error) { console.error(error); showToast(isNetworkError(error) ? 'Нет соединения — попробуйте ещё раз' : 'Не удалось добавить запись', 'error'); return; }
+            showToast('Добавлено', 'success');
+            closeLeaveFormModal();
+            await loadAdminView();
+        }
+
+        // ====== Норма отпуска на сотрудника ======
+
+        function openLeaveNormModal(userId, name, currentNorm) {
+            leaveNormUserId = userId;
+            document.getElementById('leaveNormTitle').textContent = `Норма отпуска — ${name}`;
+            document.getElementById('leaveNormValue').value = currentNorm;
+            document.getElementById('leaveNormModal').style.display = 'flex';
+        }
+
+        function closeLeaveNormModal() {
+            document.getElementById('leaveNormModal').style.display = 'none';
+            leaveNormUserId = null;
+        }
+
+        async function submitLeaveNorm() {
+            const value = parseInt(document.getElementById('leaveNormValue').value, 10);
+            if (isNaN(value) || value < 0) { showToast('Некорректное число дней', 'error'); return; }
+            const { error } = await supabaseClient.from('profiles').update({ vacation_days_per_year: value }).eq('id', leaveNormUserId);
+            if (error) { console.error(error); showToast('Не удалось сохранить норму', 'error'); return; }
+            showToast('Норма обновлена', 'success');
+            closeLeaveNormModal();
+            await loadAdminView();
+        }
+
+        // ====== ЛИЧНЫЙ ВИД (обычный сотрудник): своя сводка, без редактирования ======
+
+        async function loadMyView() {
+            const { data: leaves, error } = await supabaseClient
+                .from('employee_leaves')
+                .select('*')
+                .eq('user_id', currentUser.id)
+                .order('start_date', { ascending: false });
+            if (error) {
+                console.error(error);
+                document.getElementById('vacationsRoot').innerHTML = '<div class="panel"><div class="panel-empty">Не удалось загрузить данные об отпусках</div></div>';
+                return;
+            }
+            const balance = calcVacationBalance(currentUser, leaves || []);
+            const today = todayIso();
+            const rowsHtml = (leaves || []).length === 0 ? '<div class="panel-empty">Записей об отпусках и больничных пока нет</div>' : (leaves || []).map(l => {
+                const isCurrent = l.start_date <= today && l.end_date >= today;
+                const isFuture = l.start_date > today;
+                const statusText = isCurrent ? ' · сейчас' : isFuture ? ' · предстоит' : '';
+                return `<div class="vac-my-row">
+                    <div>
+                        <span class="vac-type-badge ${l.type}">${l.type === 'vacation' ? ICON.palm : ICON.pill} ${LEAVE_TYPE_LABELS[l.type]}</span>
+                        <span style="margin-left:10px; font-size:13px;">${fmtDate(l.start_date)} – ${fmtDate(l.end_date)} (${leaveDaysCount(l.start_date, l.end_date)} дн.)${statusText}</span>
+                        ${l.note ? `<div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">${escapeHtml(l.note)}</div>` : ''}
+                    </div>
+                </div>`;
+            }).join('');
+
+            document.getElementById('vacationsRoot').innerHTML = `
+                <div class="panel">
+                    <div class="panel-header"><span>Остаток отпуска в ${new Date().getFullYear()} году</span></div>
+                    <div class="vac-balance-card">
+                        <div>
+                            <div class="vac-balance-number">${balance.remaining}</div>
+                            <div class="vac-balance-sub">из ${balance.norm} дней</div>
+                        </div>
+                        <div style="color:var(--text-secondary); font-size:13px;">
+                            Использовано в этом году: <b style="color:var(--text-primary);">${balance.used}</b> дн.<br>
+                            Назначать отпуска и больничные может руководитель — если нужно оформить отпуск, обратитесь к нему.
+                        </div>
+                    </div>
+                </div>
+                <div class="panel">
+                    <div class="panel-header"><span>Мои отпуска и больничные</span></div>
+                    <div class="panel-body">${rowsHtml}</div>
+                </div>
+            `;
+        }
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            loadTheme();
+            const now = new Date();
+            viewYear = now.getFullYear();
+            viewMonth = now.getMonth();
+            const ok = await requireAuth();
+            if (!ok) return;
+            initDeadlineReminders(currentUser);
+            if (canManageEmployeesRole(currentUser)) {
+                await loadAdminView();
+            } else {
+                await loadMyView();
+            }
+        });
+    </script>
+</body>
+</html>
