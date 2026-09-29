@@ -1,5 +1,5 @@
 // ============================================================
-// Decard Pipeline — общие функции для всех страниц (login/index/project/frame)
+// Decard Studio — общие функции для всех страниц (login/index/project/frame)
 // Раньше этот код был продублирован в каждом HTML-файле по отдельности:
 // правка в одном месте (например, в showToast) не долетала до остальных
 // страниц, если про неё забывали. Теперь это единственная копия.
@@ -1004,7 +1004,7 @@ function initAppSidebar(user) {
         <div class="app-sidebar-overlay" id="appSidebarOverlay"></div>
         <aside class="app-sidebar" id="appSidebar">
             <div class="app-sidebar-logo">
-                DECARD <span>PIPELINE</span>
+                DECARD <span>STUDIO</span>
                 <button class="app-sidebar-close" id="appSidebarClose" aria-label="Закрыть">${ICON.close}</button>
             </div>
             <nav class="app-sidebar-nav">${navHtml}</nav>

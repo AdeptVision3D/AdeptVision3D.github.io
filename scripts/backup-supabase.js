@@ -1,4 +1,4 @@
-// Ежедневный бэкап базы Decard Pipeline.
+// Ежедневный бэкап базы Decard Studio.
 // Выгружает все таблицы Supabase в JSON-файлы, по одной папке на день.
 // Запускается автоматически через .github/workflows/backup.yml (GitHub Actions),
 // но можно запустить и вручную: SUPABASE_SERVICE_ROLE_KEY=... OUTPUT_DIR=./out node scripts/backup-supabase.js
