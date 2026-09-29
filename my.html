@@ -72,6 +72,14 @@
 
         <div class="panel">
             <div class="panel-header">
+                <span>Мои встречи</span>
+                <span class="panel-count" id="myEventsCount">0</span>
+            </div>
+            <div class="panel-body" id="myEventsPanel"></div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-header">
                 <span>Мои кадры</span>
                 <span class="panel-count" id="myFramesCount">0</span>
             </div>
@@ -196,6 +204,53 @@
             `).join('');
         }
 
+        // ====== Мои встречи — где я организатор или приглашённый, начиная с сегодня ======
+        async function loadMyEvents() {
+            const [{ data: organized, error: orgErr }, { data: inviteRows, error: invErr }] = await Promise.all([
+                supabaseClient.from('company_events').select('*').eq('organizer_id', currentUser.id),
+                supabaseClient.from('company_event_invitees').select('event_id').eq('user_id', currentUser.id)
+            ]);
+            if (orgErr) console.error(orgErr);
+            if (invErr) console.error(invErr);
+            const inviteIds = [...new Set((inviteRows || []).map(r => r.event_id))];
+            let invited = [];
+            if (inviteIds.length > 0) {
+                const { data, error } = await supabaseClient.from('company_events').select('*').in('id', inviteIds);
+                if (error) console.error(error);
+                invited = data || [];
+            }
+            const byId = {};
+            [...(organized || []), ...invited].forEach(e => { byId[e.id] = { ...e, isOrganizer: e.organizer_id === currentUser.id }; });
+            const todayStr = todayIso();
+            return Object.values(byId)
+                .filter(e => e.event_date >= todayStr)
+                .sort((a, b) => a.event_date.localeCompare(b.event_date) || (a.event_time || '').localeCompare(b.event_time || ''));
+        }
+
+        function renderMyEvents(events) {
+            document.getElementById('myEventsCount').textContent = events.length;
+            const panel = document.getElementById('myEventsPanel');
+            if (events.length === 0) {
+                panel.innerHTML = '<div class="panel-empty">Ближайших встреч нет</div>';
+                return;
+            }
+            panel.innerHTML = events.map(e => {
+                const date = new Date(e.event_date + 'T00:00:00').toLocaleDateString('ru-RU', { day: '2-digit', month: 'long' });
+                const timeLabel = e.event_time ? `, ${e.event_time.slice(0, 5)}` : '';
+                return `
+                    <div class="my-row">
+                        <div>
+                            <div class="my-row-title">${escapeHtml(e.title)}</div>
+                            <div class="my-row-sub">${date}${timeLabel}${e.isOrganizer ? ' · вы организатор' : ' · вы приглашены'}</div>
+                        </div>
+                        <div class="my-row-actions">
+                            <a href="calendar.html" class="btn btn-primary" style="padding:6px 14px; font-size:13px;">В календарь</a>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
         // ====== Упоминания (@Имя Фамилия) в комментариях, по всем кадрам ======
         async function loadMyMentions() {
             const { data: comments, error } = await withRetry(() => supabaseClient
@@ -258,10 +313,11 @@
             const ok = await requireAuth();
             if (!ok) return;
             initDeadlineReminders(currentUser);
-            const [projects, frames, mentions] = await Promise.all([loadMyProjects(), loadMyFrames(), loadMyMentions()]);
+            const [projects, frames, mentions, events] = await Promise.all([loadMyProjects(), loadMyFrames(), loadMyMentions(), loadMyEvents()]);
             renderMyProjects(projects);
             renderMyFrames(frames);
             renderMyMentions(mentions);
+            renderMyEvents(events);
         });
     </script>
 </body>

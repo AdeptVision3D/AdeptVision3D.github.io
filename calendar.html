@@ -45,6 +45,12 @@
         .cal-event-chip:hover { background: rgba(var(--accent-rgb), 0.24); }
         .cal-event-more { font-size: 10px; color: var(--text-secondary); }
 
+        .event-invitee-list { max-height: 160px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; }
+        .event-invitee-row { display:flex; align-items:center; gap:8px; padding: 5px 0; font-size: 13px; cursor: pointer; }
+        .event-view-row { display:flex; gap:8px; font-size: 13px; margin-bottom: 10px; }
+        .event-view-label { color: var(--text-secondary); min-width: 90px; flex-shrink: 0; }
+        .event-invitee-chip { display:inline-flex; align-items:center; gap:5px; font-size: 12px; padding: 3px 9px; border-radius: 999px; background: rgba(var(--accent-rgb), 0.1); color: var(--text-primary); margin: 2px 4px 2px 0; }
+
         @media (max-width: 768px) {
             body { padding: 20px; }
             .header-top { flex-direction: column; align-items: flex-start; }
@@ -85,34 +91,7 @@
     </div>
 
     <div class="modal" id="eventFormModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); z-index:2100; justify-content:center; align-items:center;">
-        <div class="employee-modal-box" style="background: var(--bg-primary); border-radius: 8px; padding: 32px; max-width: 440px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: 88vh; overflow-y: auto;">
-            <h3 id="eventFormTitle" style="font-size: 20px; font-weight: 700; margin-bottom: 20px;">Новое событие</h3>
-            <div style="margin-bottom: 14px;">
-                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Название *</label>
-                <input type="text" id="eventFormTitleInput" placeholder="Например: Планёрка по проекту" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
-            </div>
-            <div style="display:flex; gap:12px; margin-bottom: 14px;">
-                <div style="flex:1;">
-                    <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Дата *</label>
-                    <input type="date" id="eventFormDate" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
-                </div>
-                <div style="flex:1;">
-                    <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Время (необязательно)</label>
-                    <input type="time" id="eventFormTime" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
-                </div>
-            </div>
-            <div style="margin-bottom: 20px;">
-                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Описание (необязательно)</label>
-                <textarea id="eventFormDescription" rows="3" placeholder="Кто участвует, где, детали" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px; font-family:inherit; resize:vertical;"></textarea>
-            </div>
-            <div style="display:flex; gap:10px; justify-content:space-between;">
-                <button class="btn btn-secondary" id="eventFormDeleteBtn" style="display:none; color:var(--danger);" onclick="deleteEvent()">Удалить</button>
-                <div style="display:flex; gap:10px; margin-left:auto;">
-                    <button class="btn btn-secondary" onclick="closeEventFormModal()">Отмена</button>
-                    <button class="btn btn-primary" id="eventFormSubmitBtn" onclick="submitEventForm()">Добавить</button>
-                </div>
-            </div>
-        </div>
+        <div class="employee-modal-box" id="eventFormBox" style="background: var(--bg-primary); border-radius: 8px; padding: 32px; max-width: 460px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: 88vh; overflow-y: auto;"></div>
     </div>
 
     <div class="toast-container" id="toastContainer"></div>
@@ -122,8 +101,15 @@
         let viewYear, viewMonth; // viewMonth: 0-11
         let eventsCache = [];
         let editingEventId = null;
+        let activeEmployeesCache = [];
+        let allProfilesNameMap = {}; // id -> full_name (включая уволенных — для отображения старых событий)
+        let invitesByEventId = {}; // event_id -> [user_id, ...]
         const WEEKDAY_MON_FIRST = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
         const MONTH_NAMES_NOM = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+
+        function employeeName(id) {
+            return allProfilesNameMap[id] || 'Неизвестно';
+        }
 
         async function requireAuth() {
             const { data: { session } } = await supabaseClient.auth.getSession();
@@ -148,6 +134,18 @@
             return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         }
 
+        async function loadEmployeesAndProfiles() {
+            const [{ data: active, error: activeErr }, { data: all, error: allErr }] = await Promise.all([
+                supabaseClient.from('profiles').select('id, full_name').eq('is_active', true).order('full_name', { ascending: true }),
+                supabaseClient.from('profiles').select('id, full_name')
+            ]);
+            if (activeErr) console.error(activeErr);
+            if (allErr) console.error(allErr);
+            activeEmployeesCache = active || [];
+            allProfilesNameMap = {};
+            (all || []).forEach(p => { allProfilesNameMap[p.id] = p.full_name; });
+        }
+
         async function loadMonthEvents() {
             const gridStart = getGridStart();
             const gridEnd = new Date(gridStart);
@@ -160,6 +158,19 @@
                 .order('event_time', { ascending: true, nullsFirst: false });
             if (error) { console.error(error); eventsCache = []; }
             else eventsCache = data || [];
+
+            invitesByEventId = {};
+            if (eventsCache.length > 0) {
+                const { data: invites, error: invErr } = await supabaseClient
+                    .from('company_event_invitees')
+                    .select('event_id, user_id')
+                    .in('event_id', eventsCache.map(e => e.id));
+                if (invErr) console.error(invErr);
+                (invites || []).forEach(row => {
+                    if (!invitesByEventId[row.event_id]) invitesByEventId[row.event_id] = [];
+                    invitesByEventId[row.event_id].push(row.user_id);
+                });
+            }
             renderCalendar();
         }
 
@@ -195,7 +206,9 @@
                 const extra = dayEvents.length - shown.length;
                 const chips = shown.map(e => {
                     const timeLabel = e.event_time ? e.event_time.slice(0, 5) + ' ' : '';
-                    return `<div class="cal-event-chip" title="${escapeHtml(timeLabel + e.title)}" onclick="event.stopPropagation(); openEventFormModal('${e.id}')">${escapeHtml(timeLabel + e.title)}</div>`;
+                    const inviteeCount = (invitesByEventId[e.id] || []).length;
+                    const countLabel = inviteeCount > 0 ? ` · ${inviteeCount}` : '';
+                    return `<div class="cal-event-chip" title="${escapeHtml(timeLabel + e.title)}" onclick="event.stopPropagation(); openEventFormModal('${e.id}')">${escapeHtml(timeLabel + e.title)}${countLabel}</div>`;
                 }).join('');
                 const moreLabel = extra > 0 ? `<div class="cal-event-more">+${extra} ещё</div>` : '';
                 const classes = ['cal-day'];
@@ -225,19 +238,91 @@
             loadMonthEvents();
         }
 
-        // presetDate — при клике на пустой день подставляем его дату в форму создания
+        // presetDate — при клике на пустой день подставляем его дату в форму создания.
+        // Кликнуть по самому событию может кто угодно: у руководителей открывается
+        // форма редактирования, у остальных — просмотр (кто организатор, кто зван).
         function openEventFormModal(id, presetDate) {
-            if (!canManageProjectsRole(currentUser)) return;
             editingEventId = id || null;
             const item = id ? eventsCache.find(e => e.id === id) : null;
-            document.getElementById('eventFormTitle').textContent = item ? 'Редактировать событие' : 'Новое событие';
-            document.getElementById('eventFormSubmitBtn').textContent = item ? 'Сохранить' : 'Добавить';
-            document.getElementById('eventFormDeleteBtn').style.display = item ? '' : 'none';
-            document.getElementById('eventFormTitleInput').value = item ? item.title : '';
-            document.getElementById('eventFormDate').value = item ? item.event_date : (presetDate || todayIso());
-            document.getElementById('eventFormTime').value = item && item.event_time ? item.event_time.slice(0, 5) : '';
-            document.getElementById('eventFormDescription').value = item ? (item.description || '') : '';
+            const canManage = canManageProjectsRole(currentUser);
+            const box = document.getElementById('eventFormBox');
+
+            if (item && !canManage) {
+                renderEventViewOnly(box, item);
+            } else {
+                renderEventEditForm(box, item, presetDate);
+            }
             document.getElementById('eventFormModal').style.display = 'flex';
+        }
+
+        function renderEventViewOnly(box, item) {
+            const invitedIds = invitesByEventId[item.id] || [];
+            const timeLabel = item.event_time ? ` в ${item.event_time.slice(0, 5)}` : '';
+            box.innerHTML = `
+                <h3 style="font-size: 20px; font-weight: 700; margin-bottom: 20px;">${escapeHtml(item.title)}</h3>
+                <div class="event-view-row"><span class="event-view-label">Когда</span><span>${fmtRuDate(item.event_date)}${timeLabel}</span></div>
+                <div class="event-view-row"><span class="event-view-label">Организатор</span><span>${escapeHtml(employeeName(item.organizer_id))}</span></div>
+                <div class="event-view-row" style="align-items:flex-start;">
+                    <span class="event-view-label">Участники</span>
+                    <span>${invitedIds.length > 0 ? invitedIds.map(uid => `<span class="event-invitee-chip">${escapeHtml(employeeName(uid))}</span>`).join('') : '<span style="color:var(--text-secondary);">Не указаны</span>'}</span>
+                </div>
+                ${item.description ? `<div class="event-view-row" style="align-items:flex-start;"><span class="event-view-label">Описание</span><span style="white-space:pre-wrap;">${escapeHtml(item.description)}</span></div>` : ''}
+                <div style="display:flex; justify-content:flex-end; margin-top:10px;">
+                    <button class="btn btn-secondary" onclick="closeEventFormModal()">Закрыть</button>
+                </div>
+            `;
+        }
+
+        function renderEventEditForm(box, item, presetDate) {
+            const invitedIds = new Set(invitesByEventId[item ? item.id : ''] || []);
+            const organizerOptions = activeEmployeesCache.map(p => `<option value="${p.id}" ${item ? (item.organizer_id === p.id ? 'selected' : '') : (p.id === currentUser.id ? 'selected' : '')}>${escapeHtml(p.full_name)}</option>`).join('');
+            const inviteeRows = activeEmployeesCache.map(p => `
+                <label class="event-invitee-row">
+                    <input type="checkbox" class="event-invitee-checkbox" value="${p.id}" ${invitedIds.has(p.id) ? 'checked' : ''} style="width:15px; height:15px;">
+                    ${escapeHtml(p.full_name)}
+                </label>`).join('');
+
+            box.innerHTML = `
+                <h3 style="font-size: 20px; font-weight: 700; margin-bottom: 20px;">${item ? 'Редактировать событие' : 'Новое событие'}</h3>
+                <div style="margin-bottom: 14px;">
+                    <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Название *</label>
+                    <input type="text" id="eventFormTitleInput" placeholder="Например: Планёрка по проекту" value="${item ? escapeHtml(item.title) : ''}" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+                </div>
+                <div style="display:flex; gap:12px; margin-bottom: 14px;">
+                    <div style="flex:1;">
+                        <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Дата *</label>
+                        <input type="date" id="eventFormDate" value="${item ? item.event_date : (presetDate || todayIso())}" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+                    </div>
+                    <div style="flex:1;">
+                        <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Время</label>
+                        <input type="time" id="eventFormTime" value="${item && item.event_time ? item.event_time.slice(0, 5) : ''}" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+                    </div>
+                </div>
+                <div style="margin-bottom: 14px;">
+                    <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Организатор (кто собирает)</label>
+                    <select id="eventFormOrganizer" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">${organizerOptions}</select>
+                </div>
+                <div style="margin-bottom: 14px;">
+                    <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Участники (кого пригласить)</label>
+                    <div class="event-invitee-list">${inviteeRows || '<div style="color:var(--text-secondary); font-size:13px;">Список сотрудников пуст</div>'}</div>
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Описание (необязательно)</label>
+                    <textarea id="eventFormDescription" rows="3" placeholder="Повестка, где встречаемся, детали" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px; font-family:inherit; resize:vertical;">${item ? escapeHtml(item.description || '') : ''}</textarea>
+                </div>
+                <div style="display:flex; gap:10px; justify-content:space-between;">
+                    ${item ? `<button class="btn btn-secondary" style="color:var(--danger);" onclick="deleteEvent()">Удалить</button>` : '<span></span>'}
+                    <div style="display:flex; gap:10px;">
+                        <button class="btn btn-secondary" onclick="closeEventFormModal()">Отмена</button>
+                        <button class="btn btn-primary" onclick="submitEventForm()">${item ? 'Сохранить' : 'Добавить'}</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function fmtRuDate(iso) {
+            const d = new Date(iso + 'T00:00:00');
+            return d.toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' });
         }
 
         function closeEventFormModal() {
@@ -249,16 +334,32 @@
             const title = document.getElementById('eventFormTitleInput').value.trim();
             const date = document.getElementById('eventFormDate').value;
             const time = document.getElementById('eventFormTime').value || null;
+            const organizerId = document.getElementById('eventFormOrganizer').value;
             const description = document.getElementById('eventFormDescription').value.trim() || null;
+            const inviteeIds = Array.from(document.querySelectorAll('.event-invitee-checkbox:checked')).map(el => el.value);
             if (!title || !date) { showToast('Укажите название и дату', 'error'); return; }
 
+            let eventId = editingEventId;
             let error;
             if (editingEventId) {
-                ({ error } = await supabaseClient.from('company_events').update({ title, event_date: date, event_time: time, description }).eq('id', editingEventId));
+                ({ error } = await supabaseClient.from('company_events').update({ title, event_date: date, event_time: time, organizer_id: organizerId, description }).eq('id', editingEventId));
             } else {
-                ({ error } = await supabaseClient.from('company_events').insert({ title, event_date: date, event_time: time, description, created_by: currentUser.id }));
+                const { data, error: insertErr } = await supabaseClient.from('company_events').insert({ title, event_date: date, event_time: time, organizer_id: organizerId, description, created_by: currentUser.id }).select().single();
+                error = insertErr;
+                if (data) eventId = data.id;
             }
             if (error) { console.error(error); showToast(isNetworkError(error) ? 'Нет соединения — попробуйте ещё раз' : 'Не удалось сохранить событие', 'error'); return; }
+
+            // Синхронизируем список приглашённых: проще всего снести старый набор
+            // и записать заново, чем вычислять точечный diff.
+            if (eventId) {
+                await supabaseClient.from('company_event_invitees').delete().eq('event_id', eventId);
+                if (inviteeIds.length > 0) {
+                    const { error: invErr } = await supabaseClient.from('company_event_invitees').insert(inviteeIds.map(uid => ({ event_id: eventId, user_id: uid })));
+                    if (invErr) console.error(invErr);
+                }
+            }
+
             showToast(editingEventId ? 'Событие обновлено' : 'Событие добавлено', 'success');
             closeEventFormModal();
             await loadMonthEvents();
@@ -282,6 +383,7 @@
             const ok = await requireAuth();
             if (!ok) return;
             initDeadlineReminders(currentUser);
+            await loadEmployeesAndProfiles();
             await loadMonthEvents();
         });
     </script>

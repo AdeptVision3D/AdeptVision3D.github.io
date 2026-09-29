@@ -459,12 +459,45 @@ function reminderLabel(daysLeft) {
     return { text: `Осталось ${daysLeft} дн.`, cls: 'warning' };
 }
 
+function isoDatePlusDays(n) {
+    const d = new Date();
+    d.setDate(d.getDate() + n);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Встречи календаря, где текущий пользователь — организатор или приглашённый,
+// в ближайшие REMINDER_THRESHOLD_DAYS дней (прошедшие не напоминаем, в отличие
+// от дедлайнов — встречу back in time напоминать уже незачем).
+async function fetchUpcomingMyEvents(user) {
+    const [{ data: organized, error: orgErr }, { data: inviteRows, error: invErr }] = await Promise.all([
+        supabaseClient.from('company_events').select('*').eq('organizer_id', user.id),
+        supabaseClient.from('company_event_invitees').select('event_id').eq('user_id', user.id)
+    ]);
+    if (orgErr) console.error(orgErr);
+    if (invErr) console.error(invErr);
+    const inviteIds = [...new Set((inviteRows || []).map(r => r.event_id))];
+    let invited = [];
+    if (inviteIds.length > 0) {
+        const { data, error } = await supabaseClient.from('company_events').select('*').in('id', inviteIds);
+        if (error) console.error(error);
+        invited = data || [];
+    }
+    const byId = {};
+    [...(organized || []), ...invited].forEach(e => { byId[e.id] = e; });
+    const todayStr = todayIso();
+    const horizon = isoDatePlusDays(REMINDER_THRESHOLD_DAYS);
+    return Object.values(byId)
+        .filter(e => e.event_date >= todayStr && e.event_date <= horizon)
+        .sort((a, b) => a.event_date.localeCompare(b.event_date) || (a.event_time || '').localeCompare(b.event_time || ''));
+}
+
 async function initDeadlineReminders(user) {
     if (!user) return;
     try {
-        const [{ data: myFrames, error: framesErr }, { data: memberships, error: memErr }] = await Promise.all([
+        const [{ data: myFrames, error: framesErr }, { data: memberships, error: memErr }, myEvents] = await Promise.all([
             supabaseClient.from('frames').select('id, name, project_id, due_date, status').eq('assigned_to', user.id).neq('status', 'done'),
-            supabaseClient.from('project_members').select('project_id').eq('user_id', user.id)
+            supabaseClient.from('project_members').select('project_id').eq('user_id', user.id),
+            fetchUpcomingMyEvents(user)
         ]);
         if (framesErr) console.error(framesErr);
         if (memErr) console.error(memErr);
@@ -472,31 +505,38 @@ async function initDeadlineReminders(user) {
         const frames = myFrames || [];
         const myProjectIds = [...new Set((memberships || []).map(m => m.project_id))];
         const projectIds = [...new Set([...frames.map(f => f.project_id), ...myProjectIds])];
-        if (projectIds.length === 0) { renderReminderBell([]); return; }
-
-        const { data: projects, error: projErr } = await supabaseClient.from('projects').select('id, name, deadline, completed, on_hold').in('id', projectIds);
-        if (projErr) { console.error(projErr); return; }
-        const projectMap = Object.fromEntries((projects || []).map(p => [p.id, p]));
 
         const items = [];
-        frames.forEach(f => {
-            const project = projectMap[f.project_id];
-            if (!project || project.completed || project.on_hold) return;
-            const due = f.due_date || project.deadline;
-            if (!due) return;
-            const daysLeft = daysUntilDate(due);
-            if (daysLeft <= REMINDER_THRESHOLD_DAYS) {
-                items.push({ type: 'frame', name: f.name, projectName: project.name, daysLeft, link: `frame.html?project=${f.project_id}&frame=${f.id}` });
-            }
+        myEvents.forEach(e => {
+            const daysLeft = daysUntilDate(e.event_date);
+            const timeLabel = e.event_time ? ` в ${e.event_time.slice(0, 5)}` : '';
+            items.push({ type: 'event', name: e.title, projectName: `встреча${timeLabel}`, daysLeft, link: 'calendar.html' });
         });
-        myProjectIds.forEach(pid => {
-            const project = projectMap[pid];
-            if (!project || project.completed || project.on_hold || !project.deadline) return;
-            const daysLeft = daysUntilDate(project.deadline);
-            if (daysLeft <= REMINDER_THRESHOLD_DAYS) {
-                items.push({ type: 'project', name: project.name, projectName: null, daysLeft, link: `project.html?id=${pid}` });
-            }
-        });
+
+        if (projectIds.length > 0) {
+            const { data: projects, error: projErr } = await supabaseClient.from('projects').select('id, name, deadline, completed, on_hold').in('id', projectIds);
+            if (projErr) { console.error(projErr); }
+            const projectMap = Object.fromEntries((projects || []).map(p => [p.id, p]));
+
+            frames.forEach(f => {
+                const project = projectMap[f.project_id];
+                if (!project || project.completed || project.on_hold) return;
+                const due = f.due_date || project.deadline;
+                if (!due) return;
+                const daysLeft = daysUntilDate(due);
+                if (daysLeft <= REMINDER_THRESHOLD_DAYS) {
+                    items.push({ type: 'frame', name: f.name, projectName: project.name, daysLeft, link: `frame.html?project=${f.project_id}&frame=${f.id}` });
+                }
+            });
+            myProjectIds.forEach(pid => {
+                const project = projectMap[pid];
+                if (!project || project.completed || project.on_hold || !project.deadline) return;
+                const daysLeft = daysUntilDate(project.deadline);
+                if (daysLeft <= REMINDER_THRESHOLD_DAYS) {
+                    items.push({ type: 'project', name: project.name, projectName: null, daysLeft, link: `project.html?id=${pid}` });
+                }
+            });
+        }
         items.sort((a, b) => a.daysLeft - b.daysLeft);
         renderReminderBell(items);
     } catch (e) {
@@ -533,7 +573,9 @@ function renderReminderBell(items) {
     badge.textContent = items.length > 9 ? '9+' : String(items.length);
     panel.innerHTML = '<div class="reminder-panel-title">Ближайшие сроки</div>' + items.map(item => {
         const label = reminderLabel(item.daysLeft);
-        const sub = item.type === 'frame' ? `${escapeHtml(item.projectName)} · кадр` : 'проект целиком';
+        const sub = item.type === 'frame' ? `${escapeHtml(item.projectName)} · кадр`
+            : item.type === 'event' ? escapeHtml(item.projectName)
+            : 'проект целиком';
         return `<a class="reminder-item" href="${item.link}">
             <div class="reminder-item-text">
                 <div class="reminder-item-name">${escapeHtml(item.name)}</div>
