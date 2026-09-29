@@ -101,38 +101,15 @@
 
         const STATUS_LABELS = { new: 'Новое', in_progress: 'В работе', resolved: 'Решено' };
 
-        const PAGE_OPTIONS = [
-            { value: 'index.html', label: 'Дашборд' },
-            { value: 'project.html', label: 'Страница проекта' },
-            { value: 'frame.html', label: 'Карточка кадра' },
-            { value: 'my.html', label: 'Моё' },
-            { value: 'vacations.html', label: 'Отпуска' },
-            { value: 'news.html', label: 'Новости' },
-            { value: 'clients.html', label: 'Клиенты' },
-            { value: 'calendar.html', label: 'Календарь' },
-            { value: 'analytics.html', label: 'Аналитика' },
-            { value: 'other', label: 'Другое / не знаю' }
-        ];
-        const PAGE_LABELS = Object.fromEntries(PAGE_OPTIONS.map(o => [o.value, o.label]));
-
-        const CATEGORY_OPTIONS = [
-            { value: 'save_error', label: 'Не сохраняется / не отправляется' },
-            { value: 'load_error', label: 'Не загружается страница' },
-            { value: 'button_broken', label: 'Не работает кнопка или ссылка' },
-            { value: 'wrong_data', label: 'Неверные данные или расчёт' },
-            { value: 'visual', label: 'Визуальная ошибка (вёрстка, наезжает текст и т.п.)' },
-            { value: 'access', label: 'Не могу зайти / нет доступа к разделу' },
-            { value: 'other', label: 'Другое' }
-        ];
-        const CATEGORY_LABELS = Object.fromEntries(CATEGORY_OPTIONS.map(o => [o.value, o.label]));
-
-        const PRIORITY_OPTIONS = [
-            { value: 'critical', label: '🔴 Критично — работать невозможно' },
-            { value: 'medium', label: '🟠 Мешает — неудобно, но можно работать' },
-            { value: 'low', label: '🟢 Незначительно — мелочь' }
-        ];
-        const PRIORITY_LABELS = { critical: 'Критично', medium: 'Мешает', low: 'Незначительно' };
-        const PRIORITY_RANK = { critical: 0, medium: 1, low: 2 };
+        // Справочники категорий/срочности/страниц вынесены в common.js (BUG_*) —
+        // используются и здесь, и в колокольчике напоминаний.
+        const PAGE_OPTIONS = BUG_PAGE_OPTIONS;
+        const PAGE_LABELS = BUG_PAGE_LABELS;
+        const CATEGORY_OPTIONS = BUG_CATEGORY_OPTIONS;
+        const CATEGORY_LABELS = BUG_CATEGORY_LABELS;
+        const PRIORITY_OPTIONS = BUG_PRIORITY_OPTIONS;
+        const PRIORITY_LABELS = BUG_PRIORITY_LABELS;
+        const PRIORITY_RANK = BUG_PRIORITY_RANK;
 
         async function requireAuth() {
             const { data: { session } } = await supabaseClient.auth.getSession();

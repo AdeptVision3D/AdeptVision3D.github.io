@@ -85,6 +85,43 @@ function canAccessClients(user) {
     return !!(user && (hasAdminAccess(user) || ['lead', 'art_director', 'ceo', 'manager'].includes(user.role)));
 }
 
+// ====== Сообщения об ошибках (bug_reports) — общие справочники ======
+// Используются и на bugs.html (форма + список), и в колокольчике напоминаний
+// (см. initDeadlineReminders ниже), чтобы не дублировать один и тот же
+// список категорий/срочности в двух файлах.
+const BUG_PAGE_OPTIONS = [
+    { value: 'index.html', label: 'Дашборд' },
+    { value: 'project.html', label: 'Страница проекта' },
+    { value: 'frame.html', label: 'Карточка кадра' },
+    { value: 'my.html', label: 'Моё' },
+    { value: 'vacations.html', label: 'Отпуска' },
+    { value: 'news.html', label: 'Новости' },
+    { value: 'clients.html', label: 'Клиенты' },
+    { value: 'calendar.html', label: 'Календарь' },
+    { value: 'analytics.html', label: 'Аналитика' },
+    { value: 'other', label: 'Другое / не знаю' }
+];
+const BUG_PAGE_LABELS = Object.fromEntries(BUG_PAGE_OPTIONS.map(o => [o.value, o.label]));
+
+const BUG_CATEGORY_OPTIONS = [
+    { value: 'save_error', label: 'Не сохраняется / не отправляется' },
+    { value: 'load_error', label: 'Не загружается страница' },
+    { value: 'button_broken', label: 'Не работает кнопка или ссылка' },
+    { value: 'wrong_data', label: 'Неверные данные или расчёт' },
+    { value: 'visual', label: 'Визуальная ошибка (вёрстка, наезжает текст и т.п.)' },
+    { value: 'access', label: 'Не могу зайти / нет доступа к разделу' },
+    { value: 'other', label: 'Другое' }
+];
+const BUG_CATEGORY_LABELS = Object.fromEntries(BUG_CATEGORY_OPTIONS.map(o => [o.value, o.label]));
+
+const BUG_PRIORITY_OPTIONS = [
+    { value: 'critical', label: '🔴 Критично — работать невозможно' },
+    { value: 'medium', label: '🟠 Мешает — неудобно, но можно работать' },
+    { value: 'low', label: '🟢 Незначительно — мелочь' }
+];
+const BUG_PRIORITY_LABELS = { critical: 'Критично', medium: 'Мешает', low: 'Незначительно' };
+const BUG_PRIORITY_RANK = { critical: 0, medium: 1, low: 2 };
+
 // ====== Отпуска и больничные (employee_leaves) — общие хелперы ======
 // Используются и на vacations.html (полный календарь), и в местах выбора
 // исполнителя (project.html — назначение на кадр, index.html — команда
@@ -503,13 +540,26 @@ async function fetchUpcomingMyEvents(user) {
         .sort((a, b) => a.event_date.localeCompare(b.event_date) || (a.event_time || '').localeCompare(b.event_time || ''));
 }
 
+// Открытые тикеты об ошибках — только для тех, кто их разбирает (тимлид и
+// выше, включая админ-доступ); остальным в колокольчике не показываем.
+async function fetchOpenBugReportsForBell(user) {
+    if (!canManageProjectsRole(user)) return [];
+    const { data, error } = await supabaseClient
+        .from('bug_reports')
+        .select('id, category, priority, status')
+        .neq('status', 'resolved');
+    if (error) { console.error(error); return []; }
+    return (data || []).sort((a, b) => BUG_PRIORITY_RANK[a.priority] - BUG_PRIORITY_RANK[b.priority]);
+}
+
 async function initDeadlineReminders(user) {
     if (!user) return;
     try {
-        const [{ data: myFrames, error: framesErr }, { data: memberships, error: memErr }, myEvents] = await Promise.all([
+        const [{ data: myFrames, error: framesErr }, { data: memberships, error: memErr }, myEvents, openBugs] = await Promise.all([
             supabaseClient.from('frames').select('id, name, project_id, due_date, status').eq('assigned_to', user.id).neq('status', 'done'),
             supabaseClient.from('project_members').select('project_id').eq('user_id', user.id),
-            fetchUpcomingMyEvents(user)
+            fetchUpcomingMyEvents(user),
+            fetchOpenBugReportsForBell(user)
         ]);
         if (framesErr) console.error(framesErr);
         if (memErr) console.error(memErr);
@@ -519,6 +569,18 @@ async function initDeadlineReminders(user) {
         const projectIds = [...new Set([...frames.map(f => f.project_id), ...myProjectIds])];
 
         const items = [];
+        // Открытые тикеты — всегда наверху колокольчика (это не "дедлайн через N
+        // дней", а "уже сейчас надо посмотреть"), критичные выше остальных.
+        openBugs.forEach((b, i) => {
+            items.push({
+                type: 'bug',
+                name: BUG_CATEGORY_LABELS[b.category] || b.category,
+                projectName: BUG_PRIORITY_LABELS[b.priority] || b.priority,
+                bugPriority: b.priority,
+                daysLeft: -1000 + BUG_PRIORITY_RANK[b.priority] * 10 + i,
+                link: 'bugs.html'
+            });
+        });
         myEvents.forEach(e => {
             const daysLeft = daysUntilDate(e.event_date);
             const timeLabel = e.event_time ? ` в ${e.event_time.slice(0, 5)}` : '';
@@ -584,9 +646,12 @@ function renderReminderBell(items) {
     badge.style.display = 'flex';
     badge.textContent = items.length > 9 ? '9+' : String(items.length);
     panel.innerHTML = '<div class="reminder-panel-title">Ближайшие сроки</div>' + items.map(item => {
-        const label = reminderLabel(item.daysLeft);
+        const label = item.type === 'bug'
+            ? { text: item.projectName, cls: item.bugPriority === 'critical' ? 'danger' : 'warning' }
+            : reminderLabel(item.daysLeft);
         const sub = item.type === 'frame' ? `${escapeHtml(item.projectName)} · кадр`
             : item.type === 'event' ? escapeHtml(item.projectName)
+            : item.type === 'bug' ? 'тикет об ошибке'
             : 'проект целиком';
         return `<a class="reminder-item" href="${item.link}">
             <div class="reminder-item-text">
