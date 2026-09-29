@@ -65,6 +65,12 @@
         .hot-deadline-item { display: flex; align-items: center; gap: 8px; padding: 8px 14px; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 999px; font-size: 13px; text-decoration: none; color: var(--text-primary); transition: transform 0.15s ease; }
         .hot-deadline-item:hover { transform: translateY(-2px); }
         .hot-deadline-item .deadline-badge { margin-left: 2px; }
+
+        .approval-panel { margin-bottom: 24px; border-radius: 8px; background: var(--card-bg); border: 1px solid var(--card-border); box-shadow: var(--card-shadow); overflow: hidden; }
+        .approval-panel-title { font-size: 13px; font-weight: 700; padding: 14px 20px; border-bottom: 1px solid var(--border); }
+        .approval-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 20px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+        .approval-row:last-child { border-bottom: none; }
+        .approval-row-actions { display: flex; gap: 8px; flex-wrap: wrap; }
         .project-header { padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
         .project-header-text { flex: 1; min-width: 0; }
         .project-title { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.3; margin-bottom: 8px; }
@@ -141,6 +147,7 @@
                 <div class="stat-label">Проектов в стопе</div>
             </div>
         </div>
+        <div id="projectApprovalPanel"></div>
         <div class="hot-deadlines" id="hotDeadlines" style="display:none;"></div>
         <div class="projects-toolbar">
             <div class="toolbar-left">
@@ -218,9 +225,9 @@
             <h3 id="projectFormTitle" style="font-size: 20px; font-weight: 700; margin-bottom: 20px;">Новый проект</h3>
             <div class="field">
                 <label class="field-label">Заказчик</label>
-                <input type="text" id="projectFormClient" list="clientOptions" placeholder="Компания или ФИО" class="field-input">
-                <datalist id="clientOptions"></datalist>
-                <div style="font-size:11px; color:var(--text-secondary); margin-top:4px;">Существующий клиент подставится из подсказок, новое имя — заведёт нового клиента в разделе «Клиенты».</div>
+                <select id="projectFormClientSelect" class="field-input" onchange="onProjectFormClientChange()"></select>
+                <input type="text" id="projectFormClientNew" placeholder="Название нового клиента" class="field-input" style="margin-top:8px; display:none;">
+                <div style="font-size:11px; color:var(--text-secondary); margin-top:4px;">Выберите из уже заведённых клиентов или добавьте нового.</div>
             </div>
             <div class="field">
                 <label class="field-label">Название проекта *</label>
@@ -343,10 +350,19 @@
 
         // Подсказки для поля "Заказчик" — имена уже существующих клиентов из CRM,
         // чтобы новый проект случайно не завёл дубликат клиента из-за опечатки.
-        async function fillClientOptions() {
-            const { data, error } = await supabaseClient.from('clients').select('name').order('name', { ascending: true });
-            if (error) { console.error(error); return; }
-            document.getElementById('clientOptions').innerHTML = (data || []).map(c => `<option value="${escapeHtml(c.name)}">`).join('');
+        async function fillClientOptions(selectedClientId) {
+            // Менеджер видит здесь только своих клиентов (так решает RLS на таблице
+            // clients), у остальных ролей — полный список, как и раньше.
+            const { data, error } = await supabaseClient.from('clients').select('id, name').order('name', { ascending: true });
+            projectClientsCache = error ? [] : (data || []);
+            if (error) console.error(error);
+            const sel = document.getElementById('projectFormClientSelect');
+            sel.innerHTML = ['<option value="">— без клиента —</option>']
+                .concat(projectClientsCache.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`))
+                .concat(['<option value="__new__">+ Новый клиент…</option>'])
+                .join('');
+            sel.value = (selectedClientId && projectClientsCache.some(c => c.id === selectedClientId)) ? selectedClientId : '';
+            onProjectFormClientChange();
         }
 
         function openEditEmployeeModal(id) {
@@ -664,17 +680,29 @@
         // например через Яндекс.Браузер, и не позволяли добавить новые поля) ======
         let editingProjectId = null; // null — создаём новый проект, иначе редактируем существующий
 
+        const isManagerNotAdmin = () => currentUser && currentUser.role === 'manager' && !currentUser.is_admin;
+
         function openProjectFormModal(id) {
             editingProjectId = id || null;
             const project = editingProjectId ? lastLoadedProjects.find(p => p.id === editingProjectId) : null;
             document.getElementById('projectFormTitle').textContent = editingProjectId ? 'Изменить проект' : 'Новый проект';
-            document.getElementById('projectFormSubmitBtn').textContent = editingProjectId ? 'Сохранить' : 'Создать';
-            document.getElementById('projectFormClient').value = project ? (project.client_name || '') : '';
+            document.getElementById('projectFormSubmitBtn').textContent = editingProjectId ? 'Сохранить' : (isManagerNotAdmin() ? 'Отправить на согласование' : 'Создать');
             document.getElementById('projectFormName').value = project ? project.name : '';
             document.getElementById('projectFormDeadline').value = project ? (project.deadline || '') : '';
             document.getElementById('projectFormNotes').value = project ? (project.notes || '') : '';
+            document.getElementById('projectFormClientNew').value = '';
             document.getElementById('projectFormModal').style.display = 'flex';
-            fillClientOptions();
+            fillClientOptions(project ? project.client_id : null);
+        }
+
+        let projectClientsCache = [];
+
+        function onProjectFormClientChange() {
+            const sel = document.getElementById('projectFormClientSelect');
+            const newInput = document.getElementById('projectFormClientNew');
+            const isNew = sel.value === '__new__';
+            newInput.style.display = isNew ? '' : 'none';
+            if (isNew) newInput.value = '';
         }
         function closeProjectFormModal() {
             document.getElementById('projectFormModal').style.display = 'none';
@@ -684,16 +712,23 @@
         async function submitProjectForm() {
             const name = document.getElementById('projectFormName').value.trim();
             if (!name) { showToast('Укажите название проекта', 'error'); return; }
-            const clientNameInput = document.getElementById('projectFormClient').value.trim();
             const deadlineIso = document.getElementById('projectFormDeadline').value || null; // input type="date" уже отдаёт ГГГГ-ММ-ДД
             const notes = document.getElementById('projectFormNotes').value.trim() || null;
 
-            // Находим клиента по имени в CRM или заводим нового — projects.client_id
-            // теперь настоящая связь, client_name остаётся денормализованной копией
-            // для быстрого отображения в карточке проекта без лишнего джойна.
-            const client = clientNameInput ? await findOrCreateClientByName(clientNameInput, currentUser.id) : null;
-            const clientId = client ? client.id : null;
-            const clientName = client ? client.name : null;
+            // Клиент — выбирается из уже заведённых (id) либо заводится новый по имени.
+            const clientSelectValue = document.getElementById('projectFormClientSelect').value;
+            let clientId = null, clientName = null;
+            if (clientSelectValue === '__new__') {
+                const newName = document.getElementById('projectFormClientNew').value.trim();
+                if (newName) {
+                    const client = await findOrCreateClientByName(newName, currentUser.id);
+                    clientId = client ? client.id : null;
+                    clientName = client ? client.name : newName;
+                }
+            } else if (clientSelectValue) {
+                clientId = clientSelectValue;
+                clientName = (projectClientsCache.find(c => c.id === clientSelectValue) || {}).name || null;
+            }
 
             if (editingProjectId) {
                 const { error } = await supabaseClient
@@ -704,13 +739,17 @@
                 logProjectActivity(editingProjectId, 'project_edit', 'Изменены данные проекта', currentUser ? currentUser.full_name : null);
                 showToast('Проект обновлён', 'success');
             } else {
+                // Проект менеджера не запускается сразу — ждёт подтверждения директора
+                // (approval_status), у остальных ролей поток не меняется.
+                const payload = { name, client_name: clientName, client_id: clientId, deadline: deadlineIso, notes, completed: false, created_by: currentUser.id };
+                if (isManagerNotAdmin()) payload.approval_status = 'pending';
                 const { data, error } = await supabaseClient
                     .from('projects')
-                    .insert({ name, client_name: clientName, client_id: clientId, deadline: deadlineIso, notes, completed: false })
+                    .insert(payload)
                     .select()
                     .single();
                 if (error) { console.error(error); showToast('Не удалось создать проект', 'error'); return; }
-                showToast('Проект создан!', 'success');
+                showToast(isManagerNotAdmin() ? 'Заявка отправлена директору на согласование' : 'Проект создан!', 'success');
             }
             closeProjectFormModal();
             renderProjects();
@@ -874,14 +913,78 @@
             `;
         }
 
+        // ====== Согласование проектов, заведённых менеджером ======
+        function renderProjectApprovalPanel(items) {
+            const panelEl = document.getElementById('projectApprovalPanel');
+            const canApprove = currentUser && (hasAdminAccess(currentUser) || currentUser.role === 'ceo');
+            const rows = items.map(p => {
+                const isMine = p.created_by === currentUser.id;
+                if (!isMine && !canApprove) return '';
+                let actions = '';
+                if (p.approval_status === 'pending') {
+                    if (canApprove) {
+                        actions += `<button class="btn btn-primary" style="padding:6px 14px; font-size:12px;" onclick="approveProjectLaunch('${p.id}')">Одобрить запуск</button>
+                            <button class="btn btn-secondary" style="padding:6px 14px; font-size:12px;" onclick="rejectProjectLaunch('${p.id}')">Отклонить</button>`;
+                    }
+                    if (isMine) actions += `<button class="btn btn-secondary" style="padding:6px 14px; font-size:12px;" onclick="cancelPendingProject('${p.id}')">Отменить</button>`;
+                } else if (p.approval_status === 'rejected' && isMine) {
+                    actions += `<button class="btn btn-secondary" style="padding:6px 14px; font-size:12px;" onclick="cancelPendingProject('${p.id}')">Удалить</button>`;
+                }
+                const statusLabel = p.approval_status === 'pending'
+                    ? 'Ожидает подтверждения директора'
+                    : `Отклонено${p.rejection_note ? ': ' + escapeHtml(p.rejection_note) : ''}`;
+                return `<div class="approval-row">
+                    <div>
+                        <b>${escapeHtml(p.name)}</b>${p.client_name ? ' · Заказчик: ' + escapeHtml(p.client_name) : ''}
+                        <div style="font-size:12px; color:${p.approval_status === 'rejected' ? 'var(--danger)' : 'var(--text-secondary)'}; margin-top:4px;">${statusLabel}</div>
+                    </div>
+                    <div class="approval-row-actions">${actions}</div>
+                </div>`;
+            }).filter(Boolean).join('');
+            panelEl.innerHTML = rows ? `<div class="approval-panel">
+                <div class="approval-panel-title">Проекты на согласовании</div>
+                ${rows}
+            </div>` : '';
+        }
+
+        async function approveProjectLaunch(id) {
+            const { error } = await supabaseClient.from('projects').update({ approval_status: 'approved', approved_by: currentUser.id }).eq('id', id);
+            if (error) { console.error(error); showToast('Не удалось подтвердить запуск', 'error'); return; }
+            showToast('Проект одобрен и запущен', 'success');
+            renderProjects();
+        }
+
+        async function rejectProjectLaunch(id) {
+            const note = window.prompt('Причина отказа (необязательно):');
+            if (note === null) return;
+            const { error } = await supabaseClient.from('projects').update({ approval_status: 'rejected', rejected_by: currentUser.id, rejection_note: note.trim() || null }).eq('id', id);
+            if (error) { console.error(error); showToast('Не удалось отклонить', 'error'); return; }
+            showToast('Проект отклонён', 'success');
+            renderProjects();
+        }
+
+        async function cancelPendingProject(id) {
+            if (!confirm('Удалить эту заявку на проект?')) return;
+            const { error } = await supabaseClient.from('projects').delete().eq('id', id);
+            if (error) { console.error(error); showToast('Не удалось удалить', 'error'); return; }
+            showToast('Заявка удалена', 'success');
+            renderProjects();
+        }
+
         async function renderProjects() {
-            const projects = await loadProjectsWithFrames();
+            const allProjects = await loadProjectsWithFrames();
+            // Проекты менеджера, ждущие или не прошедшие согласование директора, —
+            // это ещё не реальная работа в производстве: не показываем их в общей
+            // сетке/статистике/дедлайнах, только в отдельной панели согласования.
+            const projects = allProjects.filter(p => (p.approval_status || 'approved') === 'approved');
+            const pendingOrRejected = allProjects.filter(p => (p.approval_status || 'approved') !== 'approved');
             lastLoadedProjects = projects;
             const canManageProjects = currentUser && (hasAdminAccess(currentUser) || ['lead', 'art_director', 'ceo'].includes(currentUser.role));
             // "Завершить проект" — более узкий доступ, чем управление проектом:
             // только админ-доступ, ceo или арт-директор (тимлид — не может завершать)
             const canCompleteProject = currentUser && (hasAdminAccess(currentUser) || ['ceo', 'art_director'].includes(currentUser.role));
 
+            renderProjectApprovalPanel(pendingOrRejected);
             renderHotDeadlines(projects, canManageProjects);
 
             const hideCompleted = document.getElementById('hideCompletedToggle').checked;
