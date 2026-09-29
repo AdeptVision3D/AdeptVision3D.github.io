@@ -99,7 +99,8 @@ async function fetchCurrentLeaveMap() {
     const today = todayIso();
     const { data, error } = await supabaseClient
         .from('employee_leaves')
-        .select('user_id, type, end_date')
+        .select('user_id, type, end_date, status')
+        .eq('status', 'approved')
         .lte('start_date', today)
         .gte('end_date', today);
     if (error) { console.error(error); return {}; }
@@ -114,7 +115,10 @@ function calcVacationBalance(user, leavesOfUser) {
     const year = new Date().getFullYear();
     const norm = (user && user.vacation_days_per_year) || 28;
     const used = (leavesOfUser || [])
-        .filter(l => l.type === 'vacation' && new Date(l.start_date + 'T00:00:00').getFullYear() === year)
+        // В баланс идут только полностью утверждённые отпуска — заявка в процессе
+        // согласования ещё не "потрачена". Записи без status (старые импорты) считаем
+        // утверждёнными по умолчанию — см. миграцию 20260929n.
+        .filter(l => l.type === 'vacation' && (l.status || 'approved') === 'approved' && new Date(l.start_date + 'T00:00:00').getFullYear() === year)
         .reduce((sum, l) => sum + leaveDaysCount(l.start_date, l.end_date), 0);
     return { norm, used, remaining: norm - used };
 }

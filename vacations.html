@@ -53,6 +53,7 @@
         .vac-cell.leave-vacation { background: rgba(39, 174, 96, 0.35); }
         .vac-cell.leave-sick { background: rgba(231, 76, 60, 0.35); }
         .vac-cell.leave-vacation:hover, .vac-cell.leave-sick:hover { filter: brightness(1.15); }
+        .vac-cell.leave-pending { opacity: 0.55; cursor: default; background-image: repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(0,0,0,0.12) 4px, rgba(0,0,0,0.12) 8px); }
         .vac-emp-name { font-weight: 600; font-size: 13px; }
         .vac-emp-meta { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
         .vac-emp-role { font-size: 11px; color: var(--text-secondary); }
@@ -227,15 +228,21 @@
                     const dateObj = new Date(viewYear, viewMonth, d);
                     const iso = dateObj.toISOString().slice(0, 10);
                     const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
-                    const leave = empLeaves.find(l => l.start_date <= iso && l.end_date >= iso);
+                    const leave = empLeaves.find(l => l.status !== 'rejected' && l.start_date <= iso && l.end_date >= iso);
                     const classes = ['vac-cell'];
                     if (isWeekend) classes.push('vac-weekend');
                     let title = '';
                     let onclick = '';
                     if (leave) {
-                        classes.push('has-leave', leave.type === 'vacation' ? 'leave-vacation' : 'leave-sick');
-                        title = `${LEAVE_TYPE_LABELS[leave.type]}: ${fmtDate(leave.start_date)} – ${fmtDate(leave.end_date)}${leave.note ? ' · ' + leave.note.replace(/"/g, '&quot;') : ''}`;
-                        onclick = ` onclick="handleLeaveCellClick('${leave.id}')"`;
+                        const pendingState = leave.status === 'pending' || leave.status === 'awaiting_ceo';
+                        classes.push(leave.type === 'vacation' ? 'leave-vacation' : 'leave-sick');
+                        if (pendingState) {
+                            classes.push('leave-pending');
+                        } else {
+                            classes.push('has-leave');
+                            onclick = ` onclick="handleLeaveCellClick('${leave.id}')"`;
+                        }
+                        title = `${LEAVE_TYPE_LABELS[leave.type]}${pendingState ? ' · на согласовании' : ''}: ${fmtDate(leave.start_date)} – ${fmtDate(leave.end_date)}${leave.note ? ' · ' + leave.note.replace(/"/g, '&quot;') : ''}`;
                     }
                     cells += `<td class="${classes.join(' ')}" title="${escapeHtml(title)}"${onclick}></td>`;
                 }
@@ -245,8 +252,8 @@
                         <div class="vac-emp-meta">
                             <span class="vac-emp-role">${roleLabels[emp.role] || emp.role}</span>
                             <span class="vac-balance-badge ${balanceClass}" title="Осталось дней отпуска в этом году">${balance.remaining}/${balance.norm}</span>
-                            <button class="vac-add-row-btn" title="Изменить норму отпуска" onclick="openLeaveNormModal('${emp.id}', '${escapeHtml(emp.full_name)}', ${balance.norm})">${ICON.edit}</button>
-                            <button class="vac-add-row-btn" title="Добавить отпуск/больничный" onclick="openLeaveFormModal('${emp.id}')">+</button>
+                            ${canManageEmployeesRole(currentUser) ? `<button class="vac-add-row-btn" title="Изменить норму отпуска" onclick="openLeaveNormModal('${emp.id}', '${escapeHtml(emp.full_name)}', ${balance.norm})">${ICON.edit}</button>` : ''}
+                            ${canManageEmployeesRole(currentUser) ? `<button class="vac-add-row-btn" title="Добавить отпуск/больничный" onclick="openLeaveFormModal('${emp.id}')">+</button>` : ''}
                         </div>
                     </td>
                     ${cells}
@@ -254,6 +261,7 @@
             }).join('');
 
             document.getElementById('vacationsRoot').innerHTML = `
+                ${renderApprovalPanel()}
                 <div class="panel">
                     <div class="panel-header">
                         <div class="month-nav">
@@ -267,7 +275,8 @@
                     <div class="vac-legend">
                         <span class="vac-legend-item"><span class="vac-legend-swatch" style="background: rgba(39,174,96,0.5);"></span>${ICON.palm} Отпуск</span>
                         <span class="vac-legend-item"><span class="vac-legend-swatch" style="background: rgba(231,76,60,0.5);"></span>${ICON.pill} Больничный</span>
-                        <span class="vac-legend-item">Нажмите на закрашенный день, чтобы удалить запись</span>
+                        <span class="vac-legend-item"><span class="vac-legend-swatch" style="background: repeating-linear-gradient(45deg, rgba(120,120,120,0.5), rgba(120,120,120,0.5) 3px, rgba(120,120,120,0.15) 3px, rgba(120,120,120,0.15) 6px);"></span>На согласовании</span>
+                        <span class="vac-legend-item">Нажмите на закрашенный (утверждённый) день, чтобы удалить запись</span>
                     </div>
                     ${activeEmployeesCache.length === 0 ? '<div class="panel-empty">Нет активных сотрудников</div>' : `
                     <div class="vac-grid-wrap">
@@ -278,6 +287,104 @@
                     </div>`}
                 </div>
             `;
+        }
+
+        // ====== Панель согласования заявок ======
+
+        function empName(id) {
+            const e = activeEmployeesCache.find(x => x.id === id);
+            return e ? e.full_name : '—';
+        }
+
+        function renderApprovalPanel() {
+            const canApprovePending = currentUser.role === 'art_director' || currentUser.role === 'ceo' || currentUser.is_admin;
+            const canApproveCeo = currentUser.role === 'ceo' || currentUser.is_admin;
+            const toDecide = allLeavesCache.filter(l => {
+                if (l.status === 'pending') return canApprovePending;
+                if (l.status === 'awaiting_ceo') return canApproveCeo;
+                return false;
+            });
+            const mine = allLeavesCache.filter(l => l.created_by === currentUser.id && (l.status === 'pending' || l.status === 'awaiting_ceo'));
+            const myRejected = allLeavesCache.filter(l => l.created_by === currentUser.id && l.status === 'rejected');
+
+            if (toDecide.length === 0 && mine.length === 0 && myRejected.length === 0) return '';
+
+            const decideRows = toDecide.map(l => `
+                <div class="vac-my-row">
+                    <div>
+                        <span class="vac-type-badge ${l.type}">${l.type === 'vacation' ? ICON.palm : ICON.pill} ${LEAVE_TYPE_LABELS[l.type]}</span>
+                        <span style="margin-left:10px; font-size:13px;"><b>${escapeHtml(empName(l.user_id))}</b> · ${fmtDate(l.start_date)} – ${fmtDate(l.end_date)} (${leaveDaysCount(l.start_date, l.end_date)} дн.)</span>
+                        <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">
+                            Подал: ${escapeHtml(empName(l.created_by))} · этап: ${l.status === 'pending' ? 'ждёт арт-директора' : 'ждёт директора'}${l.note ? ' · ' + escapeHtml(l.note) : ''}
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:8px;">
+                        <button class="btn btn-primary" style="padding:6px 14px; font-size:12px;" onclick="approveLeaveStage('${l.id}')">Одобрить</button>
+                        <button class="btn btn-secondary" style="padding:6px 14px; font-size:12px;" onclick="rejectLeave('${l.id}')">Отклонить</button>
+                    </div>
+                </div>`).join('');
+
+            const mineRows = mine.map(l => `
+                <div class="vac-my-row">
+                    <div>
+                        <span class="vac-type-badge ${l.type}">${l.type === 'vacation' ? ICON.palm : ICON.pill} ${LEAVE_TYPE_LABELS[l.type]}</span>
+                        <span style="margin-left:10px; font-size:13px;">${fmtDate(l.start_date)} – ${fmtDate(l.end_date)} (${leaveDaysCount(l.start_date, l.end_date)} дн.)</span>
+                        <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">Статус: ${l.status === 'pending' ? 'ждёт согласования арт-директора' : 'ждёт утверждения директора'}</div>
+                    </div>
+                    <button class="btn btn-secondary" style="padding:6px 14px; font-size:12px;" onclick="cancelMyRequest('${l.id}')">Отменить</button>
+                </div>`).join('');
+
+            const rejectedRows = myRejected.map(l => `
+                <div class="vac-my-row">
+                    <div>
+                        <span class="vac-type-badge ${l.type}">${l.type === 'vacation' ? ICON.palm : ICON.pill} ${LEAVE_TYPE_LABELS[l.type]}</span>
+                        <span style="margin-left:10px; font-size:13px;">${fmtDate(l.start_date)} – ${fmtDate(l.end_date)}</span>
+                        <div style="font-size:12px; color:var(--danger); margin-top:4px;">Отклонено${l.rejected_by ? ' (' + escapeHtml(empName(l.rejected_by)) + ')' : ''}${l.rejection_note ? ': ' + escapeHtml(l.rejection_note) : ''}</div>
+                    </div>
+                    <button class="btn btn-secondary" style="padding:6px 14px; font-size:12px;" onclick="cancelMyRequest('${l.id}')">Скрыть</button>
+                </div>`).join('');
+
+            return `
+                <div class="panel">
+                    <div class="panel-header"><span>Заявки на согласование</span></div>
+                    <div class="panel-body">
+                        ${decideRows}${mineRows}${rejectedRows}
+                    </div>
+                </div>
+            `;
+        }
+
+        async function approveLeaveStage(leaveId) {
+            const leave = allLeavesCache.find(l => l.id === leaveId);
+            if (!leave) return;
+            let update;
+            if (leave.status === 'pending') {
+                update = { status: 'awaiting_ceo', approved_by_art_director: currentUser.id };
+            } else if (leave.status === 'awaiting_ceo') {
+                update = { status: 'approved', approved_by_ceo: currentUser.id };
+            } else {
+                return;
+            }
+            const { error } = await supabaseClient.from('employee_leaves').update(update).eq('id', leaveId);
+            if (error) { console.error(error); showToast(isNetworkError(error) ? 'Нет соединения — попробуйте ещё раз' : 'Не удалось согласовать', 'error'); return; }
+            showToast('Согласовано', 'success');
+            await loadAdminView();
+        }
+
+        async function rejectLeave(leaveId) {
+            const note = window.prompt('Причина отказа (необязательно):');
+            if (note === null) return;
+            const { error } = await supabaseClient.from('employee_leaves').update({
+                status: 'rejected', rejected_by: currentUser.id, rejection_note: note.trim() || null
+            }).eq('id', leaveId);
+            if (error) { console.error(error); showToast(isNetworkError(error) ? 'Нет соединения — попробуйте ещё раз' : 'Не удалось отклонить', 'error'); return; }
+            showToast('Заявка отклонена', 'success');
+            await loadAdminView();
+        }
+
+        function cancelMyRequest(leaveId) {
+            if (!confirm('Удалить эту заявку?')) return;
+            deleteLeave(leaveId);
         }
 
         function shiftMonth(delta) {
@@ -313,9 +420,18 @@
         // ====== Форма добавления отпуска/больничного ======
 
         function openLeaveFormModal(presetUserId) {
-            leaveFormPresetUserId = presetUserId || null;
+            // Тимлид подаёт заявку только на себя — выбор сотрудника ему недоступен,
+            // назначать отпуска другим может арт-директор/директор/админ.
+            const isLeadOnly = currentUser.role === 'lead' && !currentUser.is_admin;
+            leaveFormPresetUserId = isLeadOnly ? currentUser.id : (presetUserId || null);
             const sel = document.getElementById('leaveFormEmployee');
-            sel.innerHTML = activeEmployeesCache.map(e => `<option value="${e.id}" ${e.id === presetUserId ? 'selected' : ''}>${escapeHtml(e.full_name)}</option>`).join('');
+            if (isLeadOnly) {
+                sel.innerHTML = `<option value="${currentUser.id}" selected>${escapeHtml(currentUser.full_name)}</option>`;
+                sel.disabled = true;
+            } else {
+                sel.disabled = false;
+                sel.innerHTML = activeEmployeesCache.map(e => `<option value="${e.id}" ${e.id === presetUserId ? 'selected' : ''}>${escapeHtml(e.full_name)}</option>`).join('');
+            }
             document.querySelector('input[name="leaveFormType"][value="vacation"]').checked = true;
             document.getElementById('leaveFormStart').value = '';
             document.getElementById('leaveFormEnd').value = '';
@@ -336,12 +452,27 @@
             if (!userId) { showToast('Выберите сотрудника', 'error'); return; }
             if (!start || !end) { showToast('Укажите обе даты', 'error'); return; }
             if (end < start) { showToast('Дата "по" раньше даты "с"', 'error'); return; }
-            const { error } = await supabaseClient.from('employee_leaves').insert({
+
+            // Стартовый статус зависит от роли создателя: тимлид проходит оба этапа
+            // согласования; арт-директор пропускает свой же этап (сразу к директору);
+            // директор/админ утверждают сами себе сразу — выше согласовывать некому.
+            const payload = {
                 user_id: userId, type, start_date: start, end_date: end,
                 note: note || null, created_by: currentUser.id
-            });
+            };
+            if (currentUser.is_admin || currentUser.role === 'ceo') {
+                payload.status = 'approved';
+                payload.approved_by_ceo = currentUser.id;
+            } else if (currentUser.role === 'art_director') {
+                payload.status = 'awaiting_ceo';
+                payload.approved_by_art_director = currentUser.id;
+            } else {
+                payload.status = 'pending';
+            }
+
+            const { error } = await supabaseClient.from('employee_leaves').insert(payload);
             if (error) { console.error(error); showToast(isNetworkError(error) ? 'Нет соединения — попробуйте ещё раз' : 'Не удалось добавить запись', 'error'); return; }
-            showToast('Добавлено', 'success');
+            showToast(payload.status === 'approved' ? 'Добавлено' : 'Заявка отправлена на согласование', 'success');
             closeLeaveFormModal();
             await loadAdminView();
         }
@@ -427,7 +558,7 @@
             const ok = await requireAuth();
             if (!ok) return;
             initDeadlineReminders(currentUser);
-            if (canManageEmployeesRole(currentUser)) {
+            if (canManageProjectsRole(currentUser)) {
                 await loadAdminView();
             } else {
                 await loadMyView();
