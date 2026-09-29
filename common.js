@@ -13,7 +13,7 @@ const SUPABASE_KEY = 'sb_publishable_ouAuh1fPBDLo3bLxs4FnLA_dJwIN-Un';
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 // =====================================
 
-const roleLabels = { artist: 'Художник', lead: 'Тимлид', art_director: 'Арт-директор', ceo: 'Генеральный директор' };
+const roleLabels = { artist: 'Художник', lead: 'Тимлид', art_director: 'Арт-директор', ceo: 'Генеральный директор', manager: 'Менеджер' };
 
 // PWA: регистрируем service worker на всех страницах, чтобы сайт можно было
 // "установить" на телефон/десктоп (иконка на главном экране, отдельное окно).
@@ -76,6 +76,13 @@ function canManageProjectsRole(user) {
 }
 function canManageEmployeesRole(user) {
     return !!(user && (hasAdminAccess(user) || ['ceo', 'art_director'].includes(user.role)));
+}
+// Отдельная проверка для раздела "Клиенты": помимо руководителей производства
+// (canManageProjectsRole), сюда же пускаем менеджеров — они ведут свои сделки,
+// но не управляют проектами/аналитикой, поэтому не годится расширять
+// canManageProjectsRole целиком (это открыло бы им и другие разделы).
+function canAccessClients(user) {
+    return !!(user && (hasAdminAccess(user) || ['lead', 'art_director', 'ceo', 'manager'].includes(user.role)));
 }
 
 // ====== Отпуска и больничные (employee_leaves) — общие хелперы ======
@@ -657,7 +664,7 @@ const APP_NAV_ITEMS = [
     { key: 'my', label: 'Моё', href: 'my.html', icon: 'user', match: ['my.html'] },
     { key: 'vacations', label: 'Отпуска', href: 'vacations.html', icon: 'palm', match: ['vacations.html'] },
     { key: 'news', label: 'Новости', href: 'news.html', icon: 'megaphone', match: ['news.html'] },
-    { key: 'clients', label: 'Клиенты', href: 'clients.html', icon: 'briefcase', match: ['clients.html'], gate: canManageProjectsRole },
+    { key: 'clients', label: 'Клиенты', href: 'clients.html', icon: 'briefcase', match: ['clients.html'], gate: canAccessClients },
     { key: 'calendar', label: 'Календарь', href: 'calendar.html', icon: 'calendar', match: ['calendar.html'] },
     { key: 'bugs', label: 'Сообщить об ошибке', href: 'bugs.html', icon: 'bug', match: ['bugs.html'] },
     { key: 'analytics', label: 'Аналитика', href: 'analytics.html', icon: 'chart', match: ['analytics.html'], gate: canManageProjectsRole },

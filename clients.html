@@ -120,8 +120,8 @@
             currentUser = { id: profile.id, full_name: profile.full_name, role: profile.role, is_admin: !!profile.is_admin };
             renderUserBox();
             initAppSidebar(currentUser);
-            if (!canManageProjectsRole(currentUser)) {
-                // Раздел управления клиентами — только для тех, кто ведёт проекты
+            if (!canAccessClients(currentUser)) {
+                // Раздел клиентов — тем, кто ведёт проекты, и менеджерам (свои клиенты)
                 window.location.href = 'index.html';
                 return false;
             }

@@ -184,6 +184,7 @@
                     <option value="lead">Тимлид</option>
                     <option value="art_director">Арт-директор</option>
                     <option value="ceo">Генеральный директор</option>
+                    <option value="manager">Менеджер</option>
                 </select>
             </div>
             <div class="field">
@@ -557,7 +558,9 @@
             teamPickerEmployeesCache = data || [];
             const currentMemberIds = new Set(project.memberIds || []);
             const listEl = document.getElementById('projectTeamList');
-            const visible = teamPickerEmployeesCache.filter(p => p.is_active !== false || currentMemberIds.has(p.id));
+            // Менеджеры не участвуют в производстве — не предлагаем их в команду проекта
+            // (если только человек не был назначен раньше — тогда не прячем молча).
+            const visible = teamPickerEmployeesCache.filter(p => (p.role !== 'manager' && (p.is_active !== false || currentMemberIds.has(p.id))) || currentMemberIds.has(p.id));
             if (visible.length === 0) {
                 listEl.innerHTML = '<p style="color: var(--text-secondary); font-size: 13px; text-align: center; padding: 20px 0;">Список сотрудников пуст</p>';
                 return;

@@ -111,6 +111,13 @@
             return allProfilesNameMap[id] || 'Неизвестно';
         }
 
+        // Менеджеры заводят свои встречи с клиентами, но не управляют чужими
+        // событиями целиком — в отличие от руководителей (canManageProjectsRole),
+        // которые по-прежнему видят и правят весь календарь.
+        function canCreateEvents(user) {
+            return canManageProjectsRole(user) || !!(user && user.role === 'manager');
+        }
+
         async function requireAuth() {
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (!session) { window.location.href = 'login.html'; return false; }
@@ -119,7 +126,7 @@
             currentUser = { id: profile.id, full_name: profile.full_name, role: profile.role, is_admin: !!profile.is_admin };
             renderUserBox();
             initAppSidebar(currentUser);
-            document.getElementById('addEventBtn').style.display = canManageProjectsRole(currentUser) ? '' : 'none';
+            document.getElementById('addEventBtn').style.display = canCreateEvents(currentUser) ? '' : 'none';
             return true;
         }
 
@@ -185,7 +192,7 @@
 
         function renderCalendar() {
             document.getElementById('monthLabel').textContent = `${MONTH_NAMES_NOM[viewMonth]} ${viewYear}`;
-            const canManage = canManageProjectsRole(currentUser);
+            const canManage = canCreateEvents(currentUser);
             const todayIsoStr = todayIso();
             const gridStart = getGridStart();
             const eventsByDate = {};
@@ -240,14 +247,17 @@
 
         // presetDate — при клике на пустой день подставляем его дату в форму создания.
         // Кликнуть по самому событию может кто угодно: у руководителей открывается
-        // форма редактирования, у остальных — просмотр (кто организатор, кто зван).
+        // форма редактирования (любое событие), у менеджера — редактирование только
+        // своих встреч (organizer_id), у остальных — просмотр (кто организатор, кто зван).
         function openEventFormModal(id, presetDate) {
             editingEventId = id || null;
             const item = id ? eventsCache.find(e => e.id === id) : null;
-            const canManage = canManageProjectsRole(currentUser);
+            const canManageAll = canManageProjectsRole(currentUser);
+            const isOwnEvent = !!(item && item.organizer_id === currentUser.id);
+            const canEditThis = canManageAll || (item ? (currentUser.role === 'manager' && isOwnEvent) : canCreateEvents(currentUser));
             const box = document.getElementById('eventFormBox');
 
-            if (item && !canManage) {
+            if (item && !canEditThis) {
                 renderEventViewOnly(box, item);
             } else {
                 renderEventEditForm(box, item, presetDate);
