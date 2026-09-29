@@ -217,7 +217,9 @@
             <h3 id="projectFormTitle" style="font-size: 20px; font-weight: 700; margin-bottom: 20px;">Новый проект</h3>
             <div style="margin-bottom: 14px;">
                 <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Заказчик</label>
-                <input type="text" id="projectFormClient" placeholder="Компания или ФИО" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+                <input type="text" id="projectFormClient" list="clientOptions" placeholder="Компания или ФИО" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+                <datalist id="clientOptions"></datalist>
+                <div style="font-size:11px; color:var(--text-secondary); margin-top:4px;">Существующий клиент подставится из подсказок, новое имя — заведёт нового клиента в разделе «Клиенты».</div>
             </div>
             <div style="margin-bottom: 14px;">
                 <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Название проекта *</label>
@@ -332,6 +334,14 @@
             if (error) { console.error(error); return; }
             const existing = [...new Set((data || []).map(p => p.team_group).filter(Boolean))].sort();
             document.getElementById('teamGroupOptions').innerHTML = existing.map(g => `<option value="${escapeHtml(g)}">`).join('');
+        }
+
+        // Подсказки для поля "Заказчик" — имена уже существующих клиентов из CRM,
+        // чтобы новый проект случайно не завёл дубликат клиента из-за опечатки.
+        async function fillClientOptions() {
+            const { data, error } = await supabaseClient.from('clients').select('name').order('name', { ascending: true });
+            if (error) { console.error(error); return; }
+            document.getElementById('clientOptions').innerHTML = (data || []).map(c => `<option value="${escapeHtml(c.name)}">`).join('');
         }
 
         function openEditEmployeeModal(id) {
@@ -657,6 +667,7 @@
             document.getElementById('projectFormDeadline').value = project ? (project.deadline || '') : '';
             document.getElementById('projectFormNotes').value = project ? (project.notes || '') : '';
             document.getElementById('projectFormModal').style.display = 'flex';
+            fillClientOptions();
         }
         function closeProjectFormModal() {
             document.getElementById('projectFormModal').style.display = 'none';
@@ -666,14 +677,21 @@
         async function submitProjectForm() {
             const name = document.getElementById('projectFormName').value.trim();
             if (!name) { showToast('Укажите название проекта', 'error'); return; }
-            const clientName = document.getElementById('projectFormClient').value.trim() || null;
+            const clientNameInput = document.getElementById('projectFormClient').value.trim();
             const deadlineIso = document.getElementById('projectFormDeadline').value || null; // input type="date" уже отдаёт ГГГГ-ММ-ДД
             const notes = document.getElementById('projectFormNotes').value.trim() || null;
+
+            // Находим клиента по имени в CRM или заводим нового — projects.client_id
+            // теперь настоящая связь, client_name остаётся денормализованной копией
+            // для быстрого отображения в карточке проекта без лишнего джойна.
+            const client = clientNameInput ? await findOrCreateClientByName(clientNameInput, currentUser.id) : null;
+            const clientId = client ? client.id : null;
+            const clientName = client ? client.name : null;
 
             if (editingProjectId) {
                 const { error } = await supabaseClient
                     .from('projects')
-                    .update({ name, client_name: clientName, deadline: deadlineIso, notes })
+                    .update({ name, client_name: clientName, client_id: clientId, deadline: deadlineIso, notes })
                     .eq('id', editingProjectId);
                 if (error) { console.error(error); showToast('Не удалось обновить проект', 'error'); return; }
                 logProjectActivity(editingProjectId, 'project_edit', 'Изменены данные проекта', currentUser ? currentUser.full_name : null);
@@ -681,7 +699,7 @@
             } else {
                 const { data, error } = await supabaseClient
                     .from('projects')
-                    .insert({ name, client_name: clientName, deadline: deadlineIso, notes, completed: false })
+                    .insert({ name, client_name: clientName, client_id: clientId, deadline: deadlineIso, notes, completed: false })
                     .select()
                     .single();
                 if (error) { console.error(error); showToast('Не удалось создать проект', 'error'); return; }

@@ -60,7 +60,10 @@ const ICON = {
     user: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
     palm: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22V12"/><path d="M12 12c0-4 -3-6-7-6 0 4 3 6 7 6Z"/><path d="M12 12c0-5 3-8 8-8 0 5 -3 8-8 8Z"/><path d="M12 12c0-3 -2-5 -5-5"/><path d="M12 12c0-3 2-5 5-5"/></svg>',
     pill: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="9.5" width="15" height="7" rx="3.5" transform="rotate(-45 12 13)"/><line x1="9.5" y1="10" x2="14.5" y2="15" /></svg>',
-    megaphone: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v3a1 1 0 0 0 1 1h2l3.5 5V6L6 10H4a1 1 0 0 0-1 1Z"/><path d="M13 8a4 4 0 0 1 0 8"/><path d="M17.5 5a8 8 0 0 1 0 14"/></svg>'
+    megaphone: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v3a1 1 0 0 0 1 1h2l3.5 5V6L6 10H4a1 1 0 0 0-1 1Z"/><path d="M13 8a4 4 0 0 1 0 8"/><path d="M17.5 5a8 8 0 0 1 0 14"/></svg>',
+    briefcase: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="2" y1="12" x2="22" y2="12"/></svg>',
+    phone: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>',
+    mail: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 8.97 6.28a2 2 0 0 0 2.06 0L22 7"/></svg>'
 };
 
 // Единая проверка ролей для пунктов сайдбара — та же логика, что раньше была
@@ -114,6 +117,31 @@ function calcVacationBalance(user, leavesOfUser) {
         .filter(l => l.type === 'vacation' && new Date(l.start_date + 'T00:00:00').getFullYear() === year)
         .reduce((sum, l) => sum + leaveDaysCount(l.start_date, l.end_date), 0);
     return { norm, used, remaining: norm - used };
+}
+
+// ====== Мини-CRM (clients) — общий хелпер ======
+// Используется в форме создания/редактирования проекта (index.html): поле
+// "Заказчик" остаётся простым текстовым полем с автодополнением, но при
+// сохранении мы либо находим существующего клиента по имени (без учёта
+// регистра), либо заводим нового — так проект всегда привязан к
+// настоящей карточке клиента в CRM, а не просто к строке текста.
+async function findOrCreateClientByName(name, createdByUserId) {
+    const trimmed = (name || '').trim();
+    if (!trimmed) return null;
+    const { data: existing, error: findErr } = await supabaseClient
+        .from('clients')
+        .select('*')
+        .ilike('name', trimmed)
+        .limit(1);
+    if (findErr) { console.error(findErr); return null; }
+    if (existing && existing.length > 0) return existing[0];
+    const { data: created, error: createErr } = await supabaseClient
+        .from('clients')
+        .insert({ name: trimmed, created_by: createdByUserId || null })
+        .select()
+        .single();
+    if (createErr) { console.error(createErr); return null; }
+    return created;
 }
 
 // Смена PIN (пароля) — раньше была продублирована на index.html, вынесена сюда,
@@ -582,6 +610,7 @@ const APP_NAV_ITEMS = [
     { key: 'my', label: 'Моё', href: 'my.html', icon: 'user', match: ['my.html'] },
     { key: 'vacations', label: 'Отпуска', href: 'vacations.html', icon: 'palm', match: ['vacations.html'] },
     { key: 'news', label: 'Новости', href: 'news.html', icon: 'megaphone', match: ['news.html'] },
+    { key: 'clients', label: 'Клиенты', href: 'clients.html', icon: 'briefcase', match: ['clients.html'], gate: canManageProjectsRole },
     { key: 'analytics', label: 'Аналитика', href: 'analytics.html', icon: 'chart', match: ['analytics.html'], gate: canManageProjectsRole },
     { key: 'employees', label: 'Сотрудники', href: 'index.html?open=employees', icon: 'team', match: [], gate: canManageEmployeesRole }
 ];

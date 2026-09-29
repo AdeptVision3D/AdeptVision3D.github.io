@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Decard Pipeline — Клиенты</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0F1830">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        body { padding: 40px; }
+        .container { max-width: 1100px; margin: 0 auto; }
+        header { margin-bottom: 32px; border-bottom: 2px solid var(--border); padding-bottom: 24px; }
+        .header-top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+        .header-left { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+        .page-title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
+        .btn-back { background: var(--card-bg); color: var(--text-primary); border: 1px solid var(--border); }
+
+        .clients-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+        .clients-search { padding: 9px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--card-bg); color: var(--text-primary); font-size: 13px; width: 260px; }
+
+        .client-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; box-shadow: var(--card-shadow); padding: 18px 20px; margin-bottom: 14px; }
+        .client-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+        .client-name { font-size: 16px; font-weight: 700; }
+        .client-contacts { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 6px; font-size: 13px; color: var(--text-secondary); }
+        .client-contact-item { display: flex; align-items: center; gap: 6px; }
+        .client-notes { font-size: 13px; color: var(--text-secondary); margin-top: 10px; padding: 8px 12px; background: var(--bg-secondary); border-radius: 6px; white-space: pre-wrap; }
+        .client-actions { display: flex; gap: 6px; flex-shrink: 0; }
+        .client-icon-btn { border: none; background: none; color: var(--text-secondary); cursor: pointer; padding: 5px; border-radius: 5px; display: inline-flex; }
+        .client-icon-btn:hover { color: var(--accent); background: rgba(var(--accent-rgb), 0.1); }
+
+        .client-projects { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 8px; }
+        .client-project-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 4px 10px; border-radius: 999px; background: rgba(var(--accent-rgb), 0.08); color: var(--text-primary); text-decoration: none; }
+        .client-project-chip:hover { background: rgba(var(--accent-rgb), 0.16); }
+        .client-project-chip.done { opacity: 0.6; }
+        .client-empty-projects { font-size: 12px; color: var(--text-secondary); }
+
+        .panel-empty { padding: 28px 20px; color: var(--text-secondary); font-size: 13px; text-align: center; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; }
+
+        @media (max-width: 768px) {
+            body { padding: 20px; }
+            .header-top { flex-direction: column; align-items: flex-start; }
+            .clients-toolbar { flex-direction: column; align-items: stretch; }
+            .clients-search { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-top">
+                <div class="header-left">
+                    <a href="index.html" class="btn btn-back">← Назад</a>
+                    <span class="page-title">Клиенты</span>
+                </div>
+                <div class="user-box" id="userBox" style="display:flex; align-items:center; gap:10px; font-size:13px; color: var(--text-secondary);"></div>
+            </div>
+        </header>
+
+        <div class="clients-toolbar">
+            <input type="text" class="clients-search" id="clientSearch" placeholder="Поиск по имени, телефону, email..." oninput="renderClients()">
+            <button class="btn btn-primary" onclick="openClientFormModal()">+ Добавить клиента</button>
+        </div>
+
+        <div id="clientsList"></div>
+    </div>
+
+    <div class="modal" id="clientFormModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); z-index:2100; justify-content:center; align-items:center;">
+        <div class="employee-modal-box" style="background: var(--bg-primary); border-radius: 8px; padding: 32px; max-width: 460px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: 88vh; overflow-y: auto;">
+            <h3 id="clientFormTitle" style="font-size: 20px; font-weight: 700; margin-bottom: 20px;">Новый клиент</h3>
+            <div style="margin-bottom: 14px;">
+                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Название/ФИО *</label>
+                <input type="text" id="clientFormName" placeholder="Компания или ФИО" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+            </div>
+            <div style="margin-bottom: 14px;">
+                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Контактное лицо</label>
+                <input type="text" id="clientFormContact" placeholder="Например: Иван, менеджер по стройке" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+            </div>
+            <div style="display:flex; gap:12px; margin-bottom: 14px;">
+                <div style="flex:1;">
+                    <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Телефон</label>
+                    <input type="text" id="clientFormPhone" placeholder="+7 ..." style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+                </div>
+                <div style="flex:1;">
+                    <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Email</label>
+                    <input type="text" id="clientFormEmail" placeholder="mail@example.com" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+                </div>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Заметка (необязательно)</label>
+                <textarea id="clientFormNotes" rows="3" placeholder="Особенности работы с клиентом, договорённости и т.п." style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px; font-family:inherit; resize:vertical;"></textarea>
+            </div>
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+                <button class="btn btn-secondary" onclick="closeClientFormModal()">Отмена</button>
+                <button class="btn btn-primary" id="clientFormSubmitBtn" onclick="submitClientForm()">Создать</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+    <script src="common.js"></script>
+    <script>
+        let currentUser = null;
+        let editingClientId = null;
+        let clientsCache = [];
+        let projectsByClientId = {};
+
+        async function requireAuth() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) { window.location.href = 'login.html'; return false; }
+            const { data: profile, error } = await supabaseClient.from('profiles').select('*').eq('id', session.user.id).single();
+            if (error || !profile) { console.error(error); await supabaseClient.auth.signOut(); window.location.href = 'login.html'; return false; }
+            currentUser = { id: profile.id, full_name: profile.full_name, role: profile.role, is_admin: !!profile.is_admin };
+            renderUserBox();
+            initAppSidebar(currentUser);
+            if (!canManageProjectsRole(currentUser)) {
+                // Раздел управления клиентами — только для тех, кто ведёт проекты
+                window.location.href = 'index.html';
+                return false;
+            }
+            return true;
+        }
+
+        function renderUserBox() {
+            const box = document.getElementById('userBox');
+            if (!box || !currentUser) return;
+            box.innerHTML = `<span>${currentUser.full_name} · ${roleLabels[currentUser.role] || currentUser.role}</span>
+                <button class="btn btn-secondary" onclick="doLogout()" style="padding:4px 10px; font-size:12px;">Выйти</button>`;
+        }
+
+        async function loadClients() {
+            const [{ data: clients, error: clientsErr }, { data: projects, error: projectsErr }] = await Promise.all([
+                supabaseClient.from('clients').select('*').order('name', { ascending: true }),
+                supabaseClient.from('projects').select('id, name, client_id, completed, on_hold').order('created_at', { ascending: false })
+            ]);
+            if (clientsErr || projectsErr) {
+                console.error(clientsErr || projectsErr);
+                document.getElementById('clientsList').innerHTML = '<div class="panel-empty">Не удалось загрузить клиентов</div>';
+                return;
+            }
+            clientsCache = clients || [];
+            projectsByClientId = {};
+            (projects || []).forEach(p => {
+                if (!p.client_id) return;
+                if (!projectsByClientId[p.client_id]) projectsByClientId[p.client_id] = [];
+                projectsByClientId[p.client_id].push(p);
+            });
+            renderClients();
+        }
+
+        function renderClients() {
+            const query = document.getElementById('clientSearch').value.trim().toLowerCase();
+            const listEl = document.getElementById('clientsList');
+            const filtered = clientsCache.filter(c => {
+                if (!query) return true;
+                return [c.name, c.contact_name, c.phone, c.email].some(v => (v || '').toLowerCase().includes(query));
+            });
+            if (clientsCache.length === 0) {
+                listEl.innerHTML = '<div class="panel-empty">Клиентов пока нет — они также заводятся автоматически при указании "Заказчика" в форме проекта</div>';
+                return;
+            }
+            if (filtered.length === 0) {
+                listEl.innerHTML = '<div class="panel-empty">Ничего не найдено</div>';
+                return;
+            }
+            listEl.innerHTML = filtered.map(c => {
+                const contacts = [
+                    c.contact_name ? `<span class="client-contact-item">${ICON.user} ${escapeHtml(c.contact_name)}</span>` : '',
+                    c.phone ? `<span class="client-contact-item">${ICON.phone} ${escapeHtml(c.phone)}</span>` : '',
+                    c.email ? `<span class="client-contact-item">${ICON.mail} ${escapeHtml(c.email)}</span>` : ''
+                ].filter(Boolean).join('');
+                const projects = projectsByClientId[c.id] || [];
+                const projectsHtml = projects.length > 0
+                    ? projects.map(p => `<a class="client-project-chip ${p.completed ? 'done' : ''}" href="project.html?id=${p.id}">${p.on_hold ? '⏸ ' : ''}${escapeHtml(p.name)}${p.completed ? ' · сдан' : ''}</a>`).join('')
+                    : '<span class="client-empty-projects">Проектов пока нет</span>';
+                return `<div class="client-card">
+                    <div class="client-card-head">
+                        <div>
+                            <div class="client-name">${escapeHtml(c.name)}</div>
+                            ${contacts ? `<div class="client-contacts">${contacts}</div>` : ''}
+                        </div>
+                        <div class="client-actions">
+                            <button class="client-icon-btn" title="Редактировать" onclick="openClientFormModal('${c.id}')">${ICON.edit}</button>
+                            <button class="client-icon-btn" title="Удалить" onclick="deleteClient('${c.id}')">${ICON.trash}</button>
+                        </div>
+                    </div>
+                    ${c.notes ? `<div class="client-notes">${escapeHtml(c.notes)}</div>` : ''}
+                    <div class="client-projects">${projectsHtml}</div>
+                </div>`;
+            }).join('');
+        }
+
+        function openClientFormModal(id) {
+            editingClientId = id || null;
+            const client = id ? clientsCache.find(c => c.id === id) : null;
+            document.getElementById('clientFormTitle').textContent = client ? 'Изменить клиента' : 'Новый клиент';
+            document.getElementById('clientFormSubmitBtn').textContent = client ? 'Сохранить' : 'Создать';
+            document.getElementById('clientFormName').value = client ? client.name : '';
+            document.getElementById('clientFormContact').value = client ? (client.contact_name || '') : '';
+            document.getElementById('clientFormPhone').value = client ? (client.phone || '') : '';
+            document.getElementById('clientFormEmail').value = client ? (client.email || '') : '';
+            document.getElementById('clientFormNotes').value = client ? (client.notes || '') : '';
+            document.getElementById('clientFormModal').style.display = 'flex';
+        }
+
+        function closeClientFormModal() {
+            document.getElementById('clientFormModal').style.display = 'none';
+            editingClientId = null;
+        }
+
+        async function submitClientForm() {
+            const name = document.getElementById('clientFormName').value.trim();
+            if (!name) { showToast('Укажите название/ФИО клиента', 'error'); return; }
+            const payload = {
+                name,
+                contact_name: document.getElementById('clientFormContact').value.trim() || null,
+                phone: document.getElementById('clientFormPhone').value.trim() || null,
+                email: document.getElementById('clientFormEmail').value.trim() || null,
+                notes: document.getElementById('clientFormNotes').value.trim() || null
+            };
+
+            let error;
+            if (editingClientId) {
+                ({ error } = await supabaseClient.from('clients').update(payload).eq('id', editingClientId));
+                // Если переименовали клиента — синхронизируем денормализованное имя в его проектах,
+                // чтобы карточки проектов не показывали устаревшее "Заказчик: ...".
+                if (!error) {
+                    await supabaseClient.from('projects').update({ client_name: name }).eq('client_id', editingClientId);
+                }
+            } else {
+                ({ error } = await supabaseClient.from('clients').insert({ ...payload, created_by: currentUser.id }));
+            }
+            if (error) { console.error(error); showToast(isNetworkError(error) ? 'Нет соединения — попробуйте ещё раз' : 'Не удалось сохранить клиента', 'error'); return; }
+            showToast(editingClientId ? 'Клиент обновлён' : 'Клиент добавлен', 'success');
+            closeClientFormModal();
+            await loadClients();
+        }
+
+        async function deleteClient(id) {
+            const hasProjects = (projectsByClientId[id] || []).length > 0;
+            const warning = hasProjects ? '\n\nУ клиента есть проекты — связь с ними будет снята, но сами проекты не удалятся.' : '';
+            if (!confirm(`Удалить клиента?${warning}`)) return;
+            const { error } = await supabaseClient.from('clients').delete().eq('id', id);
+            if (error) { console.error(error); showToast('Не удалось удалить клиента', 'error'); return; }
+            showToast('Клиент удалён', 'success');
+            await loadClients();
+        }
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            loadTheme();
+            const ok = await requireAuth();
+            if (!ok) return;
+            initDeadlineReminders(currentUser);
+            await loadClients();
+        });
+    </script>
+</body>
+</html>
