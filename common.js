@@ -59,7 +59,8 @@ const ICON = {
     close: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
     user: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
     palm: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22V12"/><path d="M12 12c0-4 -3-6-7-6 0 4 3 6 7 6Z"/><path d="M12 12c0-5 3-8 8-8 0 5 -3 8-8 8Z"/><path d="M12 12c0-3 -2-5 -5-5"/><path d="M12 12c0-3 2-5 5-5"/></svg>',
-    pill: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="9.5" width="15" height="7" rx="3.5" transform="rotate(-45 12 13)"/><line x1="9.5" y1="10" x2="14.5" y2="15" /></svg>'
+    pill: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="9.5" width="15" height="7" rx="3.5" transform="rotate(-45 12 13)"/><line x1="9.5" y1="10" x2="14.5" y2="15" /></svg>',
+    megaphone: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v3a1 1 0 0 0 1 1h2l3.5 5V6L6 10H4a1 1 0 0 0-1 1Z"/><path d="M13 8a4 4 0 0 1 0 8"/><path d="M17.5 5a8 8 0 0 1 0 14"/></svg>'
 };
 
 // Единая проверка ролей для пунктов сайдбара — та же логика, что раньше была
@@ -580,6 +581,7 @@ const APP_NAV_ITEMS = [
     { key: 'dashboard', label: 'Дашборд', href: 'index.html', icon: 'home', match: ['index.html', 'project.html', 'frame.html', ''] },
     { key: 'my', label: 'Моё', href: 'my.html', icon: 'user', match: ['my.html'] },
     { key: 'vacations', label: 'Отпуска', href: 'vacations.html', icon: 'palm', match: ['vacations.html'] },
+    { key: 'news', label: 'Новости', href: 'news.html', icon: 'megaphone', match: ['news.html'] },
     { key: 'analytics', label: 'Аналитика', href: 'analytics.html', icon: 'chart', match: ['analytics.html'], gate: canManageProjectsRole },
     { key: 'employees', label: 'Сотрудники', href: 'index.html?open=employees', icon: 'team', match: [], gate: canManageEmployeesRole }
 ];
