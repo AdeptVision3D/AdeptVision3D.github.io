@@ -611,6 +611,7 @@ const APP_NAV_ITEMS = [
     { key: 'vacations', label: 'Отпуска', href: 'vacations.html', icon: 'palm', match: ['vacations.html'] },
     { key: 'news', label: 'Новости', href: 'news.html', icon: 'megaphone', match: ['news.html'] },
     { key: 'clients', label: 'Клиенты', href: 'clients.html', icon: 'briefcase', match: ['clients.html'], gate: canManageProjectsRole },
+    { key: 'calendar', label: 'Календарь', href: 'calendar.html', icon: 'calendar', match: ['calendar.html'] },
     { key: 'analytics', label: 'Аналитика', href: 'analytics.html', icon: 'chart', match: ['analytics.html'], gate: canManageProjectsRole },
     { key: 'employees', label: 'Сотрудники', href: 'index.html?open=employees', icon: 'team', match: [], gate: canManageEmployeesRole }
 ];

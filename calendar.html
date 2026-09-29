@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Decard Pipeline — Календарь</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0F1830">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        body { padding: 40px; }
+        .container { max-width: 1100px; margin: 0 auto; }
+        header { margin-bottom: 32px; border-bottom: 2px solid var(--border); padding-bottom: 24px; }
+        .header-top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+        .header-left { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+        .page-title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
+        .btn-back { background: var(--card-bg); color: var(--text-primary); border: 1px solid var(--border); }
+
+        .cal-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+        .month-nav { display: flex; align-items: center; gap: 10px; }
+        .month-nav-btn { width: 32px; height: 32px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 15px; }
+        .month-nav-btn:hover { border-color: var(--accent); }
+        .month-nav-label { font-weight: 700; font-size: 16px; min-width: 170px; text-align: center; text-transform: capitalize; }
+
+        .cal-grid { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; box-shadow: var(--card-shadow); overflow: hidden; }
+        .cal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); border-bottom: 1px solid var(--border); }
+        .cal-weekday { padding: 10px 6px; text-align: center; font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; }
+        .cal-weeks { display: grid; grid-template-columns: repeat(7, 1fr); }
+        .cal-day { min-height: 96px; padding: 6px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); cursor: default; display: flex; flex-direction: column; gap: 4px; }
+        .cal-day:nth-child(7n) { border-right: none; }
+        .cal-day.other-month { background: var(--bg-secondary); opacity: 0.5; }
+        .cal-day.today { background: rgba(var(--accent-rgb), 0.08); }
+        .cal-day.can-add { cursor: pointer; }
+        .cal-day.can-add:hover { background: rgba(var(--accent-rgb), 0.05); }
+        .cal-daynum { font-size: 12px; font-weight: 700; color: var(--text-secondary); }
+        .cal-day.today .cal-daynum { color: var(--accent); }
+        .cal-event-chip { font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(var(--accent-rgb), 0.14); color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+        .cal-event-chip:hover { background: rgba(var(--accent-rgb), 0.24); }
+        .cal-event-more { font-size: 10px; color: var(--text-secondary); }
+
+        @media (max-width: 768px) {
+            body { padding: 20px; }
+            .header-top { flex-direction: column; align-items: flex-start; }
+            .cal-toolbar { flex-direction: column; align-items: stretch; }
+            .cal-day { min-height: 72px; font-size: 11px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-top">
+                <div class="header-left">
+                    <a href="index.html" class="btn btn-back">← Назад</a>
+                    <span class="page-title">Календарь</span>
+                </div>
+                <div class="user-box" id="userBox" style="display:flex; align-items:center; gap:10px; font-size:13px; color: var(--text-secondary);"></div>
+            </div>
+        </header>
+
+        <div class="cal-toolbar">
+            <div class="month-nav">
+                <button class="month-nav-btn" onclick="shiftMonth(-1)">‹</button>
+                <span class="month-nav-label" id="monthLabel"></span>
+                <button class="month-nav-btn" onclick="shiftMonth(1)">›</button>
+                <button class="btn btn-secondary" style="padding:6px 12px; font-size:12px;" onclick="goToday()">Сегодня</button>
+            </div>
+            <button class="btn btn-primary" id="addEventBtn" style="display:none;" onclick="openEventFormModal()">+ Добавить событие</button>
+        </div>
+
+        <div class="cal-grid">
+            <div class="cal-weekdays">
+                <div class="cal-weekday">Пн</div><div class="cal-weekday">Вт</div><div class="cal-weekday">Ср</div>
+                <div class="cal-weekday">Чт</div><div class="cal-weekday">Пт</div><div class="cal-weekday">Сб</div><div class="cal-weekday">Вс</div>
+            </div>
+            <div class="cal-weeks" id="calWeeks"></div>
+        </div>
+    </div>
+
+    <div class="modal" id="eventFormModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); z-index:2100; justify-content:center; align-items:center;">
+        <div class="employee-modal-box" style="background: var(--bg-primary); border-radius: 8px; padding: 32px; max-width: 440px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: 88vh; overflow-y: auto;">
+            <h3 id="eventFormTitle" style="font-size: 20px; font-weight: 700; margin-bottom: 20px;">Новое событие</h3>
+            <div style="margin-bottom: 14px;">
+                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Название *</label>
+                <input type="text" id="eventFormTitleInput" placeholder="Например: Планёрка по проекту" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+            </div>
+            <div style="display:flex; gap:12px; margin-bottom: 14px;">
+                <div style="flex:1;">
+                    <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Дата *</label>
+                    <input type="date" id="eventFormDate" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+                </div>
+                <div style="flex:1;">
+                    <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Время (необязательно)</label>
+                    <input type="time" id="eventFormTime" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+                </div>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Описание (необязательно)</label>
+                <textarea id="eventFormDescription" rows="3" placeholder="Кто участвует, где, детали" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px; font-family:inherit; resize:vertical;"></textarea>
+            </div>
+            <div style="display:flex; gap:10px; justify-content:space-between;">
+                <button class="btn btn-secondary" id="eventFormDeleteBtn" style="display:none; color:var(--danger);" onclick="deleteEvent()">Удалить</button>
+                <div style="display:flex; gap:10px; margin-left:auto;">
+                    <button class="btn btn-secondary" onclick="closeEventFormModal()">Отмена</button>
+                    <button class="btn btn-primary" id="eventFormSubmitBtn" onclick="submitEventForm()">Добавить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+    <script src="common.js"></script>
+    <script>
+        let currentUser = null;
+        let viewYear, viewMonth; // viewMonth: 0-11
+        let eventsCache = [];
+        let editingEventId = null;
+        const WEEKDAY_MON_FIRST = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+        const MONTH_NAMES_NOM = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+
+        async function requireAuth() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) { window.location.href = 'login.html'; return false; }
+            const { data: profile, error } = await supabaseClient.from('profiles').select('*').eq('id', session.user.id).single();
+            if (error || !profile) { console.error(error); await supabaseClient.auth.signOut(); window.location.href = 'login.html'; return false; }
+            currentUser = { id: profile.id, full_name: profile.full_name, role: profile.role, is_admin: !!profile.is_admin };
+            renderUserBox();
+            initAppSidebar(currentUser);
+            document.getElementById('addEventBtn').style.display = canManageProjectsRole(currentUser) ? '' : 'none';
+            return true;
+        }
+
+        function renderUserBox() {
+            const box = document.getElementById('userBox');
+            if (!box || !currentUser) return;
+            box.innerHTML = `<span>${currentUser.full_name} · ${roleLabels[currentUser.role] || currentUser.role}</span>
+                <button class="btn btn-secondary" onclick="doLogout()" style="padding:4px 10px; font-size:12px;">Выйти</button>`;
+        }
+
+        function toIso(d) {
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        }
+
+        async function loadMonthEvents() {
+            const gridStart = getGridStart();
+            const gridEnd = new Date(gridStart);
+            gridEnd.setDate(gridEnd.getDate() + 41);
+            const { data, error } = await supabaseClient
+                .from('company_events')
+                .select('*')
+                .gte('event_date', toIso(gridStart))
+                .lte('event_date', toIso(gridEnd))
+                .order('event_time', { ascending: true, nullsFirst: false });
+            if (error) { console.error(error); eventsCache = []; }
+            else eventsCache = data || [];
+            renderCalendar();
+        }
+
+        // Понедельник той недели, в которую попадает 1-е число месяца — начало сетки 6х7
+        function getGridStart() {
+            const firstOfMonth = new Date(viewYear, viewMonth, 1);
+            const weekday = (firstOfMonth.getDay() + 6) % 7; // 0=Пн
+            const start = new Date(firstOfMonth);
+            start.setDate(start.getDate() - weekday);
+            return start;
+        }
+
+        function renderCalendar() {
+            document.getElementById('monthLabel').textContent = `${MONTH_NAMES_NOM[viewMonth]} ${viewYear}`;
+            const canManage = canManageProjectsRole(currentUser);
+            const todayIsoStr = todayIso();
+            const gridStart = getGridStart();
+            const eventsByDate = {};
+            eventsCache.forEach(e => {
+                if (!eventsByDate[e.event_date]) eventsByDate[e.event_date] = [];
+                eventsByDate[e.event_date].push(e);
+            });
+
+            let html = '';
+            for (let i = 0; i < 42; i++) {
+                const d = new Date(gridStart);
+                d.setDate(d.getDate() + i);
+                const iso = toIso(d);
+                const isOtherMonth = d.getMonth() !== viewMonth;
+                const isToday = iso === todayIsoStr;
+                const dayEvents = eventsByDate[iso] || [];
+                const shown = dayEvents.slice(0, 3);
+                const extra = dayEvents.length - shown.length;
+                const chips = shown.map(e => {
+                    const timeLabel = e.event_time ? e.event_time.slice(0, 5) + ' ' : '';
+                    return `<div class="cal-event-chip" title="${escapeHtml(timeLabel + e.title)}" onclick="event.stopPropagation(); openEventFormModal('${e.id}')">${escapeHtml(timeLabel + e.title)}</div>`;
+                }).join('');
+                const moreLabel = extra > 0 ? `<div class="cal-event-more">+${extra} ещё</div>` : '';
+                const classes = ['cal-day'];
+                if (isOtherMonth) classes.push('other-month');
+                if (isToday) classes.push('today');
+                if (canManage) classes.push('can-add');
+                const onclick = canManage ? ` onclick="openEventFormModal(null, '${iso}')"` : '';
+                html += `<div class="${classes.join(' ')}"${onclick}>
+                    <div class="cal-daynum">${d.getDate()}</div>
+                    ${chips}${moreLabel}
+                </div>`;
+            }
+            document.getElementById('calWeeks').innerHTML = html;
+        }
+
+        function shiftMonth(delta) {
+            viewMonth += delta;
+            if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+            if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+            loadMonthEvents();
+        }
+
+        function goToday() {
+            const now = new Date();
+            viewYear = now.getFullYear();
+            viewMonth = now.getMonth();
+            loadMonthEvents();
+        }
+
+        // presetDate — при клике на пустой день подставляем его дату в форму создания
+        function openEventFormModal(id, presetDate) {
+            if (!canManageProjectsRole(currentUser)) return;
+            editingEventId = id || null;
+            const item = id ? eventsCache.find(e => e.id === id) : null;
+            document.getElementById('eventFormTitle').textContent = item ? 'Редактировать событие' : 'Новое событие';
+            document.getElementById('eventFormSubmitBtn').textContent = item ? 'Сохранить' : 'Добавить';
+            document.getElementById('eventFormDeleteBtn').style.display = item ? '' : 'none';
+            document.getElementById('eventFormTitleInput').value = item ? item.title : '';
+            document.getElementById('eventFormDate').value = item ? item.event_date : (presetDate || todayIso());
+            document.getElementById('eventFormTime').value = item && item.event_time ? item.event_time.slice(0, 5) : '';
+            document.getElementById('eventFormDescription').value = item ? (item.description || '') : '';
+            document.getElementById('eventFormModal').style.display = 'flex';
+        }
+
+        function closeEventFormModal() {
+            document.getElementById('eventFormModal').style.display = 'none';
+            editingEventId = null;
+        }
+
+        async function submitEventForm() {
+            const title = document.getElementById('eventFormTitleInput').value.trim();
+            const date = document.getElementById('eventFormDate').value;
+            const time = document.getElementById('eventFormTime').value || null;
+            const description = document.getElementById('eventFormDescription').value.trim() || null;
+            if (!title || !date) { showToast('Укажите название и дату', 'error'); return; }
+
+            let error;
+            if (editingEventId) {
+                ({ error } = await supabaseClient.from('company_events').update({ title, event_date: date, event_time: time, description }).eq('id', editingEventId));
+            } else {
+                ({ error } = await supabaseClient.from('company_events').insert({ title, event_date: date, event_time: time, description, created_by: currentUser.id }));
+            }
+            if (error) { console.error(error); showToast(isNetworkError(error) ? 'Нет соединения — попробуйте ещё раз' : 'Не удалось сохранить событие', 'error'); return; }
+            showToast(editingEventId ? 'Событие обновлено' : 'Событие добавлено', 'success');
+            closeEventFormModal();
+            await loadMonthEvents();
+        }
+
+        async function deleteEvent() {
+            if (!editingEventId) return;
+            if (!confirm('Удалить это событие?')) return;
+            const { error } = await supabaseClient.from('company_events').delete().eq('id', editingEventId);
+            if (error) { console.error(error); showToast('Не удалось удалить событие', 'error'); return; }
+            showToast('Событие удалено', 'success');
+            closeEventFormModal();
+            await loadMonthEvents();
+        }
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            loadTheme();
+            const now = new Date();
+            viewYear = now.getFullYear();
+            viewMonth = now.getMonth();
+            const ok = await requireAuth();
+            if (!ok) return;
+            initDeadlineReminders(currentUser);
+            await loadMonthEvents();
+        });
+    </script>
+</body>
+</html>
