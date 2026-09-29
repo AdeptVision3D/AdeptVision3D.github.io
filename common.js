@@ -583,6 +583,10 @@ async function fetchUpcomingMyEvents(user) {
 // а не про рабочие задачи. Порог чуть шире, чем у дедлайнов (неделя, а не
 // 3 дня) — чтобы успеть придумать поздравление/подарок, а не узнать в упор.
 const PEOPLE_EVENTS_THRESHOLD_DAYS = 7;
+// Как часто колокольчик сам переспрашивает сервер, пока страница открыта
+// (без ручного обновления). 20 секунд — компромисс между быстрой реакцией
+// и лишними запросами к Supabase на каждой открытой вкладке.
+const REMINDER_POLL_INTERVAL_MS = 20000;
 
 function pluralYearsRu(n) {
     const mod10 = n % 10, mod100 = n % 100;
@@ -722,10 +726,11 @@ async function initDeadlineReminders(user) {
 
         // Пока страница открыта, сами не узнаем о новом тикете/встрече — здесь
         // нет "живых" уведомлений с сервера, поэтому просто переспрашиваем раз
-        // в минуту. Настраиваем только один раз за загрузку страницы.
+        // в REMINDER_POLL_INTERVAL_MS. Настраиваем только один раз за загрузку
+        // страницы.
         if (!window.__reminderPollingStarted) {
             window.__reminderPollingStarted = true;
-            setInterval(() => initDeadlineReminders(user), 60000);
+            setInterval(() => initDeadlineReminders(user), REMINDER_POLL_INTERVAL_MS);
         }
     } catch (e) {
         console.error('Ошибка загрузки напоминаний:', e);
