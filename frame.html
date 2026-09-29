@@ -154,7 +154,7 @@
                     <span class="overall-progress" id="overallProgress"><span class="progress-ring small" id="overallProgressRing" style="--percent:0"><span class="progress-ring-label">0%</span></span><span id="overallProgressText">Общий прогресс: 0/0</span></span>
                 </div>
                 <div class="btn-group">
-                    <a href="my.html" class="btn btn-secondary" title="Мои назначенные кадры и упоминания">Моё</a>
+                    <a href="my.html" class="btn btn-secondary nav-my-link" title="Мои назначенные кадры и упоминания">Моё</a>
                     <button class="btn btn-secondary" onclick="expandAll()" title="Развернуть все этапы"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 13 12 18 17 13"/><polyline points="7 6 12 11 17 6"/></svg><span class="btn-text">Развернуть все</span></button>
                     <button class="btn btn-secondary" onclick="collapseAll()" title="Свернуть все этапы"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg><span class="btn-text">Свернуть все</span></button>
                     <button class="btn btn-secondary" id="warningsToggleBtn" onclick="toggleWarnings()" title="Скрыть/показать предупреждения"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20Z"/><line x1="12" y1="9" x2="12" y2="14"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><span class="btn-text"> Скрыть предупреждения</span></button>
@@ -259,6 +259,7 @@
             if (error || !profile) { console.error(error); await supabaseClient.auth.signOut(); window.location.href = 'login.html'; return false; }
             currentUser = { id: profile.id, full_name: profile.full_name, role: profile.role, is_admin: !!profile.is_admin };
             renderUserBox();
+            initAppSidebar(currentUser);
             return true;
         }
 

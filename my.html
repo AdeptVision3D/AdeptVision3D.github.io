@@ -98,6 +98,7 @@
             if (error || !profile) { console.error(error); await supabaseClient.auth.signOut(); window.location.href = 'login.html'; return false; }
             currentUser = { id: profile.id, full_name: profile.full_name, role: profile.role, is_admin: !!profile.is_admin };
             renderUserBox();
+            initAppSidebar(currentUser);
             return true;
         }
 

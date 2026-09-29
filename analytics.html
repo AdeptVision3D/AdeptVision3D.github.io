@@ -81,7 +81,7 @@
                     <span class="page-title">Аналитика</span>
                 </div>
                 <div style="display:flex; align-items:center; gap:10px;">
-                    <a href="my.html" class="btn btn-secondary">Моё</a>
+                    <a href="my.html" class="btn btn-secondary nav-my-link">Моё</a>
                     <div class="user-box" id="userBox" style="display:flex; align-items:center; gap:10px; font-size:13px; color: var(--text-secondary);"></div>
                 </div>
             </div>
@@ -138,6 +138,7 @@
             if (error || !profile) { console.error(error); await supabaseClient.auth.signOut(); window.location.href = 'login.html'; return false; }
             currentUser = { id: profile.id, full_name: profile.full_name, role: profile.role, is_admin: !!profile.is_admin };
             renderUserBox();
+            initAppSidebar(currentUser);
             return true;
         }
 

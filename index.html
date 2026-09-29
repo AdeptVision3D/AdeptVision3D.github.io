@@ -101,7 +101,7 @@
                     <input type="text" id="globalSearchInput" placeholder="Поиск по проектам и кадрам..." autocomplete="off" oninput="onGlobalSearchInput()" onfocus="onGlobalSearchInput()" style="padding:8px 12px; border:1px solid var(--border); border-radius:6px; background: var(--card-bg); color: var(--text-primary); font-size:13px; width:240px;">
                     <div id="globalSearchResults" style="display:none; position:absolute; top:calc(100% + 4px); left:0; right:0; background: var(--card-bg); border:1px solid var(--card-border); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.2); z-index:2500; max-height:340px; overflow-y:auto;"></div>
                 </div>
-                <a href="my.html" class="btn btn-secondary">Моё</a>
+                <a href="my.html" class="btn btn-secondary nav-my-link">Моё</a>
                 <a href="analytics.html" class="btn btn-secondary" id="analyticsBtn" style="display:none;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Аналитика</a>
                 <button class="btn btn-primary" id="newProjectBtn" onclick="openProjectFormModal()">+ Новый проект</button>
                 <button class="btn btn-secondary" id="addEmployeeBtn" onclick="openAddEmployeeModal()" style="display:none;">+ Добавить сотрудника</button>
@@ -267,6 +267,7 @@
             currentUser = { id: profile.id, full_name: profile.full_name, role: profile.role, is_admin: !!profile.is_admin };
             renderUserBox();
             applyRolePermissions();
+            initAppSidebar(currentUser);
             return true;
         }
 
@@ -584,14 +585,8 @@
             renderProjects();
         }
 
-        async function changePin() {
-            const newPin = prompt('Новый PIN (минимум 6 символов):');
-            if (!newPin) return;
-            if (newPin.length < 6) { showToast('PIN должен быть не короче 6 символов', 'error'); return; }
-            const { error } = await supabaseClient.auth.updateUser({ password: newPin });
-            if (error) { console.error(error); showToast('Не удалось сменить PIN', 'error'); return; }
-            showToast('PIN обновлён', 'success');
-        }
+        // changePin() теперь общий — вынесен в common.js (нужен и футеру сайдбара
+        // на других страницах, не только здесь).
 
         // ====== РАБОТА С ДАННЫМИ ЧЕРЕЗ SUPABASE (вместо localStorage) ======
 
@@ -971,6 +966,10 @@
             if (params.get('denied') === '1') {
                 showToast('У вас нет доступа к этому проекту — вы не в его команде', 'error');
                 window.history.replaceState({}, '', 'index.html');
+            } else if (params.get('open') === 'employees') {
+                // Переход из сайдбара с другой страницы — сразу открываем модалку сотрудников
+                window.history.replaceState({}, '', 'index.html');
+                if (canManageEmployeesRole(currentUser)) openEmployeesModal();
             } else {
                 showToast('Добро пожаловать!', 'success');
             }

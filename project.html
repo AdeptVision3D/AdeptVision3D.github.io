@@ -86,7 +86,7 @@
                     </div>
                 </div>
                 <div style="display:flex; align-items:center; gap:10px;">
-                    <a href="my.html" class="btn btn-secondary">Моё</a>
+                    <a href="my.html" class="btn btn-secondary nav-my-link">Моё</a>
                     <button class="btn btn-secondary" onclick="openProjectLogModal()" title="Журнал изменений по проекту">📋 <span class="btn-text">Журнал</span></button>
                     <button class="btn btn-primary" id="newFrameBtn" onclick="createFrame()">+ Новый кадр</button>
                 </div>
@@ -125,6 +125,7 @@
             currentUser = { id: profile.id, full_name: profile.full_name, role: profile.role, is_admin: !!profile.is_admin };
             renderUserBox();
             applyRolePermissions();
+            initAppSidebar(currentUser);
             return true;
         }
 

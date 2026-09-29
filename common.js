@@ -51,8 +51,36 @@ const ICON = {
     sun: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="6.34" y2="6.34"/><line x1="17.66" y1="17.66" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="6.34" y2="17.66"/><line x1="17.66" y1="6.34" x2="19.07" y2="4.93"/></svg>',
     moon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>',
     monitor: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>',
-    team: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>'
+    team: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+    home: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg>',
+    chart: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>',
+    logout: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>',
+    menu: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>',
+    close: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+    user: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
 };
+
+// Единая проверка ролей для пунктов сайдбара — та же логика, что раньше была
+// продублирована в applyRolePermissions() на index.html. canManageProjectsRole
+// решает доступ к "Аналитике" (тимлид и выше), canManageEmployeesRole — к
+// "Сотрудникам" (только арт-директор/CEO/админ, тимлид не входит).
+function canManageProjectsRole(user) {
+    return !!(user && (hasAdminAccess(user) || ['lead', 'art_director', 'ceo'].includes(user.role)));
+}
+function canManageEmployeesRole(user) {
+    return !!(user && (hasAdminAccess(user) || ['ceo', 'art_director'].includes(user.role)));
+}
+
+// Смена PIN (пароля) — раньше была продублирована на index.html, вынесена сюда,
+// чтобы её мог вызвать и футер сайдбара на любой странице.
+async function changePin() {
+    const newPin = prompt('Новый PIN (минимум 6 символов):');
+    if (!newPin) return;
+    if (newPin.length < 6) { showToast('PIN должен быть не короче 6 символов', 'error'); return; }
+    const { error } = await supabaseClient.auth.updateUser({ password: newPin });
+    if (error) { console.error(error); showToast('Не удалось сменить PIN', 'error'); return; }
+    showToast('PIN обновлён', 'success');
+}
 
 // Экранирование пользовательского текста перед вставкой в innerHTML —
 // защита от HTML/JS в названиях проектов, кадров, этапов, задач и комментариях
@@ -494,3 +522,86 @@ const MASCOT_SVG = `
         <rect x="58" y="76" width="12" height="10" rx="3" fill="currentColor" opacity="0.3"/>
     </g>
 </svg>`;
+
+// ====== Боковая навигация (сайдбар) — общая для index/project/frame/analytics/my ======
+// Раньше на каждой странице отдельно дублировались: переключатель темы,
+// ссылка "Моё", кнопки "Аналитика"/"Сотрудники" (с ручной проверкой роли) и
+// userBox с именем/выходом. Теперь всё это — один компонент, вставляемый
+// через initAppSidebar(currentUser) сразу после того, как страница узнала
+// пользователя (внутри requireAuth(), следом за renderUserBox()).
+// CSS для сайдбара — в styles.css (.app-sidebar и т.д.), включая правила,
+// прячущие старые header-элементы на страницах, где появился сайдбар
+// (body.has-app-sidebar ...).
+const APP_NAV_ITEMS = [
+    { key: 'dashboard', label: 'Дашборд', href: 'index.html', icon: 'home', match: ['index.html', 'project.html', 'frame.html', ''] },
+    { key: 'my', label: 'Моё', href: 'my.html', icon: 'user', match: ['my.html'] },
+    { key: 'analytics', label: 'Аналитика', href: 'analytics.html', icon: 'chart', match: ['analytics.html'], gate: canManageProjectsRole },
+    { key: 'employees', label: 'Сотрудники', href: 'index.html?open=employees', icon: 'team', match: [], gate: canManageEmployeesRole }
+];
+
+function initAppSidebar(user) {
+    if (!user || document.getElementById('appSidebar')) return;
+
+    document.body.classList.add('has-app-sidebar');
+
+    const navHtml = APP_NAV_ITEMS.filter(item => !item.gate || item.gate(user)).map(item => `
+        <a class="app-nav-item" data-nav-key="${item.key}" href="${item.href}">
+            <span class="app-nav-icon">${ICON[item.icon] || ''}</span>
+            <span>${item.label}</span>
+        </a>`).join('');
+
+    const wrap = document.createElement('div');
+    wrap.innerHTML = `
+        <button class="app-sidebar-toggle" id="appSidebarToggle" title="Меню" aria-label="Меню">${ICON.menu}</button>
+        <div class="app-sidebar-overlay" id="appSidebarOverlay"></div>
+        <aside class="app-sidebar" id="appSidebar">
+            <div class="app-sidebar-logo">
+                DECARD <span>PIPELINE</span>
+                <button class="app-sidebar-close" id="appSidebarClose" aria-label="Закрыть">${ICON.close}</button>
+            </div>
+            <nav class="app-sidebar-nav">${navHtml}</nav>
+            <div class="app-sidebar-footer">
+                <div class="app-sidebar-theme theme-controls">
+                    <button class="theme-btn" data-theme="light" onclick="setTheme('light')" title="Светлая тема">${ICON.sun}</button>
+                    <button class="theme-btn" data-theme="dark" onclick="setTheme('dark')" title="Тёмная тема">${ICON.moon}</button>
+                    <button class="theme-btn" data-theme="system" onclick="setTheme('system')" title="Системная тема">${ICON.monitor}</button>
+                </div>
+                <div class="app-sidebar-user">
+                    <div class="app-sidebar-user-name">${escapeHtml(user.full_name)}</div>
+                    <div class="app-sidebar-user-role">${roleLabels[user.role] || user.role}</div>
+                </div>
+                <div class="app-sidebar-user-actions">
+                    <button class="btn btn-secondary" onclick="changePin()">Сменить PIN</button>
+                    <button class="btn btn-secondary" onclick="doLogout()">${ICON.logout} Выйти</button>
+                </div>
+            </div>
+        </aside>`;
+    document.body.insertBefore(wrap, document.body.firstChild);
+    while (wrap.firstChild) document.body.insertBefore(wrap.firstChild, wrap);
+    wrap.remove();
+
+    loadTheme();
+    updateSidebarActiveState();
+
+    const toggle = document.getElementById('appSidebarToggle');
+    const closeBtn = document.getElementById('appSidebarClose');
+    const overlay = document.getElementById('appSidebarOverlay');
+    const sidebar = document.getElementById('appSidebar');
+    const openSidebar = () => { sidebar.classList.add('open'); overlay.classList.add('open'); };
+    const closeSidebar = () => { sidebar.classList.remove('open'); overlay.classList.remove('open'); };
+    if (toggle) toggle.addEventListener('click', openSidebar);
+    if (closeBtn) closeBtn.addEventListener('click', closeSidebar);
+    if (overlay) overlay.addEventListener('click', closeSidebar);
+}
+
+// Подсвечивает пункт меню, соответствующий текущей странице. project.html и
+// frame.html относятся к "Дашборду" — это их родительский контекст.
+function updateSidebarActiveState() {
+    const sidebar = document.getElementById('appSidebar');
+    if (!sidebar) return;
+    const page = window.location.pathname.split('/').pop();
+    sidebar.querySelectorAll('.app-nav-item').forEach(el => {
+        const item = APP_NAV_ITEMS.find(i => i.key === el.dataset.navKey);
+        el.classList.toggle('active', !!(item && item.match.includes(page)));
+    });
+}
