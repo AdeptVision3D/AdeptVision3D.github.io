@@ -45,6 +45,7 @@
         .cal-event-chip { font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(var(--accent-rgb), 0.14); color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
         .cal-event-chip:hover { background: rgba(var(--accent-rgb), 0.24); }
         .cal-holiday-chip { font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(230, 126, 34, 0.25); color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+        .cal-people-chip { font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(39, 174, 96, 0.2); color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .cal-event-more { font-size: 10px; color: var(--text-secondary); }
 
         .event-invitee-list { max-height: 160px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; }
@@ -107,6 +108,7 @@
         let allProfilesNameMap = {}; // id -> full_name (включая уволенных — для отображения старых событий)
         let invitesByEventId = {}; // event_id -> [user_id, ...]
         let holidaysCache = []; // праздники (нерабочие дни) — показываем в сетке отдельным блоком, не как обычное событие
+        let peopleDatesCache = []; // [{ full_name, birthday, hire_date }] — для плашек ДР/годовщин в сетке (по месяцу/числу, год не важен)
         const WEEKDAY_MON_FIRST = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
         const MONTH_NAMES_NOM = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 
@@ -154,18 +156,43 @@
         }
 
         async function loadEmployeesAndProfiles() {
-            const [{ data: active, error: activeErr }, { data: all, error: allErr }, { data: holidays, error: holErr }] = await Promise.all([
+            const [{ data: active, error: activeErr }, { data: all, error: allErr }, { data: holidays, error: holErr }, { data: peopleDates, error: peopleErr }] = await Promise.all([
                 supabaseClient.from('profiles').select('id, full_name').eq('is_active', true).order('full_name', { ascending: true }),
                 supabaseClient.from('profiles').select('id, full_name'),
-                supabaseClient.from('company_holidays').select('holiday_date, name, is_day_off')
+                supabaseClient.from('company_holidays').select('holiday_date, name, is_day_off'),
+                supabaseClient.from('profiles').select('full_name, birthday, hire_date').eq('is_active', true)
             ]);
             if (activeErr) console.error(activeErr);
             if (allErr) console.error(allErr);
             if (holErr) console.error(holErr);
+            if (peopleErr) console.error(peopleErr);
             activeEmployeesCache = active || [];
             allProfilesNameMap = {};
             (all || []).forEach(p => { allProfilesNameMap[p.id] = p.full_name; });
             holidaysCache = (holidays || []).filter(h => h.is_day_off);
+            peopleDatesCache = peopleDates || [];
+        }
+
+        // Дни рождения/годовщины, попадающие на конкретный день сетки (по месяцу и
+        // числу — год не важен). Возвращает готовые подписи для плашек.
+        function peopleEventsForIso(iso) {
+            const d = new Date(iso + 'T00:00:00');
+            const month = d.getMonth(), day = d.getDate();
+            const labels = [];
+            peopleDatesCache.forEach(p => {
+                if (p.birthday) {
+                    const b = new Date(p.birthday + 'T00:00:00');
+                    if (b.getMonth() === month && b.getDate() === day) labels.push(`🎂 ${p.full_name}`);
+                }
+                if (p.hire_date) {
+                    const h = new Date(p.hire_date + 'T00:00:00');
+                    if (h.getMonth() === month && h.getDate() === day) {
+                        const years = d.getFullYear() - h.getFullYear();
+                        if (years >= 1) labels.push(`🎉 ${p.full_name} — ${pluralYearsRu(years)} в компании`);
+                    }
+                }
+            });
+            return labels;
         }
 
         async function loadMonthEvents() {
@@ -230,6 +257,7 @@
                 const shown = dayEvents.slice(0, 3);
                 const extra = dayEvents.length - shown.length;
                 const holidayChip = holiday ? `<div class="cal-holiday-chip" title="${escapeHtml(holiday.name)}">${ICON.palm || ''} ${escapeHtml(holiday.name)}</div>` : '';
+                const peopleChips = peopleEventsForIso(iso).map(label => `<div class="cal-people-chip" title="${escapeHtml(label)}">${escapeHtml(label)}</div>`).join('');
                 const chips = shown.map(e => {
                     const timeLabel = e.event_time ? e.event_time.slice(0, 5) + ' ' : '';
                     const inviteeCount = (invitesByEventId[e.id] || []).length;
@@ -245,7 +273,7 @@
                 const onclick = canManage ? ` onclick="openEventFormModal(null, '${iso}')"` : '';
                 html += `<div class="${classes.join(' ')}"${onclick}>
                     <div class="cal-daynum">${d.getDate()}</div>
-                    ${holidayChip}${chips}${moreLabel}
+                    ${holidayChip}${peopleChips}${chips}${moreLabel}
                 </div>`;
             }
             document.getElementById('calWeeks').innerHTML = html;

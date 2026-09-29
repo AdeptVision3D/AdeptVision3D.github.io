@@ -578,6 +578,62 @@ async function fetchUpcomingMyEvents(user) {
         .sort((a, b) => a.event_date.localeCompare(b.event_date) || (a.event_time || '').localeCompare(b.event_time || ''));
 }
 
+// ====== Дни рождения и годовщины работы в компании ======
+// Показываем всем (не только руководству) — это про атмосферу в команде,
+// а не про рабочие задачи. Порог чуть шире, чем у дедлайнов (неделя, а не
+// 3 дня) — чтобы успеть придумать поздравление/подарок, а не узнать в упор.
+const PEOPLE_EVENTS_THRESHOLD_DAYS = 7;
+
+function pluralYearsRu(n) {
+    const mod10 = n % 10, mod100 = n % 100;
+    if (mod10 === 1 && mod100 !== 11) return `${n} год`;
+    if ([2, 3, 4].includes(mod10) && ![12, 13, 14].includes(mod100)) return `${n} года`;
+    return `${n} лет`;
+}
+
+// Следующее наступление даты по месяцу/числу (год не важен — так считаются
+// дни рождения и годовщины: если в этом году дата уже прошла, берём тот же
+// день в следующем году).
+function nextAnnualOccurrence(monthDayIso) {
+    const src = new Date(monthDayIso + 'T00:00:00');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    let year = today.getFullYear();
+    let candidate = new Date(year, src.getMonth(), src.getDate());
+    if (candidate < today) {
+        year += 1;
+        candidate = new Date(year, src.getMonth(), src.getDate());
+    }
+    return { iso: `${candidate.getFullYear()}-${String(candidate.getMonth() + 1).padStart(2, '0')}-${String(candidate.getDate()).padStart(2, '0')}`, year };
+}
+
+async function fetchUpcomingPeopleEvents() {
+    const { data, error } = await supabaseClient.from('profiles').select('id, full_name, birthday, hire_date').eq('is_active', true);
+    if (error) { console.error(error); return []; }
+    const items = [];
+    (data || []).forEach(p => {
+        if (p.birthday) {
+            const occ = nextAnnualOccurrence(p.birthday);
+            const daysLeft = daysUntilDate(occ.iso);
+            if (daysLeft >= 0 && daysLeft <= PEOPLE_EVENTS_THRESHOLD_DAYS) {
+                items.push({ type: 'birthday', name: p.full_name, daysLeft, link: 'calendar.html' });
+            }
+        }
+        if (p.hire_date) {
+            const occ = nextAnnualOccurrence(p.hire_date);
+            const hireYear = new Date(p.hire_date + 'T00:00:00').getFullYear();
+            const years = occ.year - hireYear;
+            if (years >= 1) {
+                const daysLeft = daysUntilDate(occ.iso);
+                if (daysLeft >= 0 && daysLeft <= PEOPLE_EVENTS_THRESHOLD_DAYS) {
+                    items.push({ type: 'anniversary', name: p.full_name, years, daysLeft, link: 'calendar.html' });
+                }
+            }
+        }
+    });
+    return items;
+}
+
 // Открытые тикеты об ошибках — только для тех, кто их разбирает (тимлид и
 // выше, включая админ-доступ); остальным в колокольчике не показываем.
 async function fetchOpenBugReportsForBell(user) {
@@ -593,11 +649,12 @@ async function fetchOpenBugReportsForBell(user) {
 async function initDeadlineReminders(user) {
     if (!user) return;
     try {
-        const [{ data: myFrames, error: framesErr }, { data: memberships, error: memErr }, myEvents, openBugs] = await Promise.all([
+        const [{ data: myFrames, error: framesErr }, { data: memberships, error: memErr }, myEvents, openBugs, peopleEvents] = await Promise.all([
             supabaseClient.from('frames').select('id, name, project_id, due_date, status').eq('assigned_to', user.id).neq('status', 'done'),
             supabaseClient.from('project_members').select('project_id').eq('user_id', user.id),
             fetchUpcomingMyEvents(user),
-            fetchOpenBugReportsForBell(user)
+            fetchOpenBugReportsForBell(user),
+            fetchUpcomingPeopleEvents()
         ]);
         if (framesErr) console.error(framesErr);
         if (memErr) console.error(memErr);
@@ -623,6 +680,15 @@ async function initDeadlineReminders(user) {
             const daysLeft = daysUntilDate(e.event_date);
             const timeLabel = e.event_time ? ` в ${e.event_time.slice(0, 5)}` : '';
             items.push({ type: 'event', name: e.title, projectName: `встреча${timeLabel}`, daysLeft, link: 'calendar.html' });
+        });
+        peopleEvents.forEach(p => {
+            items.push({
+                type: p.type,
+                name: p.name,
+                projectName: p.type === 'birthday' ? 'день рождения' : `${pluralYearsRu(p.years)} в компании`,
+                daysLeft: p.daysLeft,
+                link: p.link
+            });
         });
 
         if (projectIds.length > 0) {
@@ -684,16 +750,21 @@ function renderReminderBell(items) {
     badge.style.display = 'flex';
     badge.textContent = items.length > 9 ? '9+' : String(items.length);
     panel.innerHTML = '<div class="reminder-panel-title">Ближайшие сроки</div>' + items.map(item => {
+        const isPeopleEvent = item.type === 'birthday' || item.type === 'anniversary';
         const label = item.type === 'bug'
             ? { text: item.projectName, cls: item.bugPriority === 'critical' ? 'danger' : 'warning' }
+            : isPeopleEvent
+            ? { text: reminderLabel(item.daysLeft).text, cls: 'success' }
             : reminderLabel(item.daysLeft);
         const sub = item.type === 'frame' ? `${escapeHtml(item.projectName)} · кадр`
             : item.type === 'event' ? escapeHtml(item.projectName)
             : item.type === 'bug' ? 'тикет об ошибке'
+            : isPeopleEvent ? escapeHtml(item.projectName)
             : 'проект целиком';
+        const prefix = item.type === 'birthday' ? '🎂 ' : item.type === 'anniversary' ? '🎉 ' : '';
         return `<a class="reminder-item" href="${item.link}">
             <div class="reminder-item-text">
-                <div class="reminder-item-name">${escapeHtml(item.name)}</div>
+                <div class="reminder-item-name">${prefix}${escapeHtml(item.name)}</div>
                 <div class="reminder-item-sub">${sub}</div>
             </div>
             <span class="reminder-item-badge reminder-${label.cls}">${label.text}</span>

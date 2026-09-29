@@ -1,7 +1,10 @@
 import { withSupabase } from 'npm:@supabase/server@^1'
 
 const ADMIN_ROLES = ['ceo', 'art_director']
-const VALID_ROLES = ['artist', 'lead', 'art_director', 'ceo']
+// ВАЖНО: 'manager' был добавлен как роль в БД/интерфейсе, но здесь список
+// не обновили — из-за этого создать/изменить сотрудника с ролью "Менеджер"
+// через эту форму было невозможно (валидация отклоняла роль). Чиним заодно.
+const VALID_ROLES = ['artist', 'lead', 'art_director', 'ceo', 'manager']
 
 export default {
   fetch: withSupabase({ auth: 'user' }, async (req, ctx) => {
@@ -25,7 +28,7 @@ export default {
 
     // ---------- Создание сотрудника (как было) ----------
     if (action === 'create') {
-      const { full_name, role, email, pin, team_group } = body
+      const { full_name, role, email, pin, team_group, hire_date, birthday } = body
       if (!full_name || !role || !email || !pin) {
         return Response.json({ error: 'Заполните все поля' }, { status: 400 })
       }
@@ -43,7 +46,7 @@ export default {
 
       const { error: insertError } = await ctx.supabaseAdmin.from('profiles').insert({
         id: newUser.user.id, full_name, role, login_email: email, is_admin: false, is_active: true,
-        team_group: team_group || null
+        team_group: team_group || null, hire_date: hire_date || null, birthday: birthday || null
       })
       if (insertError) {
         // Откат — не оставляем "осиротевший" аккаунт без профиля
@@ -56,7 +59,7 @@ export default {
 
     // ---------- Изменение сотрудника (новое) ----------
     if (action === 'update') {
-      const { id, full_name, role, is_admin, is_active, email, pin, team_group } = body
+      const { id, full_name, role, is_admin, is_active, email, pin, team_group, hire_date, birthday } = body
       if (!id) return Response.json({ error: 'Не указан сотрудник' }, { status: 400 })
 
       // Защита от случайной самоблокировки
@@ -86,6 +89,8 @@ export default {
       if (is_active !== undefined) profileUpdate.is_active = is_active
       if (email !== undefined) profileUpdate.login_email = email
       if (team_group !== undefined) profileUpdate.team_group = team_group || null
+      if (hire_date !== undefined) profileUpdate.hire_date = hire_date || null
+      if (birthday !== undefined) profileUpdate.birthday = birthday || null
 
       if (Object.keys(profileUpdate).length > 0) {
         const { error: updError } = await ctx.supabaseAdmin.from('profiles').update(profileUpdate).eq('id', id)

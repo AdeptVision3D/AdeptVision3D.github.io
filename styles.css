@@ -248,6 +248,7 @@ body {
 .reminder-item-badge { font-family: var(--font-mono); font-size: 10px; padding: 3px 8px; border-radius: 999px; font-weight: 700; white-space: nowrap; flex-shrink: 0; }
 .reminder-danger { background: rgba(231, 76, 60, 0.15); color: var(--danger); }
 .reminder-warning { background: rgba(243, 156, 18, 0.15); color: var(--warning); }
+.reminder-success { background: rgba(39, 174, 96, 0.15); color: var(--success); }
 
 @media (max-width: 600px) {
     #reminderBellWrap { right: 14px; bottom: 14px; }

@@ -208,6 +208,17 @@
                 <datalist id="teamGroupOptions"></datalist>
                 <div style="font-size:11px; color:var(--text-secondary); margin-top:4px;">Для руководства (тимлид/арт-директор/директор) не важно — они всегда отдельным блоком "Руководство".</div>
             </div>
+            <div class="field-row">
+                <div class="field-row-col">
+                    <label class="field-label">Дата приёма на работу</label>
+                    <input type="date" id="newEmpHireDate" class="field-input">
+                </div>
+                <div class="field-row-col">
+                    <label class="field-label">День рождения</label>
+                    <input type="date" id="newEmpBirthday" class="field-input">
+                </div>
+            </div>
+            <div style="font-size:11px; color:var(--text-secondary); margin: -12px 0 16px;">Если заполнено — календарь и колокольчик напоминаний сами подскажут за неделю: день рождения и годовщину работы в компании.</div>
             <div id="empAdminToggleWrap" style="margin-bottom: 20px; display:none;">
                 <label style="display:flex; align-items:center; gap:8px; font-size: 13px; cursor:pointer;">
                     <input type="checkbox" id="newEmpIsAdmin" style="width:16px; height:16px;">
@@ -332,6 +343,8 @@
             document.getElementById('empPinLabel').textContent = 'PIN (минимум 6 символов)';
             document.getElementById('newEmpIsAdmin').checked = false;
             document.getElementById('newEmpTeamGroup').value = '';
+            document.getElementById('newEmpHireDate').value = '';
+            document.getElementById('newEmpBirthday').value = '';
             fillTeamGroupOptions();
             document.getElementById('empAdminToggleWrap').style.display = hasAdminAccess(currentUser) || currentUser.role === 'ceo' || currentUser.role === 'art_director' ? '' : 'none';
             document.getElementById('addEmployeeModal').style.display = 'flex';
@@ -378,6 +391,8 @@
             document.getElementById('empPinLabel').textContent = 'Новый PIN (оставьте пустым, чтобы не менять)';
             document.getElementById('newEmpIsAdmin').checked = !!emp.is_admin;
             document.getElementById('newEmpTeamGroup').value = emp.team_group || '';
+            document.getElementById('newEmpHireDate').value = emp.hire_date || '';
+            document.getElementById('newEmpBirthday').value = emp.birthday || '';
             fillTeamGroupOptions();
             document.getElementById('empAdminToggleWrap').style.display = hasAdminAccess(currentUser) || currentUser.role === 'ceo' || currentUser.role === 'art_director' ? '' : 'none';
             // Список сотрудников закрываем, чтобы не оставалось два окна друг на друге —
@@ -402,6 +417,8 @@
             const pin = document.getElementById('newEmpPin').value.trim();
             const is_admin = document.getElementById('newEmpIsAdmin').checked;
             const team_group = document.getElementById('newEmpTeamGroup').value.trim();
+            const hire_date = document.getElementById('newEmpHireDate').value || null;
+            const birthday = document.getElementById('newEmpBirthday').value || null;
 
             if (!full_name || !email) { showToast('Заполните имя и логин', 'error'); return; }
             if (pin && pin.length < 6) { showToast('PIN должен быть не короче 6 символов', 'error'); return; }
@@ -409,8 +426,8 @@
 
             const { data: { session } } = await supabaseClient.auth.getSession();
             const body = editingEmployeeId
-                ? { action: 'update', id: editingEmployeeId, full_name, role, is_admin, email, team_group, ...(pin ? { pin } : {}) }
-                : { action: 'create', full_name, role, email, pin, team_group };
+                ? { action: 'update', id: editingEmployeeId, full_name, role, is_admin, email, team_group, hire_date, birthday, ...(pin ? { pin } : {}) }
+                : { action: 'create', full_name, role, email, pin, team_group, hire_date, birthday };
 
             try {
                 const response = await fetch(`${SUPABASE_URL}/functions/v1/bright-api`, {
