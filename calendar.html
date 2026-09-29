@@ -90,8 +90,8 @@
         </div>
     </div>
 
-    <div class="modal" id="eventFormModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); z-index:2100; justify-content:center; align-items:center;">
-        <div class="employee-modal-box" id="eventFormBox" style="background: var(--bg-primary); border-radius: 8px; padding: 32px; max-width: 460px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: 88vh; overflow-y: auto;"></div>
+    <div class="modal" id="eventFormModal" style="display:none;">
+        <div class="employee-modal-box" id="eventFormBox" style="max-width: 460px;"></div>
     </div>
 
     <div class="toast-container" id="toastContainer"></div>
@@ -284,31 +284,31 @@
 
             box.innerHTML = `
                 <h3 style="font-size: 20px; font-weight: 700; margin-bottom: 20px;">${item ? 'Редактировать событие' : 'Новое событие'}</h3>
-                <div style="margin-bottom: 14px;">
-                    <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Название *</label>
-                    <input type="text" id="eventFormTitleInput" placeholder="Например: Планёрка по проекту" value="${item ? escapeHtml(item.title) : ''}" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+                <div class="field">
+                    <label class="field-label">Название *</label>
+                    <input type="text" id="eventFormTitleInput" placeholder="Например: Планёрка по проекту" value="${item ? escapeHtml(item.title) : ''}" class="field-input">
                 </div>
-                <div style="display:flex; gap:12px; margin-bottom: 14px;">
-                    <div style="flex:1;">
-                        <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Дата *</label>
-                        <input type="date" id="eventFormDate" value="${item ? item.event_date : (presetDate || todayIso())}" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+                <div class="field-row">
+                    <div class="field-row-col">
+                        <label class="field-label">Дата *</label>
+                        <input type="date" id="eventFormDate" value="${item ? item.event_date : (presetDate || todayIso())}" class="field-input">
                     </div>
-                    <div style="flex:1;">
-                        <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Время</label>
-                        <input type="time" id="eventFormTime" value="${item && item.event_time ? item.event_time.slice(0, 5) : ''}" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+                    <div class="field-row-col">
+                        <label class="field-label">Время</label>
+                        <input type="time" id="eventFormTime" value="${item && item.event_time ? item.event_time.slice(0, 5) : ''}" class="field-input">
                     </div>
                 </div>
-                <div style="margin-bottom: 14px;">
-                    <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Организатор (кто собирает)</label>
-                    <select id="eventFormOrganizer" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">${organizerOptions}</select>
+                <div class="field">
+                    <label class="field-label">Организатор (кто собирает)</label>
+                    <select id="eventFormOrganizer" class="field-input">${organizerOptions}</select>
                 </div>
-                <div style="margin-bottom: 14px;">
-                    <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Участники (кого пригласить)</label>
+                <div class="field">
+                    <label class="field-label">Участники (кого пригласить)</label>
                     <div class="event-invitee-list">${inviteeRows || '<div style="color:var(--text-secondary); font-size:13px;">Список сотрудников пуст</div>'}</div>
                 </div>
-                <div style="margin-bottom: 20px;">
-                    <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Описание (необязательно)</label>
-                    <textarea id="eventFormDescription" rows="3" placeholder="Повестка, где встречаемся, детали" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px; font-family:inherit; resize:vertical;">${item ? escapeHtml(item.description || '') : ''}</textarea>
+                <div class="field field-lg">
+                    <label class="field-label">Описание (необязательно)</label>
+                    <textarea id="eventFormDescription" rows="3" placeholder="Повестка, где встречаемся, детали" class="field-input field-textarea">${item ? escapeHtml(item.description || '') : ''}</textarea>
                 </div>
                 <div style="display:flex; gap:10px; justify-content:space-between;">
                     ${item ? `<button class="btn btn-secondary" style="color:var(--danger);" onclick="deleteEvent()">Удалить</button>` : '<span></span>'}

@@ -170,33 +170,33 @@
             <p id="emptyStateText">Ожидайте — или создайте первый проект сами, чтобы начать работу</p>
         </div>
     </div>
-    <div class="modal" id="addEmployeeModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); z-index:2100; justify-content:center; align-items:center;">
-        <div class="employee-modal-box" style="background: var(--bg-primary); border-radius: 8px; padding: 32px; max-width: 420px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: 88vh; overflow-y: auto;">
+    <div class="modal" id="addEmployeeModal" style="display:none;">
+        <div class="employee-modal-box" style="max-width: 420px;">
             <h3 id="empModalTitle" style="font-size: 20px; font-weight: 700; margin-bottom: 20px;">Добавить сотрудника</h3>
-            <div style="margin-bottom: 14px;">
-                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Имя Фамилия</label>
-                <input type="text" id="newEmpName" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+            <div class="field">
+                <label class="field-label">Имя Фамилия</label>
+                <input type="text" id="newEmpName" class="field-input">
             </div>
-            <div style="margin-bottom: 14px;">
-                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Роль</label>
-                <select id="newEmpRole" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+            <div class="field">
+                <label class="field-label">Роль</label>
+                <select id="newEmpRole" class="field-input">
                     <option value="artist">Художник</option>
                     <option value="lead">Тимлид</option>
                     <option value="art_director">Арт-директор</option>
                     <option value="ceo">Генеральный директор</option>
                 </select>
             </div>
-            <div style="margin-bottom: 14px;">
-                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Логин (произвольный, например vanya@decard.local)</label>
-                <input type="text" id="newEmpEmail" placeholder="имя@decard.local" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+            <div class="field">
+                <label class="field-label">Логин (произвольный, например vanya@decard.local)</label>
+                <input type="text" id="newEmpEmail" placeholder="имя@decard.local" class="field-input">
             </div>
-            <div style="margin-bottom: 14px;">
+            <div class="field">
                 <label id="empPinLabel" style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">PIN (минимум 6 символов)</label>
-                <input type="text" id="newEmpPin" placeholder="" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+                <input type="text" id="newEmpPin" placeholder="" class="field-input">
             </div>
-            <div style="margin-bottom: 14px;">
-                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Команда (группа для списка входа, необязательно)</label>
-                <input type="text" id="newEmpTeamGroup" list="teamGroupOptions" placeholder="Например: Команда 1" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+            <div class="field">
+                <label class="field-label">Команда (группа для списка входа, необязательно)</label>
+                <input type="text" id="newEmpTeamGroup" list="teamGroupOptions" placeholder="Например: Команда 1" class="field-input">
                 <datalist id="teamGroupOptions"></datalist>
                 <div style="font-size:11px; color:var(--text-secondary); margin-top:4px;">Для руководства (тимлид/арт-директор/директор) не важно — они всегда отдельным блоком "Руководство".</div>
             </div>
@@ -206,41 +206,41 @@
                     Админ-доступ (полный доступ ко всем панелям независимо от роли — для тестирования/отладки)
                 </label>
             </div>
-            <div style="display:flex; gap:10px; justify-content:flex-end;">
+            <div class="field-actions">
                 <button class="btn btn-secondary" onclick="closeAddEmployeeModal()">Отмена</button>
                 <button class="btn btn-primary" id="empSubmitBtn" onclick="submitEmployeeForm()">Создать</button>
             </div>
         </div>
     </div>
-    <div class="modal" id="projectFormModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); z-index:2100; justify-content:center; align-items:center;">
-        <div class="employee-modal-box" style="background: var(--bg-primary); border-radius: 8px; padding: 32px; max-width: 460px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: 88vh; overflow-y: auto;">
+    <div class="modal" id="projectFormModal" style="display:none;">
+        <div class="employee-modal-box" style="max-width: 460px;">
             <h3 id="projectFormTitle" style="font-size: 20px; font-weight: 700; margin-bottom: 20px;">Новый проект</h3>
-            <div style="margin-bottom: 14px;">
-                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Заказчик</label>
-                <input type="text" id="projectFormClient" list="clientOptions" placeholder="Компания или ФИО" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+            <div class="field">
+                <label class="field-label">Заказчик</label>
+                <input type="text" id="projectFormClient" list="clientOptions" placeholder="Компания или ФИО" class="field-input">
                 <datalist id="clientOptions"></datalist>
                 <div style="font-size:11px; color:var(--text-secondary); margin-top:4px;">Существующий клиент подставится из подсказок, новое имя — заведёт нового клиента в разделе «Клиенты».</div>
             </div>
-            <div style="margin-bottom: 14px;">
-                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Название проекта *</label>
-                <input type="text" id="projectFormName" placeholder="Например: ЖК «Северный», корпус 3" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+            <div class="field">
+                <label class="field-label">Название проекта *</label>
+                <input type="text" id="projectFormName" placeholder="Например: ЖК «Северный», корпус 3" class="field-input">
             </div>
-            <div style="margin-bottom: 14px;">
-                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Дата финала</label>
-                <input type="date" id="projectFormDeadline" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+            <div class="field">
+                <label class="field-label">Дата финала</label>
+                <input type="date" id="projectFormDeadline" class="field-input">
             </div>
-            <div style="margin-bottom: 20px;">
-                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Заметка (необязательно)</label>
-                <textarea id="projectFormNotes" rows="3" placeholder="Любая дополнительная информация по проекту" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px; font-family:inherit; resize:vertical;"></textarea>
+            <div class="field field-lg">
+                <label class="field-label">Заметка (необязательно)</label>
+                <textarea id="projectFormNotes" rows="3" placeholder="Любая дополнительная информация по проекту" class="field-input field-textarea"></textarea>
             </div>
-            <div style="display:flex; gap:10px; justify-content:flex-end;">
+            <div class="field-actions">
                 <button class="btn btn-secondary" onclick="closeProjectFormModal()">Отмена</button>
                 <button class="btn btn-primary" id="projectFormSubmitBtn" onclick="submitProjectForm()">Создать</button>
             </div>
         </div>
     </div>
-    <div class="modal" id="employeesModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); z-index:2000; justify-content:center; align-items:center;">
-        <div class="employee-modal-box" style="background: var(--bg-primary); border-radius: 8px; padding: 32px; max-width: 520px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: 80vh; overflow-y: auto;">
+    <div class="modal z2000" id="employeesModal" style="display:none;">
+        <div class="employee-modal-box" style="max-width: 520px; max-height: 80vh;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
                 <h3 style="font-size: 20px; font-weight: 700;">Сотрудники</h3>
                 <button class="btn btn-secondary" onclick="closeEmployeesModal()">Закрыть</button>
@@ -248,8 +248,8 @@
             <div id="employeesList"></div>
         </div>
     </div>
-    <div class="modal" id="projectTeamModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); z-index:2000; justify-content:center; align-items:center;">
-        <div class="employee-modal-box" style="background: var(--bg-primary); border-radius: 8px; padding: 32px; max-width: 480px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: 80vh; overflow-y: auto;">
+    <div class="modal z2000" id="projectTeamModal" style="display:none;">
+        <div class="employee-modal-box" style="max-width: 480px; max-height: 80vh;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
                 <h3 style="font-size: 20px; font-weight: 700;">Команда проекта</h3>
                 <button class="btn btn-secondary" onclick="closeProjectTeamModal()">Отмена</button>

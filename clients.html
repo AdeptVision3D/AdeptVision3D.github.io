@@ -72,32 +72,32 @@
         <div id="clientsList"></div>
     </div>
 
-    <div class="modal" id="clientFormModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); z-index:2100; justify-content:center; align-items:center;">
-        <div class="employee-modal-box" style="background: var(--bg-primary); border-radius: 8px; padding: 32px; max-width: 460px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: 88vh; overflow-y: auto;">
+    <div class="modal" id="clientFormModal" style="display:none;">
+        <div class="employee-modal-box" style="max-width: 460px;">
             <h3 id="clientFormTitle" style="font-size: 20px; font-weight: 700; margin-bottom: 20px;">Новый клиент</h3>
-            <div style="margin-bottom: 14px;">
-                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Название/ФИО *</label>
-                <input type="text" id="clientFormName" placeholder="Компания или ФИО" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+            <div class="field">
+                <label class="field-label">Название/ФИО *</label>
+                <input type="text" id="clientFormName" placeholder="Компания или ФИО" class="field-input">
             </div>
-            <div style="margin-bottom: 14px;">
-                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Контактное лицо</label>
-                <input type="text" id="clientFormContact" placeholder="Например: Иван, менеджер по стройке" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+            <div class="field">
+                <label class="field-label">Контактное лицо</label>
+                <input type="text" id="clientFormContact" placeholder="Например: Иван, менеджер по стройке" class="field-input">
             </div>
-            <div style="display:flex; gap:12px; margin-bottom: 14px;">
-                <div style="flex:1;">
-                    <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Телефон</label>
-                    <input type="text" id="clientFormPhone" placeholder="+7 ..." style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+            <div class="field-row">
+                <div class="field-row-col">
+                    <label class="field-label">Телефон</label>
+                    <input type="text" id="clientFormPhone" placeholder="+7 ..." class="field-input">
                 </div>
-                <div style="flex:1;">
-                    <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Email</label>
-                    <input type="text" id="clientFormEmail" placeholder="mail@example.com" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+                <div class="field-row-col">
+                    <label class="field-label">Email</label>
+                    <input type="text" id="clientFormEmail" placeholder="mail@example.com" class="field-input">
                 </div>
             </div>
-            <div style="margin-bottom: 20px;">
-                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Заметка (необязательно)</label>
-                <textarea id="clientFormNotes" rows="3" placeholder="Особенности работы с клиентом, договорённости и т.п." style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px; font-family:inherit; resize:vertical;"></textarea>
+            <div class="field field-lg">
+                <label class="field-label">Заметка (необязательно)</label>
+                <textarea id="clientFormNotes" rows="3" placeholder="Особенности работы с клиентом, договорённости и т.п." class="field-input field-textarea"></textarea>
             </div>
-            <div style="display:flex; gap:10px; justify-content:flex-end;">
+            <div class="field-actions">
                 <button class="btn btn-secondary" onclick="closeClientFormModal()">Отмена</button>
                 <button class="btn btn-primary" id="clientFormSubmitBtn" onclick="submitClientForm()">Создать</button>
             </div>

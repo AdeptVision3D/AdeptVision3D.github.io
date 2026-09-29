@@ -387,3 +387,40 @@ body.has-app-sidebar #addEmployeeBtn { display: none !important; }
     /* Оставляем место под плавающую кнопку-гамбургер, чтобы она не перекрывала контент */
     body.has-app-sidebar { padding-top: 64px; }
 }
+
+/* ====== Модалки и формы — общие классы ======
+   Раньше почти каждая новая страница (vacations, clients, news, calendar,
+   index) заново прописывала одни и те же inline-стили для затемнения фона,
+   белой карточки модалки, лейблов и полей форм — один и тот же кусок CSS
+   копипастился по 5-8 раз на файл. Теперь это общие классы: изменить вид
+   всех модалок/форм разом можно в одном месте, вместо правки каждой страницы. */
+.modal {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    z-index: 2100;
+    justify-content: center;
+    align-items: center;
+}
+.modal.z2000 { z-index: 2000; }
+
+.employee-modal-box {
+    background: var(--bg-primary);
+    border-radius: 8px;
+    padding: 32px;
+    width: 90%;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    max-height: 88vh;
+    overflow-y: auto;
+}
+
+.field { margin-bottom: 14px; }
+.field-lg { margin-bottom: 20px; }
+.field-label { display: block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
+.field-input { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-secondary); color: var(--text-primary); font-size: 14px; }
+.field-textarea { font-family: inherit; resize: vertical; }
+.field-actions { display: flex; gap: 10px; justify-content: flex-end; }
+.field-row { display: flex; gap: 12px; margin-bottom: 14px; }
+.field-row-col { flex: 1; }

@@ -96,15 +96,15 @@
     </div>
 
     <!-- Форма добавления отпуска/больничного (только для админов) -->
-    <div class="modal" id="leaveFormModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); z-index:2100; justify-content:center; align-items:center;">
-        <div class="employee-modal-box" style="background: var(--bg-primary); border-radius: 8px; padding: 32px; max-width: 440px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: 88vh; overflow-y: auto;">
+    <div class="modal" id="leaveFormModal" style="display:none;">
+        <div class="employee-modal-box" style="max-width: 440px;">
             <h3 style="font-size: 20px; font-weight: 700; margin-bottom: 20px;">Добавить отпуск / больничный</h3>
-            <div style="margin-bottom: 14px;">
-                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Сотрудник</label>
-                <select id="leaveFormEmployee" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;"></select>
+            <div class="field">
+                <label class="field-label">Сотрудник</label>
+                <select id="leaveFormEmployee" class="field-input"></select>
             </div>
-            <div style="margin-bottom: 14px;">
-                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Тип</label>
+            <div class="field">
+                <label class="field-label">Тип</label>
                 <div style="display:flex; gap:16px;">
                     <label style="display:flex; align-items:center; gap:7px; font-size:14px; cursor:pointer;">
                         <input type="radio" name="leaveFormType" value="vacation" checked> Отпуск
@@ -114,21 +114,21 @@
                     </label>
                 </div>
             </div>
-            <div style="display:flex; gap:12px; margin-bottom: 14px;">
-                <div style="flex:1;">
-                    <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">С</label>
-                    <input type="date" id="leaveFormStart" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+            <div class="field-row">
+                <div class="field-row-col">
+                    <label class="field-label">С</label>
+                    <input type="date" id="leaveFormStart" class="field-input">
                 </div>
-                <div style="flex:1;">
-                    <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">По</label>
-                    <input type="date" id="leaveFormEnd" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+                <div class="field-row-col">
+                    <label class="field-label">По</label>
+                    <input type="date" id="leaveFormEnd" class="field-input">
                 </div>
             </div>
-            <div style="margin-bottom: 20px;">
-                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Заметка (необязательно)</label>
-                <textarea id="leaveFormNote" rows="2" placeholder="Например: причина, договорённости по замене" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px; font-family:inherit; resize:vertical;"></textarea>
+            <div class="field field-lg">
+                <label class="field-label">Заметка (необязательно)</label>
+                <textarea id="leaveFormNote" rows="2" placeholder="Например: причина, договорённости по замене" class="field-input field-textarea"></textarea>
             </div>
-            <div style="display:flex; gap:10px; justify-content:flex-end;">
+            <div class="field-actions">
                 <button class="btn btn-secondary" onclick="closeLeaveFormModal()">Отмена</button>
                 <button class="btn btn-primary" onclick="submitLeaveForm()">Добавить</button>
             </div>
@@ -136,14 +136,14 @@
     </div>
 
     <!-- Норма отпуска на сотрудника -->
-    <div class="modal" id="leaveNormModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); backdrop-filter:blur(4px); z-index:2100; justify-content:center; align-items:center;">
-        <div class="employee-modal-box" style="background: var(--bg-primary); border-radius: 8px; padding: 32px; max-width: 360px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+    <div class="modal" id="leaveNormModal" style="display:none;">
+        <div class="employee-modal-box" style="max-width: 360px;">
             <h3 id="leaveNormTitle" style="font-size: 18px; font-weight: 700; margin-bottom: 20px;">Норма отпуска</h3>
-            <div style="margin-bottom: 20px;">
-                <label style="display:block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px;">Дней в год</label>
-                <input type="number" id="leaveNormValue" min="0" max="60" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; background: var(--bg-secondary); color: var(--text-primary); font-size:14px;">
+            <div class="field field-lg">
+                <label class="field-label">Дней в год</label>
+                <input type="number" id="leaveNormValue" min="0" max="60" class="field-input">
             </div>
-            <div style="display:flex; gap:10px; justify-content:flex-end;">
+            <div class="field-actions">
                 <button class="btn btn-secondary" onclick="closeLeaveNormModal()">Отмена</button>
                 <button class="btn btn-primary" onclick="submitLeaveNorm()">Сохранить</button>
             </div>
