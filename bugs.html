@@ -34,6 +34,11 @@
         .bug-status.new { background: rgba(243, 156, 18, 0.15); color: var(--warning); }
         .bug-status.in_progress { background: rgba(var(--accent-rgb), 0.12); color: var(--accent); }
         .bug-status.resolved { background: rgba(39, 174, 96, 0.15); color: var(--success); }
+        .bug-priority { font-family: var(--font-mono); font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+        .bug-priority.critical { background: rgba(231, 76, 60, 0.15); color: var(--danger); }
+        .bug-priority.medium { background: rgba(243, 156, 18, 0.15); color: var(--warning); }
+        .bug-priority.low { background: rgba(39, 174, 96, 0.15); color: var(--success); }
+        .bug-category { font-size: 12px; color: var(--text-secondary); font-weight: 600; }
         .panel-empty { padding: 28px 20px; color: var(--text-secondary); font-size: 13px; text-align: center; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; }
         .section-title { font-size: 13px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; margin: 24px 0 12px; }
         .section-title:first-child { margin-top: 0; }
@@ -66,12 +71,20 @@
         <div class="employee-modal-box" style="max-width: 480px;">
             <h3 style="font-size: 20px; font-weight: 700; margin-bottom: 20px;">Сообщить об ошибке</h3>
             <div class="field">
-                <label class="field-label">Где заметили (необязательно)</label>
-                <input type="text" id="bugFormPage" placeholder="Например: страница проекта, карточка кадра" class="field-input">
+                <label class="field-label">Где заметили *</label>
+                <select id="bugFormPage" class="field-input"></select>
+            </div>
+            <div class="field">
+                <label class="field-label">Что случилось *</label>
+                <select id="bugFormCategory" class="field-input"></select>
+            </div>
+            <div class="field">
+                <label class="field-label">Насколько срочно *</label>
+                <select id="bugFormPriority" class="field-input"></select>
             </div>
             <div class="field field-lg">
-                <label class="field-label">Что произошло *</label>
-                <textarea id="bugFormDescription" rows="5" placeholder="Опишите, что делали и что пошло не так" class="field-input field-textarea"></textarea>
+                <label class="field-label">Комментарий (необязательно)</label>
+                <textarea id="bugFormDescription" rows="3" placeholder="Если нужно что-то уточнить — что делали, когда происходит и т.п." class="field-input field-textarea"></textarea>
             </div>
             <div class="field-actions">
                 <button class="btn btn-secondary" onclick="closeBugFormModal()">Отмена</button>
@@ -87,6 +100,39 @@
         let bugsCache = [];
 
         const STATUS_LABELS = { new: 'Новое', in_progress: 'В работе', resolved: 'Решено' };
+
+        const PAGE_OPTIONS = [
+            { value: 'index.html', label: 'Дашборд' },
+            { value: 'project.html', label: 'Страница проекта' },
+            { value: 'frame.html', label: 'Карточка кадра' },
+            { value: 'my.html', label: 'Моё' },
+            { value: 'vacations.html', label: 'Отпуска' },
+            { value: 'news.html', label: 'Новости' },
+            { value: 'clients.html', label: 'Клиенты' },
+            { value: 'calendar.html', label: 'Календарь' },
+            { value: 'analytics.html', label: 'Аналитика' },
+            { value: 'other', label: 'Другое / не знаю' }
+        ];
+        const PAGE_LABELS = Object.fromEntries(PAGE_OPTIONS.map(o => [o.value, o.label]));
+
+        const CATEGORY_OPTIONS = [
+            { value: 'save_error', label: 'Не сохраняется / не отправляется' },
+            { value: 'load_error', label: 'Не загружается страница' },
+            { value: 'button_broken', label: 'Не работает кнопка или ссылка' },
+            { value: 'wrong_data', label: 'Неверные данные или расчёт' },
+            { value: 'visual', label: 'Визуальная ошибка (вёрстка, наезжает текст и т.п.)' },
+            { value: 'access', label: 'Не могу зайти / нет доступа к разделу' },
+            { value: 'other', label: 'Другое' }
+        ];
+        const CATEGORY_LABELS = Object.fromEntries(CATEGORY_OPTIONS.map(o => [o.value, o.label]));
+
+        const PRIORITY_OPTIONS = [
+            { value: 'critical', label: '🔴 Критично — работать невозможно' },
+            { value: 'medium', label: '🟠 Мешает — неудобно, но можно работать' },
+            { value: 'low', label: '🟢 Незначительно — мелочь' }
+        ];
+        const PRIORITY_LABELS = { critical: 'Критично', medium: 'Мешает', low: 'Незначительно' };
+        const PRIORITY_RANK = { critical: 0, medium: 1, low: 2 };
 
         async function requireAuth() {
             const { data: { session } } = await supabaseClient.auth.getSession();
@@ -138,13 +184,15 @@
             return `<div class="bug-card ${b.status === 'resolved' ? 'is-resolved' : ''}">
                 <div class="bug-card-head">
                     <div>
+                        <span class="bug-priority ${b.priority}">${PRIORITY_LABELS[b.priority] || b.priority}</span>
                         <span class="bug-status ${b.status}">${STATUS_LABELS[b.status]}</span>
+                        <div class="bug-category" style="margin-top:6px;">${escapeHtml(CATEGORY_LABELS[b.category] || b.category)}</div>
                         <div class="bug-meta">${escapeHtml(b.authorName)} · ${date}${b.resolverName ? ' · решил(а): ' + escapeHtml(b.resolverName) : ''}</div>
-                        ${b.page ? `<span class="bug-page">${escapeHtml(b.page)}</span>` : ''}
+                        <span class="bug-page">${escapeHtml(PAGE_LABELS[b.page] || b.page || 'Не указано')}</span>
                     </div>
                     <div class="bug-actions">${actions}</div>
                 </div>
-                <div class="bug-body">${escapeHtml(b.description)}</div>
+                ${b.description ? `<div class="bug-body">${escapeHtml(b.description)}</div>` : ''}
             </div>`;
         }
 
@@ -155,7 +203,9 @@
                 listEl.innerHTML = '<div class="panel-empty">Сообщений об ошибках пока нет — если что-то работает не так, нажмите «Сообщить об ошибке»</div>';
                 return;
             }
-            const active = bugsCache.filter(b => b.status !== 'resolved');
+            // В активных — сначала самые срочные, среди равных по срочности — сначала новые
+            const byPriorityThenDate = (a, b) => (PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]) || (new Date(b.created_at) - new Date(a.created_at));
+            const active = bugsCache.filter(b => b.status !== 'resolved').sort(byPriorityThenDate);
             const resolved = bugsCache.filter(b => b.status === 'resolved');
             let html = '';
             html += `<div class="section-title">Активные (${active.length})</div>`;
@@ -167,17 +217,21 @@
             listEl.innerHTML = html;
         }
 
-        function guessCurrentPageLabel() {
+        function guessCurrentPage() {
             try {
-                if (!document.referrer) return '';
+                if (!document.referrer) return 'other';
                 const url = new URL(document.referrer);
-                if (url.origin !== window.location.origin) return '';
-                return url.pathname.split('/').pop() || '';
-            } catch (e) { return ''; }
+                if (url.origin !== window.location.origin) return 'other';
+                const file = url.pathname.split('/').pop() || 'index.html';
+                return PAGE_OPTIONS.some(o => o.value === file) ? file : 'other';
+            } catch (e) { return 'other'; }
         }
 
         function openBugFormModal() {
-            document.getElementById('bugFormPage').value = guessCurrentPageLabel();
+            const guessedPage = guessCurrentPage();
+            document.getElementById('bugFormPage').innerHTML = PAGE_OPTIONS.map(o => `<option value="${o.value}" ${o.value === guessedPage ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('');
+            document.getElementById('bugFormCategory').innerHTML = '<option value="">— выберите —</option>' + CATEGORY_OPTIONS.map(o => `<option value="${o.value}">${escapeHtml(o.label)}</option>`).join('');
+            document.getElementById('bugFormPriority').innerHTML = PRIORITY_OPTIONS.map(o => `<option value="${o.value}" ${o.value === 'medium' ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('');
             document.getElementById('bugFormDescription').value = '';
             document.getElementById('bugFormModal').style.display = 'flex';
         }
@@ -187,11 +241,13 @@
         }
 
         async function submitBugForm() {
-            const page = document.getElementById('bugFormPage').value.trim();
+            const page = document.getElementById('bugFormPage').value;
+            const category = document.getElementById('bugFormCategory').value;
+            const priority = document.getElementById('bugFormPriority').value;
             const description = document.getElementById('bugFormDescription').value.trim();
-            if (!description) { showToast('Опишите проблему', 'error'); return; }
+            if (!category) { showToast('Выберите, что случилось', 'error'); return; }
             const { error } = await supabaseClient.from('bug_reports').insert({
-                reported_by: currentUser.id, page: page || null, description
+                reported_by: currentUser.id, page, category, priority, description: description || null
             });
             if (error) { console.error(error); showToast(isNetworkError(error) ? 'Нет соединения — попробуйте ещё раз' : 'Не удалось отправить сообщение', 'error'); return; }
             showToast('Спасибо, сообщение отправлено', 'success');
