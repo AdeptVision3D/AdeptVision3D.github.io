@@ -111,10 +111,19 @@
             return allProfilesNameMap[id] || 'Неизвестно';
         }
 
-        // Менеджеры заводят свои встречи с клиентами, но не управляют чужими
-        // событиями целиком — в отличие от руководителей (canManageProjectsRole),
-        // которые по-прежнему видят и правят весь календарь.
+        // Личную встречу может завести любой активный сотрудник (например,
+        // художник — с тимлидом) — календарь общий, полная прозрачность
+        // сохраняется. Руководители (canManageProjectsRole) по-прежнему видят
+        // и правят весь календарь целиком; остальные — только свои встречи
+        // (где они организатор), это же ограничение продублировано в RLS.
         function canCreateEvents(user) {
+            return !!user;
+        }
+
+        // Может ли текущий пользователь назначить организатором кого-то,
+        // кроме себя — иначе (обычный сотрудник) он всегда организатор своей
+        // же встречи, чтобы не заводить события от чужого имени.
+        function canPickAnyOrganizer(user) {
             return canManageProjectsRole(user) || !!(user && user.role === 'manager');
         }
 
@@ -254,7 +263,7 @@
             const item = id ? eventsCache.find(e => e.id === id) : null;
             const canManageAll = canManageProjectsRole(currentUser);
             const isOwnEvent = !!(item && item.organizer_id === currentUser.id);
-            const canEditThis = canManageAll || (item ? (currentUser.role === 'manager' && isOwnEvent) : canCreateEvents(currentUser));
+            const canEditThis = canManageAll || (item ? isOwnEvent : canCreateEvents(currentUser));
             const box = document.getElementById('eventFormBox');
 
             if (item && !canEditThis) {
@@ -285,7 +294,11 @@
 
         function renderEventEditForm(box, item, presetDate) {
             const invitedIds = new Set(invitesByEventId[item ? item.id : ''] || []);
-            const organizerOptions = activeEmployeesCache.map(p => `<option value="${p.id}" ${item ? (item.organizer_id === p.id ? 'selected' : '') : (p.id === currentUser.id ? 'selected' : '')}>${escapeHtml(p.full_name)}</option>`).join('');
+            const canPickOrganizer = canPickAnyOrganizer(currentUser);
+            const organizerField = canPickOrganizer
+                ? `<select id="eventFormOrganizer" class="field-input" onchange="updateOrganizerBusyHint()">${activeEmployeesCache.map(p => `<option value="${p.id}" ${item ? (item.organizer_id === p.id ? 'selected' : '') : (p.id === currentUser.id ? 'selected' : '')}>${escapeHtml(p.full_name)}</option>`).join('')}</select>`
+                : `<input type="text" class="field-input" value="${escapeHtml(currentUser.full_name)}" disabled>
+                   <input type="hidden" id="eventFormOrganizer" value="${currentUser.id}">`;
             const inviteeRows = activeEmployeesCache.map(p => `
                 <label class="event-invitee-row">
                     <input type="checkbox" class="event-invitee-checkbox" value="${p.id}" ${invitedIds.has(p.id) ? 'checked' : ''} style="width:15px; height:15px;">
@@ -301,16 +314,17 @@
                 <div class="field-row">
                     <div class="field-row-col">
                         <label class="field-label">Дата *</label>
-                        <input type="date" id="eventFormDate" value="${item ? item.event_date : (presetDate || todayIso())}" class="field-input">
+                        <input type="date" id="eventFormDate" value="${item ? item.event_date : (presetDate || todayIso())}" class="field-input" onchange="updateOrganizerBusyHint()">
                     </div>
                     <div class="field-row-col">
                         <label class="field-label">Время</label>
-                        <input type="time" id="eventFormTime" value="${item && item.event_time ? item.event_time.slice(0, 5) : ''}" class="field-input">
+                        <input type="time" id="eventFormTime" value="${item && item.event_time ? item.event_time.slice(0, 5) : ''}" class="field-input" onchange="updateOrganizerBusyHint()">
                     </div>
                 </div>
                 <div class="field">
                     <label class="field-label">Организатор (кто собирает)</label>
-                    <select id="eventFormOrganizer" class="field-input">${organizerOptions}</select>
+                    ${organizerField}
+                    <div id="eventOrganizerBusyHint" style="margin-top:6px;"></div>
                 </div>
                 <div class="field">
                     <label class="field-label">Участники (кого пригласить)</label>
@@ -328,6 +342,42 @@
                     </div>
                 </div>
             `;
+            updateOrganizerBusyHint();
+        }
+
+        // Все события организатора в этот день (кроме редактируемого) — чтобы
+        // не заводить дубль на то же (или неуказанное) время.
+        function findOrganizerConflicts(organizerId, date, time, excludeId) {
+            return eventsCache.filter(e => {
+                if (e.organizer_id !== organizerId || e.event_date !== date || e.id === excludeId) return false;
+                const existingTime = e.event_time ? e.event_time.slice(0, 5) : null;
+                if (!time || !existingTime) return true; // без времени — считаем, что день занят целиком
+                return existingTime === time;
+            });
+        }
+
+        // Подсказка под полем организатора: показывает, что у него уже
+        // запланировано в выбранный день, и подсвечивает конфликт с введённым
+        // временем — чтобы не задваивать встречи ещё до сохранения.
+        function updateOrganizerBusyHint() {
+            const hint = document.getElementById('eventOrganizerBusyHint');
+            if (!hint) return;
+            const organizerSelect = document.getElementById('eventFormOrganizer');
+            const dateInput = document.getElementById('eventFormDate');
+            if (!organizerSelect || !dateInput) return;
+            const organizerId = organizerSelect.value;
+            const date = dateInput.value;
+            if (!organizerId || !date) { hint.innerHTML = ''; return; }
+
+            const dayEvents = eventsCache.filter(e => e.organizer_id === organizerId && e.event_date === date && e.id !== editingEventId);
+            if (dayEvents.length === 0) { hint.innerHTML = '<span style="font-size:12px; color: var(--text-secondary);">В этот день у организатора пока свободно</span>'; return; }
+
+            const time = document.getElementById('eventFormTime') ? document.getElementById('eventFormTime').value : '';
+            const conflicts = findOrganizerConflicts(organizerId, date, time, editingEventId);
+            const listLabel = dayEvents.map(e => (e.event_time ? e.event_time.slice(0, 5) + ' — ' : '(без времени) ') + e.title).join(', ');
+            const color = conflicts.length > 0 ? 'var(--danger)' : 'var(--text-secondary)';
+            const prefix = conflicts.length > 0 ? 'Занято, выберите другое время: ' : 'Уже запланировано в этот день: ';
+            hint.innerHTML = `<span style="font-size:12px; color:${color};">${prefix}${escapeHtml(listLabel)}</span>`;
         }
 
         function fmtRuDate(iso) {
@@ -348,6 +398,13 @@
             const description = document.getElementById('eventFormDescription').value.trim() || null;
             const inviteeIds = Array.from(document.querySelectorAll('.event-invitee-checkbox:checked')).map(el => el.value);
             if (!title || !date) { showToast('Укажите название и дату', 'error'); return; }
+            if (!organizerId) { showToast('Не удалось определить организатора', 'error'); return; }
+
+            const conflicts = findOrganizerConflicts(organizerId, date, time, editingEventId);
+            if (conflicts.length > 0) {
+                showToast(`У организатора уже занято это время: ${conflicts[0].title}${conflicts[0].event_time ? ' в ' + conflicts[0].event_time.slice(0, 5) : ''}`, 'error');
+                return;
+            }
 
             let eventId = editingEventId;
             let error;

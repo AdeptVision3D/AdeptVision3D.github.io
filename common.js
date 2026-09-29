@@ -24,6 +24,43 @@ if ('serviceWorker' in navigator) {
     });
 }
 
+// ====== АВТОМАТИЧЕСКИЙ ЛОГ ОШИБОК ======
+// Сайт "ведёт" сам себя: любая необработанная JS-ошибка или отклонённый
+// promise на любой странице (включая login.html, до входа в систему)
+// автоматически пишется в error_logs — реальная техническая диагностика
+// для админа/того, кто будет дальше сопровождать сайт, без необходимости
+// просить пользователя описать словами, что именно сломалось. Смотреть
+// эти записи можно на странице error-console.html (только для is_admin).
+const _loggedErrorKeys = new Set(); // не долбим одну и ту же ошибку в error_logs много раз за одну загрузку страницы
+async function logClientError(message, stack) {
+    try {
+        const text = String(message || 'Неизвестная ошибка').slice(0, 2000);
+        const key = text + '|' + String(stack || '').slice(0, 300);
+        if (_loggedErrorKeys.has(key)) return;
+        _loggedErrorKeys.add(key);
+        await supabaseClient.from('error_logs').insert({
+            message: text,
+            stack: stack ? String(stack).slice(0, 4000) : null,
+            page: (location.pathname.split('/').pop() || 'index.html'),
+            url: location.href,
+            user_id: (typeof currentUser !== 'undefined' && currentUser && currentUser.id) ? currentUser.id : null,
+            user_agent: navigator.userAgent
+        });
+    } catch (e) {
+        // логирование ошибок намеренно не должно порождать собственные ошибки/тосты
+    }
+}
+window.addEventListener('error', function(event) {
+    logClientError(event.message, event.error && event.error.stack ? event.error.stack : null);
+});
+window.addEventListener('unhandledrejection', function(event) {
+    const reason = event.reason;
+    const message = reason && reason.message ? reason.message : String(reason);
+    const stack = reason && reason.stack ? reason.stack : null;
+    logClientError(message, stack);
+});
+// =========================================
+
 // Отдельный флаг "админ-доступа" в profiles.is_admin — даёт полный доступ ко всем
 // панелям НЕЗАВИСИМО от роли в профиле. Нужен, например, когда роль в профиле
 // отражает реальную должность человека (скажем, "Художник"), но ему всё равно
@@ -64,7 +101,8 @@ const ICON = {
     briefcase: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="2" y1="12" x2="22" y2="12"/></svg>',
     phone: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>',
     mail: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 8.97 6.28a2 2 0 0 0 2.06 0L22 7"/></svg>',
-    bug: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="6" width="8" height="12" rx="4"/><path d="M12 6V3"/><path d="M8 9H3"/><path d="M8 14H3"/><path d="M16 9h5"/><path d="M16 14h5"/><path d="M9 3l1.5 2"/><path d="M15 3l-1.5 2"/><path d="M6 19l2-2"/><path d="M18 19l-2-2"/></svg>'
+    bug: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="6" width="8" height="12" rx="4"/><path d="M12 6V3"/><path d="M8 9H3"/><path d="M8 14H3"/><path d="M16 9h5"/><path d="M16 14h5"/><path d="M9 3l1.5 2"/><path d="M15 3l-1.5 2"/><path d="M6 19l2-2"/><path d="M18 19l-2-2"/></svg>',
+    console: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3"/><path d="M13 15h4"/></svg>'
 };
 
 // Единая проверка ролей для пунктов сайдбара — та же логика, что раньше была
@@ -733,7 +771,8 @@ const APP_NAV_ITEMS = [
     { key: 'calendar', label: 'Календарь', href: 'calendar.html', icon: 'calendar', match: ['calendar.html'] },
     { key: 'bugs', label: 'Сообщить об ошибке', href: 'bugs.html', icon: 'bug', match: ['bugs.html'] },
     { key: 'analytics', label: 'Аналитика', href: 'analytics.html', icon: 'chart', match: ['analytics.html'], gate: canManageProjectsRole },
-    { key: 'employees', label: 'Сотрудники', href: 'index.html?open=employees', icon: 'team', match: [], gate: canManageEmployeesRole }
+    { key: 'employees', label: 'Сотрудники', href: 'index.html?open=employees', icon: 'team', match: [], gate: canManageEmployeesRole },
+    { key: 'console', label: 'Консоль ошибок', href: 'error-console.html', icon: 'console', match: ['error-console.html'], gate: hasAdminAccess }
 ];
 
 function initAppSidebar(user) {

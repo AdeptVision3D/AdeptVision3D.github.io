@@ -48,6 +48,9 @@
         .vac-daynum-th { padding: 6px 2px 2px; font-size: 12px; font-weight: 700; color: var(--text-secondary); min-width: 27px; width: 27px; }
         .vac-dayweek-th { padding: 0 2px 6px; font-size: 10px; font-weight: 500; color: var(--text-secondary); }
         .vac-weekend { background: var(--bg-secondary); }
+        .vac-holiday { background: rgba(230, 126, 34, 0.22) !important; }
+        .vac-holiday-list-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+        .vac-holiday-list-row:last-child { border-bottom: none; }
         .vac-cell { height: 34px; cursor: default; position: relative; }
         .vac-cell.has-leave { cursor: pointer; }
         .vac-cell.leave-vacation { background: rgba(39, 174, 96, 0.35); }
@@ -61,6 +64,15 @@
         .vac-balance-badge.low { background: rgba(231, 76, 60, 0.15); color: var(--danger); }
         .vac-add-row-btn { border: none; background: none; color: var(--text-secondary); cursor: pointer; padding: 2px 4px; border-radius: 4px; display: inline-flex; align-items: center; }
         .vac-add-row-btn:hover { color: var(--accent); background: rgba(var(--accent-rgb), 0.1); }
+
+        /* ====== Блоки команд (компактный вид) ====== */
+        .vac-team-header-row { cursor: pointer; background: var(--bg-secondary); }
+        .vac-team-header-row:hover { filter: brightness(1.05); }
+        .vac-team-header-cell { text-align: left !important; padding: 9px 12px; font-size: 13px; font-weight: 700; position: sticky; left: 0; background: var(--bg-secondary); }
+        .vac-team-arrow { display: inline-block; transition: transform 0.15s; margin-right: 6px; font-size: 11px; }
+        .vac-team-arrow.open { transform: rotate(90deg); }
+        .vac-team-count { font-weight: 500; color: var(--text-secondary); font-size: 12px; margin-left: 6px; }
+        .vac-team-toggle-all { display: flex; gap: 8px; }
 
         /* ====== Личная сводка (не-админ) ====== */
         .vac-balance-card { display: flex; align-items: center; gap: 20px; padding: 20px; flex-wrap: wrap; }
@@ -135,6 +147,28 @@
         </div>
     </div>
 
+    <!-- Праздники (нерабочие дни) — видно всем в гриде, редактируют арт-директор/директор/админ -->
+    <div class="modal" id="holidaysModal" style="display:none;">
+        <div class="employee-modal-box" style="max-width: 460px;">
+            <h3 style="font-size: 20px; font-weight: 700; margin-bottom: 16px;">Праздники (нерабочие дни)</h3>
+            <div id="holidaysList" style="max-height: 320px; overflow-y:auto; margin-bottom:16px;"></div>
+            <div class="field-row">
+                <div class="field-row-col">
+                    <label class="field-label">Дата</label>
+                    <input type="date" id="holidayNewDate" class="field-input">
+                </div>
+                <div class="field-row-col" style="flex:2;">
+                    <label class="field-label">Название</label>
+                    <input type="text" id="holidayNewName" class="field-input" placeholder="Например: День России">
+                </div>
+            </div>
+            <div class="field-actions">
+                <button class="btn btn-secondary" onclick="closeHolidaysModal()">Закрыть</button>
+                <button class="btn btn-primary" onclick="addHoliday()">Добавить</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Норма отпуска на сотрудника -->
     <div class="modal" id="leaveNormModal" style="display:none;">
         <div class="employee-modal-box" style="max-width: 360px;">
@@ -159,6 +193,8 @@
         let allLeavesCache = [];
         let leaveFormPresetUserId = null;
         let leaveNormUserId = null;
+        let collapsedTeams = null; // team_group -> bool, null пока не инициализировано (по умолчанию все свёрнуты)
+        let holidaysCache = []; // праздники (нерабочие дни) — подсветка в гриде + новости за 2-3 дня объявляет фоновый планировщик на стороне базы
 
         const MONTH_NAMES = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
         const MONTH_NAMES_NOM = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
@@ -190,17 +226,20 @@
         // ====== АДМИНСКИЙ ВИД: тайм-лайн всей команды ======
 
         async function loadAdminView() {
-            const [{ data: employees, error: empErr }, { data: leaves, error: leavesErr }] = await Promise.all([
-                supabaseClient.from('profiles').select('id, full_name, role, is_active, vacation_days_per_year').eq('is_active', true).order('full_name', { ascending: true }),
-                supabaseClient.from('employee_leaves').select('*').order('start_date', { ascending: true })
+            const [{ data: employees, error: empErr }, { data: leaves, error: leavesErr }, { data: holidays, error: holErr }] = await Promise.all([
+                supabaseClient.from('profiles').select('id, full_name, role, is_active, vacation_days_per_year, team_group').eq('is_active', true).order('full_name', { ascending: true }),
+                supabaseClient.from('employee_leaves').select('*').order('start_date', { ascending: true }),
+                supabaseClient.from('company_holidays').select('*').order('holiday_date', { ascending: true })
             ]);
             if (empErr || leavesErr) {
                 console.error(empErr || leavesErr);
                 document.getElementById('vacationsRoot').innerHTML = '<div class="panel"><div class="panel-empty">Не удалось загрузить данные об отпусках</div></div>';
                 return;
             }
+            if (holErr) console.error(holErr);
             activeEmployeesCache = employees || [];
             allLeavesCache = leaves || [];
+            holidaysCache = holidays || [];
             renderAdminView();
         }
 
@@ -208,56 +247,97 @@
             const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
             const today = todayIso();
 
+            const holidayByIso = {};
+            holidaysCache.forEach(h => { if (h.is_day_off) holidayByIso[h.holiday_date] = h; });
+
             let headHtml = '<tr><th class="vac-name-col" rowspan="2">Сотрудник</th>';
             let weekHtml = '<tr>';
             for (let d = 1; d <= daysInMonth; d++) {
                 const dateObj = new Date(viewYear, viewMonth, d);
+                const iso = dateObj.toISOString().slice(0, 10);
                 const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
-                headHtml += `<th class="vac-daynum-th${isWeekend ? ' vac-weekend' : ''}">${d}</th>`;
-                weekHtml += `<th class="vac-dayweek-th${isWeekend ? ' vac-weekend' : ''}">${WEEKDAY_SHORT[dateObj.getDay()]}</th>`;
+                const holiday = holidayByIso[iso];
+                const holidayClass = holiday ? ' vac-holiday' : '';
+                const holidayTitle = holiday ? ` title="${escapeHtml(holiday.name)}"` : '';
+                headHtml += `<th class="vac-daynum-th${isWeekend ? ' vac-weekend' : ''}${holidayClass}"${holidayTitle}>${d}</th>`;
+                weekHtml += `<th class="vac-dayweek-th${isWeekend ? ' vac-weekend' : ''}${holidayClass}"${holidayTitle}>${WEEKDAY_SHORT[dateObj.getDay()]}</th>`;
             }
             headHtml += '</tr>';
             weekHtml += '</tr>';
 
-            const rowsHtml = activeEmployeesCache.map(emp => {
-                const empLeaves = allLeavesCache.filter(l => l.user_id === emp.id);
-                const balance = calcVacationBalance(emp, empLeaves);
-                const balanceClass = balance.remaining <= 3 ? 'low' : '';
-                let cells = '';
-                for (let d = 1; d <= daysInMonth; d++) {
-                    const dateObj = new Date(viewYear, viewMonth, d);
-                    const iso = dateObj.toISOString().slice(0, 10);
-                    const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
-                    const leave = empLeaves.find(l => l.status !== 'rejected' && l.start_date <= iso && l.end_date >= iso);
-                    const classes = ['vac-cell'];
-                    if (isWeekend) classes.push('vac-weekend');
-                    let title = '';
-                    let onclick = '';
-                    if (leave) {
-                        const pendingState = leave.status === 'pending' || leave.status === 'awaiting_ceo';
-                        classes.push(leave.type === 'vacation' ? 'leave-vacation' : 'leave-sick');
-                        if (pendingState) {
-                            classes.push('leave-pending');
-                        } else {
-                            classes.push('has-leave');
-                            onclick = ` onclick="handleLeaveCellClick('${leave.id}')"`;
-                        }
-                        title = `${LEAVE_TYPE_LABELS[leave.type]}${pendingState ? ' · на согласовании' : ''}: ${fmtDate(leave.start_date)} – ${fmtDate(leave.end_date)}${leave.note ? ' · ' + leave.note.replace(/"/g, '&quot;') : ''}`;
-                    }
-                    cells += `<td class="${classes.join(' ')}" title="${escapeHtml(title)}"${onclick}></td>`;
-                }
-                return `<tr>
-                    <td class="vac-name-col">
-                        <div class="vac-emp-name">${escapeHtml(emp.full_name)}</div>
-                        <div class="vac-emp-meta">
-                            <span class="vac-emp-role">${roleLabels[emp.role] || emp.role}</span>
-                            <span class="vac-balance-badge ${balanceClass}" title="Осталось дней отпуска в этом году">${balance.remaining}/${balance.norm}</span>
-                            ${canManageEmployeesRole(currentUser) ? `<button class="vac-add-row-btn" title="Изменить норму отпуска" onclick="openLeaveNormModal('${emp.id}', '${escapeHtml(emp.full_name)}', ${balance.norm})">${ICON.edit}</button>` : ''}
-                            ${canManageEmployeesRole(currentUser) ? `<button class="vac-add-row-btn" title="Добавить отпуск/больничный" onclick="openLeaveFormModal('${emp.id}')">+</button>` : ''}
-                        </div>
+            // Группируем по team_group ("Без команды" — для тех, у кого поле не заполнено),
+            // чтобы не грузить экран целиком плоским списком — компактные сворачиваемые блоки.
+            const groups = {};
+            activeEmployeesCache.forEach(emp => {
+                const key = emp.team_group && emp.team_group.trim() ? emp.team_group.trim() : 'Без команды';
+                if (!groups[key]) groups[key] = [];
+                groups[key].push(emp);
+            });
+            const teamNames = Object.keys(groups).sort((a, b) => {
+                if (a === 'Без команды') return 1;
+                if (b === 'Без команды') return -1;
+                return a.localeCompare(b, 'ru');
+            });
+            if (collapsedTeams === null) {
+                collapsedTeams = {};
+                teamNames.forEach(t => { collapsedTeams[t] = true; }); // по умолчанию все блоки свёрнуты — компактный вид
+            }
+
+            const rowsHtml = teamNames.map(teamName => {
+                const members = groups[teamName];
+                const onLeaveToday = members.filter(emp => allLeavesCache.some(l => l.user_id === emp.id && l.status !== 'rejected' && l.status !== 'pending' && l.status !== 'awaiting_ceo' && l.start_date <= today && l.end_date >= today)).length;
+                const isOpen = !collapsedTeams[teamName];
+                const teamKeyAttr = escapeHtml(teamName);
+                const headerRow = `<tr class="vac-team-header-row" data-team-header="${teamKeyAttr}" onclick="toggleTeamGroup('${teamKeyAttr.replace(/'/g, "\\'")}')">
+                    <td class="vac-team-header-cell" colspan="${1 + daysInMonth}">
+                        <span class="vac-team-arrow ${isOpen ? 'open' : ''}">▶</span>${escapeHtml(teamName)}
+                        <span class="vac-team-count">${members.length} чел.${onLeaveToday > 0 ? ` · ${onLeaveToday} в отпуске/больничном сегодня` : ''}</span>
                     </td>
-                    ${cells}
                 </tr>`;
+
+                const memberRows = members.map(emp => {
+                    const empLeaves = allLeavesCache.filter(l => l.user_id === emp.id);
+                    const balance = calcVacationBalance(emp, empLeaves);
+                    const balanceClass = balance.remaining <= 3 ? 'low' : '';
+                    let cells = '';
+                    for (let d = 1; d <= daysInMonth; d++) {
+                        const dateObj = new Date(viewYear, viewMonth, d);
+                        const iso = dateObj.toISOString().slice(0, 10);
+                        const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
+                        const leave = empLeaves.find(l => l.status !== 'rejected' && l.start_date <= iso && l.end_date >= iso);
+                        const classes = ['vac-cell'];
+                        if (isWeekend) classes.push('vac-weekend');
+                        if (holidayByIso[iso] && !leave) classes.push('vac-holiday'); // отпуск/больничный в этот день важнее подсветки праздника
+                        let title = holidayByIso[iso] ? holidayByIso[iso].name : '';
+                        let onclick = '';
+                        if (leave) {
+                            const pendingState = leave.status === 'pending' || leave.status === 'awaiting_ceo';
+                            classes.push(leave.type === 'vacation' ? 'leave-vacation' : 'leave-sick');
+                            if (pendingState) {
+                                classes.push('leave-pending');
+                            } else {
+                                classes.push('has-leave');
+                                onclick = ` onclick="handleLeaveCellClick('${leave.id}')"`;
+                            }
+                            title = `${LEAVE_TYPE_LABELS[leave.type]}${pendingState ? ' · на согласовании' : ''}: ${fmtDate(leave.start_date)} – ${fmtDate(leave.end_date)}${leave.note ? ' · ' + leave.note.replace(/"/g, '&quot;') : ''}`;
+                        }
+                        cells += `<td class="${classes.join(' ')}" title="${escapeHtml(title)}"${onclick}></td>`;
+                    }
+                    return `<tr data-team-row="${teamKeyAttr}" style="${isOpen ? '' : 'display:none;'}">
+                        <td class="vac-name-col">
+                            <div class="vac-emp-name">${escapeHtml(emp.full_name)}</div>
+                            <div class="vac-emp-meta">
+                                <span class="vac-emp-role">${roleLabels[emp.role] || emp.role}</span>
+                                <span class="vac-balance-badge ${balanceClass}" title="Осталось дней отпуска в этом году">${balance.remaining}/${balance.norm}</span>
+                                ${canManageEmployeesRole(currentUser) ? `<button class="vac-add-row-btn" title="Изменить норму отпуска" onclick="openLeaveNormModal('${emp.id}', '${escapeHtml(emp.full_name)}', ${balance.norm})">${ICON.edit}</button>` : ''}
+                                ${canManageEmployeesRole(currentUser) ? `<button class="vac-add-row-btn" title="Добавить отпуск/больничный" onclick="openLeaveFormModal('${emp.id}')">+</button>` : ''}
+                            </div>
+                        </td>
+                        ${cells}
+                    </tr>`;
+                }).join('');
+
+                return headerRow + memberRows;
             }).join('');
 
             document.getElementById('vacationsRoot').innerHTML = `
@@ -270,12 +350,18 @@
                             <button class="month-nav-btn" onclick="shiftMonth(1)">›</button>
                             <button class="btn btn-secondary" style="padding:6px 12px; font-size:12px;" onclick="goToday()">Сегодня</button>
                         </div>
-                        <button class="btn btn-primary" onclick="openLeaveFormModal()">+ Добавить отпуск/больничный</button>
+                        <div class="vac-team-toggle-all">
+                            <button class="btn btn-secondary" style="padding:6px 12px; font-size:12px;" onclick="setAllTeamsCollapsed(false)">Развернуть все</button>
+                            <button class="btn btn-secondary" style="padding:6px 12px; font-size:12px;" onclick="setAllTeamsCollapsed(true)">Свернуть все</button>
+                            ${canManageEmployeesRole(currentUser) ? `<button class="btn btn-secondary" style="padding:6px 12px; font-size:12px;" onclick="openHolidaysModal()">Праздники</button>` : ''}
+                            <button class="btn btn-primary" onclick="openLeaveFormModal()">+ Добавить отпуск/больничный</button>
+                        </div>
                     </div>
                     <div class="vac-legend">
                         <span class="vac-legend-item"><span class="vac-legend-swatch" style="background: rgba(39,174,96,0.5);"></span>${ICON.palm} Отпуск</span>
                         <span class="vac-legend-item"><span class="vac-legend-swatch" style="background: rgba(231,76,60,0.5);"></span>${ICON.pill} Больничный</span>
                         <span class="vac-legend-item"><span class="vac-legend-swatch" style="background: repeating-linear-gradient(45deg, rgba(120,120,120,0.5), rgba(120,120,120,0.5) 3px, rgba(120,120,120,0.15) 3px, rgba(120,120,120,0.15) 6px);"></span>На согласовании</span>
+                        <span class="vac-legend-item"><span class="vac-legend-swatch" style="background: rgba(230,126,34,0.4);"></span>Праздник (нерабочий день)</span>
                         <span class="vac-legend-item">Нажмите на закрашенный (утверждённый) день, чтобы удалить запись</span>
                     </div>
                     ${activeEmployeesCache.length === 0 ? '<div class="panel-empty">Нет активных сотрудников</div>' : `
@@ -385,6 +471,27 @@
         function cancelMyRequest(leaveId) {
             if (!confirm('Удалить эту заявку?')) return;
             deleteLeave(leaveId);
+        }
+
+        // Разворачиваем/сворачиваем один блок команды без полной перерисовки —
+        // просто переключаем видимость его строк и стрелку в заголовке.
+        function toggleTeamGroup(teamName) {
+            if (collapsedTeams === null) collapsedTeams = {};
+            const nowCollapsed = !collapsedTeams[teamName];
+            collapsedTeams[teamName] = nowCollapsed;
+            document.querySelectorAll(`tr[data-team-row="${CSS.escape(teamName)}"]`).forEach(row => {
+                row.style.display = nowCollapsed ? 'none' : '';
+            });
+            const headerRow = document.querySelector(`tr[data-team-header="${CSS.escape(teamName)}"]`);
+            if (headerRow) {
+                const arrow = headerRow.querySelector('.vac-team-arrow');
+                if (arrow) arrow.classList.toggle('open', !nowCollapsed);
+            }
+        }
+
+        function setAllTeamsCollapsed(collapsed) {
+            Object.keys(collapsedTeams || {}).forEach(t => { collapsedTeams[t] = collapsed; });
+            renderAdminView();
         }
 
         function shiftMonth(delta) {
@@ -499,6 +606,65 @@
             showToast('Норма обновлена', 'success');
             closeLeaveNormModal();
             await loadAdminView();
+        }
+
+        // ====== Праздники (нерабочие дни) ======
+        // Список редактируемый: если правительство перенесло дату, или кто-то
+        // в праздник выходит отрабатывать — запись можно удалить/добавить заново.
+        // Объявление в новости за 2-3 дня делает фоновый планировщик на стороне
+        // базы (pg_cron), не сама страница.
+
+        function openHolidaysModal() {
+            renderHolidaysList();
+            document.getElementById('holidayNewDate').value = '';
+            document.getElementById('holidayNewName').value = '';
+            document.getElementById('holidaysModal').style.display = 'flex';
+        }
+
+        function closeHolidaysModal() {
+            document.getElementById('holidaysModal').style.display = 'none';
+        }
+
+        function renderHolidaysList() {
+            const list = document.getElementById('holidaysList');
+            const today = todayIso();
+            const upcoming = holidaysCache.filter(h => h.holiday_date >= today).sort((a, b) => a.holiday_date.localeCompare(b.holiday_date));
+            const past = holidaysCache.filter(h => h.holiday_date < today).sort((a, b) => b.holiday_date.localeCompare(a.holiday_date));
+            const rows = [...upcoming, ...past.slice(0, 5)];
+            if (rows.length === 0) {
+                list.innerHTML = '<div style="color:var(--text-secondary); font-size:13px; padding:8px 0;">Праздники пока не добавлены</div>';
+                return;
+            }
+            list.innerHTML = rows.map(h => `
+                <div class="vac-holiday-list-row">
+                    <span>${fmtDate(h.holiday_date)} — ${escapeHtml(h.name)}${h.holiday_date < today ? ' <span style="color:var(--text-secondary);">(прошёл)</span>' : ''}</span>
+                    <button class="vac-add-row-btn" title="Удалить" onclick="deleteHoliday('${h.id}')">${ICON.trash}</button>
+                </div>`).join('');
+        }
+
+        async function addHoliday() {
+            const date = document.getElementById('holidayNewDate').value;
+            const name = document.getElementById('holidayNewName').value.trim();
+            if (!date || !name) { showToast('Укажите дату и название', 'error'); return; }
+            const { error } = await supabaseClient.from('company_holidays').insert({ holiday_date: date, name });
+            if (error) {
+                console.error(error);
+                showToast(error.code === '23505' ? 'На эту дату уже есть праздник' : 'Не удалось добавить', 'error');
+                return;
+            }
+            showToast('Праздник добавлен', 'success');
+            document.getElementById('holidayNewDate').value = '';
+            document.getElementById('holidayNewName').value = '';
+            await loadAdminView();
+            renderHolidaysList();
+        }
+
+        async function deleteHoliday(id) {
+            if (!confirm('Удалить этот праздник из списка?')) return;
+            const { error } = await supabaseClient.from('company_holidays').delete().eq('id', id);
+            if (error) { console.error(error); showToast('Не удалось удалить', 'error'); return; }
+            await loadAdminView();
+            renderHolidaysList();
         }
 
         // ====== ЛИЧНЫЙ ВИД (обычный сотрудник): своя сводка, без редактирования ======
