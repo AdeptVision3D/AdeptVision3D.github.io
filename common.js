@@ -616,7 +616,7 @@ async function fetchUpcomingPeopleEvents() {
             const occ = nextAnnualOccurrence(p.birthday);
             const daysLeft = daysUntilDate(occ.iso);
             if (daysLeft >= 0 && daysLeft <= PEOPLE_EVENTS_THRESHOLD_DAYS) {
-                items.push({ type: 'birthday', name: p.full_name, daysLeft, link: 'calendar.html' });
+                items.push({ type: 'birthday', id: p.id, name: p.full_name, daysLeft, link: 'calendar.html' });
             }
         }
         if (p.hire_date) {
@@ -626,7 +626,7 @@ async function fetchUpcomingPeopleEvents() {
             if (years >= 1) {
                 const daysLeft = daysUntilDate(occ.iso);
                 if (daysLeft >= 0 && daysLeft <= PEOPLE_EVENTS_THRESHOLD_DAYS) {
-                    items.push({ type: 'anniversary', name: p.full_name, years, daysLeft, link: 'calendar.html' });
+                    items.push({ type: 'anniversary', id: p.id, name: p.full_name, years, daysLeft, link: 'calendar.html' });
                 }
             }
         }
@@ -669,6 +669,7 @@ async function initDeadlineReminders(user) {
         openBugs.forEach((b, i) => {
             items.push({
                 type: 'bug',
+                id: b.id,
                 name: BUG_CATEGORY_LABELS[b.category] || b.category,
                 projectName: BUG_PRIORITY_LABELS[b.priority] || b.priority,
                 bugPriority: b.priority,
@@ -679,7 +680,7 @@ async function initDeadlineReminders(user) {
         myEvents.forEach(e => {
             const daysLeft = daysUntilDate(e.event_date);
             const timeLabel = e.event_time ? ` в ${e.event_time.slice(0, 5)}` : '';
-            items.push({ type: 'event', name: e.title, projectName: `встреча${timeLabel}`, daysLeft, link: 'calendar.html' });
+            items.push({ type: 'event', id: e.id, name: e.title, projectName: `встреча${timeLabel}`, daysLeft, link: 'calendar.html' });
         });
         peopleEvents.forEach(p => {
             items.push({
@@ -703,7 +704,7 @@ async function initDeadlineReminders(user) {
                 if (!due) return;
                 const daysLeft = daysUntilDate(due);
                 if (daysLeft <= REMINDER_THRESHOLD_DAYS) {
-                    items.push({ type: 'frame', name: f.name, projectName: project.name, daysLeft, link: `frame.html?project=${f.project_id}&frame=${f.id}` });
+                    items.push({ type: 'frame', id: f.id, name: f.name, projectName: project.name, daysLeft, link: `frame.html?project=${f.project_id}&frame=${f.id}` });
                 }
             });
             myProjectIds.forEach(pid => {
@@ -711,18 +712,103 @@ async function initDeadlineReminders(user) {
                 if (!project || project.completed || project.on_hold || !project.deadline) return;
                 const daysLeft = daysUntilDate(project.deadline);
                 if (daysLeft <= REMINDER_THRESHOLD_DAYS) {
-                    items.push({ type: 'project', name: project.name, projectName: null, daysLeft, link: `project.html?id=${pid}` });
+                    items.push({ type: 'project', id: pid, name: project.name, projectName: null, daysLeft, link: `project.html?id=${pid}` });
                 }
             });
         }
         items.sort((a, b) => a.daysLeft - b.daysLeft);
+        notifyIfNewReminderItems(user, items);
         renderReminderBell(items);
+
+        // Пока страница открыта, сами не узнаем о новом тикете/встрече — здесь
+        // нет "живых" уведомлений с сервера, поэтому просто переспрашиваем раз
+        // в минуту. Настраиваем только один раз за загрузку страницы.
+        if (!window.__reminderPollingStarted) {
+            window.__reminderPollingStarted = true;
+            setInterval(() => initDeadlineReminders(user), 60000);
+        }
     } catch (e) {
         console.error('Ошибка загрузки напоминаний:', e);
     }
 }
 
+// ====== Звук колокольчика ======
+// Простой сигнал через Web Audio API (без файла-ассета) — играет только когда
+// в колокольчике появляется ЧТО-ТО НОВОЕ по сравнению с прошлым разом на этом
+// устройстве (иначе звук бы дублировался при каждом заходе на страницу).
+// Браузеры блокируют звук без предварительного взаимодействия пользователя —
+// поэтому "открываем" AudioContext по первому клику/нажатию клавиши.
+let _reminderAudioCtx = null;
+function _unlockReminderAudio() {
+    if (_reminderAudioCtx) return;
+    try { _reminderAudioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { /* не поддерживается — просто без звука */ }
+}
+document.addEventListener('click', _unlockReminderAudio, { once: true });
+document.addEventListener('keydown', _unlockReminderAudio, { once: true });
+
+function isReminderSoundEnabled() {
+    try { return localStorage.getItem('reminderSoundEnabled') !== '0'; } catch (e) { return true; }
+}
+function setReminderSoundEnabled(enabled) {
+    try { localStorage.setItem('reminderSoundEnabled', enabled ? '1' : '0'); } catch (e) { /* игнор */ }
+}
+
+function playReminderSound() {
+    if (!isReminderSoundEnabled()) return;
+    try {
+        if (!_reminderAudioCtx) _reminderAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (_reminderAudioCtx.state === 'suspended') _reminderAudioCtx.resume();
+        const ctx = _reminderAudioCtx;
+        const now = ctx.currentTime;
+        [880, 1175].forEach((freq, i) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            const start = now + i * 0.12;
+            gain.gain.setValueAtTime(0, start);
+            gain.gain.linearRampToValueAtTime(0.16, start + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.001, start + 0.28);
+            osc.connect(gain).connect(ctx.destination);
+            osc.start(start);
+            osc.stop(start + 0.3);
+        });
+    } catch (e) { /* звук не критичен — просто пропускаем */ }
+}
+
+function reminderItemKey(item) {
+    return `${item.type}:${item.id !== undefined && item.id !== null ? item.id : item.name + '|' + (item.link || '')}`;
+}
+
+// Сравниваем с тем, что видели на этом устройстве в прошлый раз (per-user —
+// на общем компьютере с разными входами звук не будет путать чужие тикеты).
+// В самый первый раз (ничего не сохранено) молча запоминаем всё — не пугаем
+// сотрудника звуком по всем уже существующим напоминаниям сразу.
+function notifyIfNewReminderItems(user, items) {
+    const storageKey = `reminderSeenKeys_${user.id}`;
+    const currentKeys = items.map(reminderItemKey);
+    let prevSeen = null;
+    try {
+        const raw = localStorage.getItem(storageKey);
+        prevSeen = raw ? new Set(JSON.parse(raw)) : null;
+    } catch (e) { prevSeen = null; }
+
+    if (prevSeen) {
+        const hasNew = currentKeys.some(k => !prevSeen.has(k));
+        if (hasNew) playReminderSound();
+    }
+    try { localStorage.setItem(storageKey, JSON.stringify(currentKeys)); } catch (e) { /* игнор */ }
+}
+
+let _lastReminderItems = [];
+
+function toggleReminderSoundSetting() {
+    setReminderSoundEnabled(!isReminderSoundEnabled());
+    renderReminderBell(_lastReminderItems);
+}
+
 function renderReminderBell(items) {
+    _lastReminderItems = items;
     let wrap = document.getElementById('reminderBellWrap');
     if (!wrap) {
         wrap = document.createElement('div');
@@ -742,14 +828,19 @@ function renderReminderBell(items) {
     }
     const badge = document.getElementById('reminderBellBadge');
     const panel = document.getElementById('reminderBellPanel');
+    const soundOn = isReminderSoundEnabled();
+    const titleRow = `<div class="reminder-panel-title" style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+        <span>Ближайшие сроки</span>
+        <button type="button" onclick="event.stopPropagation(); toggleReminderSoundSetting();" title="${soundOn ? 'Выключить звук уведомлений' : 'Включить звук уведомлений'}" style="background:none; border:none; cursor:pointer; font-size:14px; line-height:1; padding:2px;">${soundOn ? '🔈' : '🔇'}</button>
+    </div>`;
     if (items.length === 0) {
         badge.style.display = 'none';
-        panel.innerHTML = '<div class="reminder-empty">Нет срочных сроков — всё под контролем</div>';
+        panel.innerHTML = titleRow + '<div class="reminder-empty">Нет срочных сроков — всё под контролем</div>';
         return;
     }
     badge.style.display = 'flex';
     badge.textContent = items.length > 9 ? '9+' : String(items.length);
-    panel.innerHTML = '<div class="reminder-panel-title">Ближайшие сроки</div>' + items.map(item => {
+    panel.innerHTML = titleRow + items.map(item => {
         const isPeopleEvent = item.type === 'birthday' || item.type === 'anniversary';
         const label = item.type === 'bug'
             ? { text: item.projectName, cls: item.bugPriority === 'critical' ? 'danger' : 'warning' }
