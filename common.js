@@ -737,28 +737,25 @@ async function initDeadlineReminders(user) {
 // в колокольчике появляется ЧТО-ТО НОВОЕ по сравнению с прошлым разом на этом
 // устройстве (иначе звук бы дублировался при каждом заходе на страницу).
 // Браузеры блокируют звук без предварительного взаимодействия пользователя —
-// поэтому "открываем" AudioContext по первому клику/нажатию клавиши.
+// AudioContext создаём сразу, но пока не было клика/нажатия клавиши, он
+// остаётся в состоянии "suspended" и тон физически не слышен. Поэтому если
+// новый тикет/событие прилетает ДО первого клика (например, сразу после
+// обновления страницы), звук откладываем флагом _pendingReminderSound и
+// проигрываем его, как только пользователь первый раз кликнет или нажмёт
+// клавишу где угодно на странице.
 let _reminderAudioCtx = null;
-function _unlockReminderAudio() {
-    if (_reminderAudioCtx) return;
+let _pendingReminderSound = false;
+
+function _ensureReminderAudioCtx() {
+    if (_reminderAudioCtx) return _reminderAudioCtx;
     try { _reminderAudioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { /* не поддерживается — просто без звука */ }
-}
-document.addEventListener('click', _unlockReminderAudio, { once: true });
-document.addEventListener('keydown', _unlockReminderAudio, { once: true });
-
-function isReminderSoundEnabled() {
-    try { return localStorage.getItem('reminderSoundEnabled') !== '0'; } catch (e) { return true; }
-}
-function setReminderSoundEnabled(enabled) {
-    try { localStorage.setItem('reminderSoundEnabled', enabled ? '1' : '0'); } catch (e) { /* игнор */ }
+    return _reminderAudioCtx;
 }
 
-function playReminderSound() {
-    if (!isReminderSoundEnabled()) return;
+function _playReminderToneNow() {
+    const ctx = _reminderAudioCtx;
+    if (!ctx) return;
     try {
-        if (!_reminderAudioCtx) _reminderAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if (_reminderAudioCtx.state === 'suspended') _reminderAudioCtx.resume();
-        const ctx = _reminderAudioCtx;
         const now = ctx.currentTime;
         [880, 1175].forEach((freq, i) => {
             const osc = ctx.createOscillator();
@@ -774,6 +771,52 @@ function playReminderSound() {
             osc.stop(start + 0.3);
         });
     } catch (e) { /* звук не критичен — просто пропускаем */ }
+}
+
+function _unlockReminderAudio() {
+    const ctx = _ensureReminderAudioCtx();
+    if (!ctx) return;
+    const finishUnlock = () => {
+        if (_pendingReminderSound && ctx.state === 'running') {
+            _pendingReminderSound = false;
+            _playReminderToneNow();
+        }
+    };
+    if (ctx.state === 'suspended') {
+        ctx.resume().then(finishUnlock).catch(() => {});
+    } else {
+        finishUnlock();
+    }
+}
+document.addEventListener('click', _unlockReminderAudio);
+document.addEventListener('keydown', _unlockReminderAudio);
+
+function isReminderSoundEnabled() {
+    try { return localStorage.getItem('reminderSoundEnabled') !== '0'; } catch (e) { return true; }
+}
+function setReminderSoundEnabled(enabled) {
+    try { localStorage.setItem('reminderSoundEnabled', enabled ? '1' : '0'); } catch (e) { /* игнор */ }
+}
+
+function playReminderSound() {
+    if (!isReminderSoundEnabled()) return;
+    const ctx = _ensureReminderAudioCtx();
+    if (!ctx) return;
+    if (ctx.state === 'running') {
+        _playReminderToneNow();
+        return;
+    }
+    // Контекст ещё заблокирован политикой автовоспроизведения браузера —
+    // звук разрешат только после жеста пользователя. Пробуем разбудить
+    // контекст прямо сейчас (иногда браузер уже "доверяет" странице), а
+    // если не выйдет — откладываем до первого клика/нажатия клавиши.
+    _pendingReminderSound = true;
+    ctx.resume().then(() => {
+        if (_pendingReminderSound && ctx.state === 'running') {
+            _pendingReminderSound = false;
+            _playReminderToneNow();
+        }
+    }).catch(() => {});
 }
 
 function reminderItemKey(item) {
