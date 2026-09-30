@@ -140,7 +140,11 @@
                 <div class="field">
                     <label class="field-label">Клиент *</label>
                     <select id="dealClientSelect" class="field-input" onchange="onDealClientChange()"></select>
-                    <input type="text" id="dealClientNew" placeholder="Название нового клиента" class="field-input" style="margin-top:8px; display:none;">
+                    <div id="dealClientNewBox" style="display:none; margin-top:8px;">
+                        <input type="text" id="dealClientNew" placeholder="Название нового клиента" class="field-input" style="margin-bottom:8px;">
+                        <input type="text" id="dealClientNewPhone" placeholder="Телефон (для проверки на дубль)" class="field-input" oninput="onDealClientNewPhoneInput()">
+                        <div id="dealClientDuplicateHint" style="font-size:12px; color: var(--warning); margin-top:6px; display:none;"></div>
+                    </div>
                 </div>
                 <div class="field">
                     <label class="field-label">Название сделки *</label>
@@ -155,17 +159,36 @@
                     <select id="dealTemplateSelect" class="field-input" onchange="onDealTemplateChange()"></select>
                 </div>
                 <div class="field">
-                    <label class="field-label">Когда связаться (напоминание менеджеру)</label>
-                    <input type="date" id="dealFollowup" class="field-input">
+                    <label class="field-label">Источник лида</label>
+                    <select id="dealSource" class="field-input"></select>
+                </div>
+                <div class="field-row">
+                    <div class="field-row-col">
+                        <label class="field-label">Когда связаться (напоминание менеджеру)</label>
+                        <input type="date" id="dealFollowup" class="field-input">
+                    </div>
+                    <div class="field-row-col">
+                        <label class="field-label">Следующий шаг</label>
+                        <input type="text" id="dealNextAction" class="field-input" placeholder="Например: выслать обновлённое КП">
+                    </div>
                 </div>
             </div>
 
             <div class="deal-section" id="dealStageSection" style="display:none;">
                 <div class="deal-section-title">Стадия</div>
                 <div class="stage-btn-row" id="dealStageRow"></div>
-                <div class="field" id="dealLostReasonField" style="display:none; margin-top:10px;">
-                    <label class="field-label">Причина отказа</label>
-                    <input type="text" id="dealLostReason" class="field-input" placeholder="Почему сделка сорвалась">
+                <div id="dealLostReasonField" style="display:none; margin-top:14px; padding-top:14px; border-top:1px solid var(--border);">
+                    <div class="field-row">
+                        <div class="field-row-col">
+                            <label class="field-label">Причина отказа</label>
+                            <select id="dealLostReasonCategory" class="field-input"></select>
+                        </div>
+                        <div class="field-row-col">
+                            <label class="field-label">Комментарий</label>
+                            <input type="text" id="dealLostReason" class="field-input" placeholder="Необязательно">
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-secondary" onclick="saveLostReason()" style="padding:6px 14px; font-size:12.5px;">Сохранить причину</button>
                 </div>
             </div>
 
@@ -387,7 +410,7 @@
             const followupOverdue = d.next_followup_date && daysUntilDate(d.next_followup_date) <= 0 && d.stage !== 'won' && d.stage !== 'lost';
             return `<div class="deal-card" onclick="openDealModal('${d.id}')">
                 <div class="deal-card-title">${escapeHtml(d.title)}</div>
-                <div class="deal-card-client">${escapeHtml(clientNameById(d.client_id))}</div>
+                <div class="deal-card-client">${escapeHtml(clientNameById(d.client_id))}${d.source ? ' · ' + DEAL_SOURCE_LABELS[d.source] : ''}</div>
                 <div class="deal-card-row">
                     ${d.price ? `<span class="deal-chip price">${Number(d.price).toLocaleString('ru-RU')} ₽</span>` : ''}
                     ${hasCommercial ? approvalChip : ''}
@@ -395,6 +418,7 @@
                     ${viewMode === 'all' ? `<span class="deal-chip manager">${escapeHtml(managerNameById(d.manager_id))}</span>` : ''}
                     ${followupOverdue ? '<span class="deal-chip followup">Пора связаться</span>' : ''}
                 </div>
+                ${d.next_action && d.stage !== 'won' && d.stage !== 'lost' ? `<div class="deal-card-client" style="margin-top:6px;">→ ${escapeHtml(d.next_action)}</div>` : ''}
             </div>`;
         }
 
@@ -409,7 +433,30 @@
         }
         function onDealClientChange() {
             const isNew = document.getElementById('dealClientSelect').value === '__new__';
-            document.getElementById('dealClientNew').style.display = isNew ? '' : 'none';
+            document.getElementById('dealClientNewBox').style.display = isNew ? '' : 'none';
+            document.getElementById('dealClientDuplicateHint').style.display = 'none';
+        }
+
+        // Проверка на дубль по телефону "на лету", пока менеджер печатает —
+        // не блокирует, просто подсказывает, если похожий клиент уже есть.
+        let dealClientDuplicateMatch = null;
+        let dealClientPhoneCheckTimer = null;
+        function onDealClientNewPhoneInput() {
+            clearTimeout(dealClientPhoneCheckTimer);
+            dealClientPhoneCheckTimer = setTimeout(async () => {
+                const phone = document.getElementById('dealClientNewPhone').value;
+                const hint = document.getElementById('dealClientDuplicateHint');
+                if (normalizePhoneDigits(phone).length < 10) { hint.style.display = 'none'; dealClientDuplicateMatch = null; return; }
+                const matches = await findClientsByPhone(phone);
+                if (matches.length > 0) {
+                    dealClientDuplicateMatch = matches[0];
+                    hint.textContent = `⚠ Уже есть клиент с таким телефоном: «${matches[0].name}». При сохранении можно будет использовать его вместо нового.`;
+                    hint.style.display = '';
+                } else {
+                    dealClientDuplicateMatch = null;
+                    hint.style.display = 'none';
+                }
+            }, 400);
         }
 
         function populateManagerSelect(selectedId) {
@@ -477,23 +524,40 @@
             }
         }
 
+function populateSourceSelect(selected) {
+            const sel = document.getElementById('dealSource');
+            sel.innerHTML = '<option value="">— не указан —</option>' + Object.keys(DEAL_SOURCE_LABELS).map(k => `<option value="${k}">${DEAL_SOURCE_LABELS[k]}</option>`).join('');
+            sel.value = selected || '';
+        }
+        function populateLostReasonSelect(selected) {
+            const sel = document.getElementById('dealLostReasonCategory');
+            sel.innerHTML = '<option value="">— выбрать причину —</option>' + Object.keys(DEAL_LOST_REASON_LABELS).map(k => `<option value="${k}">${DEAL_LOST_REASON_LABELS[k]}</option>`).join('');
+            sel.value = selected || '';
+        }
+
         function renderStageRow(deal) {
             const row = document.getElementById('dealStageRow');
             row.innerHTML = DEAL_STAGES.map(s => `<button type="button" class="stage-btn ${s.key === 'lost' ? 'lost-btn' : ''} ${deal.stage === s.key ? 'active' : ''}" onclick="changeDealStage('${s.key}')">${s.label}</button>`).join('');
             document.getElementById('dealLostReasonField').style.display = deal.stage === 'lost' ? '' : 'none';
+            populateLostReasonSelect(deal.lost_reason_category);
             document.getElementById('dealLostReason').value = deal.lost_reason || '';
         }
         async function changeDealStage(stageKey) {
             if (!editingDealId) return;
-            let lostReason = null;
-            if (stageKey === 'lost') {
-                lostReason = prompt('Причина отказа клиента (необязательно):', '') || null;
-            }
-            const { error } = await supabaseClient.from('deals').update({ stage: stageKey, lost_reason: lostReason }).eq('id', editingDealId);
+            const { error } = await supabaseClient.from('deals').update({ stage: stageKey }).eq('id', editingDealId);
             if (error) { console.error(error); showToast('Не удалось сменить стадию', 'error'); return; }
-            showToast('Стадия обновлена', 'success');
+            showToast(stageKey === 'lost' ? 'Стадия обновлена — укажите ниже причину отказа' : 'Стадия обновлена', 'success');
             await loadAll();
             openDealModal(editingDealId);
+        }
+        async function saveLostReason() {
+            if (!editingDealId) return;
+            const category = document.getElementById('dealLostReasonCategory').value || null;
+            const comment = document.getElementById('dealLostReason').value.trim() || null;
+            const { error } = await supabaseClient.from('deals').update({ lost_reason_category: category, lost_reason: comment }).eq('id', editingDealId);
+            if (error) { console.error(error); showToast('Не удалось сохранить причину', 'error'); return; }
+            showToast('Причина сохранена', 'success');
+            await loadAll();
         }
 
         function renderApprovalBox(deal) {
@@ -576,6 +640,12 @@
             document.getElementById('dealFormSubmitBtn').style.display = deal ? 'none' : '';
             document.getElementById('dealTitle').value = deal ? deal.title : '';
             document.getElementById('dealFollowup').value = deal ? (deal.next_followup_date || '') : '';
+            document.getElementById('dealNextAction').value = deal ? (deal.next_action || '') : '';
+            populateSourceSelect(deal ? deal.source : null);
+            document.getElementById('dealClientNew').value = '';
+            document.getElementById('dealClientNewPhone').value = '';
+            document.getElementById('dealClientDuplicateHint').style.display = 'none';
+            dealClientDuplicateMatch = null;
             document.getElementById('dealPrice').value = deal && deal.price != null ? deal.price : '';
             document.getElementById('dealDiscountPercent').value = deal ? deal.discount_percent : 0;
             document.getElementById('dealDiscountAmount').value = deal ? deal.discount_amount : 0;
@@ -630,8 +700,17 @@
             if (clientSelectValue === '__new__') {
                 const newName = document.getElementById('dealClientNew').value.trim();
                 if (!newName) { showToast('Укажите название нового клиента', 'error'); return; }
-                const client = await findOrCreateClientByName(newName, currentUser.id);
-                clientId = client ? client.id : null;
+                const newPhone = document.getElementById('dealClientNewPhone').value.trim();
+                if (dealClientDuplicateMatch && !confirm(`Использовать существующего клиента «${dealClientDuplicateMatch.name}» вместо создания нового с этим телефоном?\n\nОК — использовать существующего.\nОтмена — всё равно создать нового.`)) {
+                    // Явно отказались от подставленного клиента — создаём нового, как ввели.
+                    const client = await findOrCreateClientByName(newName, currentUser.id, newPhone);
+                    clientId = client ? client.id : null;
+                } else if (dealClientDuplicateMatch) {
+                    clientId = dealClientDuplicateMatch.id;
+                } else {
+                    const client = await findOrCreateClientByName(newName, currentUser.id, newPhone);
+                    clientId = client ? client.id : null;
+                }
             } else if (clientSelectValue) {
                 clientId = clientSelectValue;
             }
@@ -643,12 +722,14 @@
             const discountAmount = Number(document.getElementById('dealDiscountAmount').value) || 0;
             const discountReason = document.getElementById('dealDiscountReason').value.trim() || null;
             const nextFollowup = document.getElementById('dealFollowup').value || null;
+            const nextAction = document.getElementById('dealNextAction').value.trim() || null;
+            const source = document.getElementById('dealSource').value || null;
             const freeItems = currentFreeItems.filter(i => (i.title || '').trim()).map(i => ({ title: i.title.trim(), note: (i.note || '').trim() }));
 
             const payload = {
-                client_id: clientId, title, manager_id: managerId,
+                client_id: clientId, title, manager_id: managerId, source,
                 price, discount_percent: discountPercent, discount_amount: discountAmount, discount_reason: discountReason,
-                free_items: freeItems, next_followup_date: nextFollowup
+                free_items: freeItems, next_followup_date: nextFollowup, next_action: nextAction
             };
 
             if (editingDealId) {

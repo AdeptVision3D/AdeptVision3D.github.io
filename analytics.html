@@ -69,6 +69,14 @@
         .month-chart-label { font-size: 11px; color: var(--text-secondary); margin-top: 8px; white-space: nowrap; }
         .month-chart-foot { padding: 0 20px 16px; font-size: 12px; color: var(--text-secondary); border-top: 1px solid var(--border); padding-top: 12px; margin: 0 20px; text-align: center; }
 
+        .mgr-table { width: 100%; }
+        .mgr-row { display: grid; grid-template-columns: 1.4fr 0.8fr 0.8fr 1fr 1.1fr 1.1fr; gap: 8px; padding: 10px 20px; border-bottom: 1px solid var(--border); font-size: 12.5px; align-items: center; }
+        .mgr-row:last-child { border-bottom: none; }
+        .mgr-row.mgr-head { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; color: var(--text-secondary); }
+        .mgr-row span:not(:first-child) { text-align: right; font-family: var(--font-mono); }
+        .mgr-row.mgr-head span:not(:first-child) { font-family: inherit; }
+        @media (max-width: 900px) { .mgr-row { grid-template-columns: 1.2fr 0.7fr 0.7fr 0.9fr; font-size: 11.5px; } .mgr-row span:nth-child(5), .mgr-row span:nth-child(6) { display: none; } }
+
         .status-chip { font-size: 11px; padding: 3px 10px; border-radius: 999px; font-weight: 600; white-space: nowrap; }
         .status-chip.hold { background: rgba(243, 156, 18, 0.15); color: var(--warning); }
         .status-chip.pending { background: rgba(52, 152, 219, 0.15); color: #3498db; }
@@ -141,6 +149,22 @@
         <div class="panel" style="margin-bottom:24px;">
             <div class="panel-header">Проекты на согласовании у директора</div>
             <div class="panel-body" id="pendingApprovalPanel"></div>
+        </div>
+
+        <div class="panel" style="margin-bottom:24px;" id="dealManagersWrap">
+            <div class="panel-header">Сделки по менеджерам</div>
+            <div class="panel-body" id="dealManagersPanel"></div>
+        </div>
+
+        <div class="panels-grid" id="dealBreakdownWrap">
+            <div class="panel">
+                <div class="panel-header">Источники лидов</div>
+                <div class="panel-body" id="dealSourcesPanel"></div>
+            </div>
+            <div class="panel">
+                <div class="panel-header">Причины отказов</div>
+                <div class="panel-body" id="dealLostReasonsPanel"></div>
+            </div>
         </div>
 
         <div class="panel">
@@ -240,7 +264,13 @@
                 .select('id, name, created_at');
             if (clientsErr) console.error(clientsErr);
 
-            return { projects, frames, taskProgressByFrame, activity: activity || [], stages, profiles: profiles || [], allProfiles: allProfiles || [], clients: clients || [] };
+            // Сделки — для блоков "Сделки по менеджерам", "Источники лидов",
+            // "Причины отказов". Таблица новая и может быть ещё не создана
+            // (миграция применяется вручную) — тогда просто не показываем блоки.
+            const { data: deals, error: dealsErr } = await supabaseClient.from('deals').select('*');
+            if (dealsErr) console.error(dealsErr);
+
+            return { projects, frames, taskProgressByFrame, activity: activity || [], stages, profiles: profiles || [], allProfiles: allProfiles || [], clients: clients || [], deals: deals || [] };
         }
 
         function renderStats(projects, frames, taskProgressByFrame, clients) {
@@ -569,6 +599,77 @@
             }).join('');
         }
 
+        // Сделки по менеджерам: сколько завёл, сколько выиграно, конверсия
+        // (выиграно / (выиграно + проиграно) — сделки в работе не считаются,
+        // иначе конверсия занижена просто потому что часть ещё не закрыта),
+        // средний чек по выигранным и среднее время до закрытия в днях
+        // (won_at - created_at — именно поэтому в базе есть won_at, а не
+        // используется updated_at, которая едет при любой правке сделки).
+        function renderDealManagers(deals, allProfiles) {
+            const wrap = document.getElementById('dealManagersWrap');
+            const panel = document.getElementById('dealManagersPanel');
+            if (!deals || deals.length === 0) {
+                panel.innerHTML = '<div class="panel-empty">Сделок пока нет — раздел появится, как только менеджеры начнут их заводить</div>';
+                return;
+            }
+            const profileById = Object.fromEntries((allProfiles || []).map(p => [p.id, p]));
+            const byManager = {};
+            deals.forEach(d => {
+                if (!byManager[d.manager_id]) byManager[d.manager_id] = [];
+                byManager[d.manager_id].push(d);
+            });
+            const rows = Object.entries(byManager).map(([managerId, list]) => {
+                const won = list.filter(d => d.stage === 'won');
+                const lost = list.filter(d => d.stage === 'lost');
+                const closed = won.length + lost.length;
+                const conversion = closed > 0 ? Math.round((won.length / closed) * 100) : null;
+                const pricedWon = won.filter(d => d.price != null);
+                const avgPrice = pricedWon.length > 0 ? Math.round(pricedWon.reduce((s, d) => s + Number(d.price), 0) / pricedWon.length) : null;
+                const cycleDays = won.filter(d => d.won_at && d.created_at).map(d => (new Date(d.won_at) - new Date(d.created_at)) / 86400000);
+                const avgCycle = cycleDays.length > 0 ? Math.round(cycleDays.reduce((s, v) => s + v, 0) / cycleDays.length) : null;
+                return {
+                    name: (profileById[managerId] || {}).full_name || 'Неизвестно',
+                    total: list.length, won: won.length, conversion, avgPrice, avgCycle
+                };
+            }).sort((a, b) => b.total - a.total);
+
+            wrap.style.display = '';
+            panel.innerHTML = `<div class="mgr-table">
+                <div class="mgr-row mgr-head"><span>Менеджер</span><span>Сделок</span><span>Выиграно</span><span>Конверсия</span><span>Средний чек</span><span>Дней до закрытия</span></div>
+                ${rows.map(r => `<div class="mgr-row">
+                    <span>${escapeHtml(r.name)}</span>
+                    <span>${r.total}</span>
+                    <span>${r.won}</span>
+                    <span>${r.conversion !== null ? r.conversion + '%' : '—'}</span>
+                    <span>${r.avgPrice !== null ? r.avgPrice.toLocaleString('ru-RU') + ' ₽' : '—'}</span>
+                    <span>${r.avgCycle !== null ? r.avgCycle : '—'}</span>
+                </div>`).join('')}
+            </div>`;
+        }
+
+        function renderCategoryBreakdown(panelId, items, key, labels) {
+            const panel = document.getElementById(panelId);
+            const counts = {};
+            items.forEach(item => {
+                const v = item[key];
+                if (!v) return;
+                counts[v] = (counts[v] || 0) + 1;
+            });
+            const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+            if (entries.length === 0) {
+                panel.innerHTML = '<div class="panel-empty">Данных пока нет</div>';
+                return;
+            }
+            const maxCount = entries[0][1];
+            panel.innerHTML = entries.map(([key_, count]) => `
+                <div class="person-row">
+                    <span class="person-name">${escapeHtml(labels[key_] || key_)}</span>
+                    <div class="person-bar-track"><div class="person-bar-fill" style="width:${Math.round((count / maxCount) * 100)}%"></div></div>
+                    <span class="person-count">${count}</span>
+                </div>
+            `).join('');
+        }
+
         document.addEventListener('DOMContentLoaded', async function() {
             loadTheme();
             const ok = await requireAuth();
@@ -583,7 +684,7 @@
 
             const data = await loadAllData();
             if (!data) return;
-            const { projects, frames, taskProgressByFrame, activity, stages, profiles, allProfiles, clients } = data;
+            const { projects, frames, taskProgressByFrame, activity, stages, profiles, allProfiles, clients, deals } = data;
 
             renderStats(projects, frames, taskProgressByFrame, clients);
             renderDeadlines(projects);
@@ -594,6 +695,9 @@
             renderNewClients(clients);
             renderOnHoldProjects(projects);
             renderPendingApprovals(projects, allProfiles);
+            renderDealManagers(deals, allProfiles);
+            renderCategoryBreakdown('dealSourcesPanel', deals, 'source', DEAL_SOURCE_LABELS);
+            renderCategoryBreakdown('dealLostReasonsPanel', deals.filter(d => d.stage === 'lost'), 'lost_reason_category', DEAL_LOST_REASON_LABELS);
             renderRecentActivity(activity, frames, projects);
         });
     </script>

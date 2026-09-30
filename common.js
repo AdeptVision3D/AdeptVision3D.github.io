@@ -15,6 +15,18 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const roleLabels = { artist: 'Художник', lead: 'Тимлид', art_director: 'Арт-директор', ceo: 'Генеральный директор', manager: 'Менеджер' };
 
+// Источник лида и причина отказа — фиксированные списки (см. check-constraint
+// в БД), чтобы их можно было считать в аналитике, а не разбирать десятки
+// вариантов свободного текста.
+const DEAL_SOURCE_LABELS = {
+    website: 'Сайт', instagram: 'Instagram', referral: 'Рекомендация',
+    avito: 'Авито', cold_call: 'Холодный обзвон', repeat_client: 'Повторный клиент', other: 'Другое'
+};
+const DEAL_LOST_REASON_LABELS = {
+    price: 'Дорого', no_response: 'Пропал на связи', chose_competitor: 'Выбрал другую студию',
+    timing: 'Не подошли сроки', budget_cut: 'Урезали бюджет', not_relevant: 'Проект не состоялся', other: 'Другое'
+};
+
 // PWA: регистрируем service worker на всех страницах, чтобы сайт можно было
 // "установить" на телефон/десктоп (иконка на главном экране, отдельное окно).
 // Сам sw.js ничего не кеширует — см. комментарий в файле.
@@ -232,7 +244,7 @@ function calcVacationBalance(user, leavesOfUser) {
 // сохранении мы либо находим существующего клиента по имени (без учёта
 // регистра), либо заводим нового — так проект всегда привязан к
 // настоящей карточке клиента в CRM, а не просто к строке текста.
-async function findOrCreateClientByName(name, createdByUserId) {
+async function findOrCreateClientByName(name, createdByUserId, phone) {
     const trimmed = (name || '').trim();
     if (!trimmed) return null;
     const { data: existing, error: findErr } = await supabaseClient
@@ -244,11 +256,26 @@ async function findOrCreateClientByName(name, createdByUserId) {
     if (existing && existing.length > 0) return existing[0];
     const { data: created, error: createErr } = await supabaseClient
         .from('clients')
-        .insert({ name: trimmed, created_by: createdByUserId || null })
+        .insert({ name: trimmed, created_by: createdByUserId || null, phone: (phone || '').trim() || null })
         .select()
         .single();
     if (createErr) { console.error(createErr); return null; }
     return created;
+}
+
+// Защита от дублей клиентов по телефону — сравниваем только цифры (без
+// учёта +7/8, скобок, дефисов), чтобы "+7 999 123-45-67" и "89991234567"
+// считались одним и тем же номером. Тянем всю таблицу клиентов и сверяем
+// на клиенте — она у студии небольшая, отдельный SQL-фильтр не нужен.
+function normalizePhoneDigits(phone) {
+    return (phone || '').replace(/\D/g, '').slice(-10);
+}
+async function findClientsByPhone(phone) {
+    const digits = normalizePhoneDigits(phone);
+    if (!digits) return [];
+    const { data, error } = await supabaseClient.from('clients').select('id, name, phone');
+    if (error) { console.error(error); return []; }
+    return (data || []).filter(c => normalizePhoneDigits(c.phone) === digits);
 }
 
 // Смена PIN (пароля) — раньше была продублирована на index.html, вынесена сюда,
@@ -692,7 +719,7 @@ async function fetchMyDealFollowupsForBell(user) {
     if (!canAccessDeals(user)) return [];
     const { data, error } = await supabaseClient
         .from('deals')
-        .select('id, title, next_followup_date')
+        .select('id, title, next_followup_date, next_action')
         .eq('manager_id', user.id)
         .not('stage', 'in', '(won,lost)')
         .not('next_followup_date', 'is', null);
@@ -751,7 +778,7 @@ async function initDeadlineReminders(user) {
                 type: 'deal_followup',
                 id: d.id,
                 name: d.title,
-                projectName: 'связаться с клиентом',
+                projectName: d.next_action || 'связаться с клиентом',
                 daysLeft,
                 link: `deals.html?deal=${d.id}`
             });
