@@ -154,6 +154,15 @@ function canApproveCommercial(user) {
 function canManageDealTemplates(user) {
     return canManageProjectsRole(user);
 }
+// Заносить оплату по сделке может тот же круг, что ведёт сделки, а вот
+// исправлять/удалять уже внесённую запись — только руководство (это
+// финансовая запись, отдельно охраняется RLS в базе).
+function canAddDealPayment(user) {
+    return canAccessDeals(user);
+}
+function canEditDealPayment(user) {
+    return canManageProjectsRole(user);
+}
 
 // ====== Сообщения об ошибках (bug_reports) — общие справочники ======
 // Используются и на bugs.html (форма + список), и в колокольчике напоминаний

@@ -34,6 +34,11 @@
         .analytics-tab { padding: 10px 18px; font-size: 13.5px; font-weight: 600; border: none; background: none; color: var(--text-secondary); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; }
         .analytics-tab:hover { color: var(--text-primary); }
         .analytics-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+        @media print {
+            .app-sidebar, .app-sidebar-toggle, .no-print, header, .analytics-tabs { display: none !important; }
+            body.has-app-sidebar { margin-left: 0 !important; }
+            .panel { break-inside: avoid; }
+        }
 
         .panels-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 24px; margin-bottom: 24px; align-items: start; }
         @media (max-width: 900px) { .panels-grid { grid-template-columns: 1fr; } }
@@ -89,6 +94,9 @@
         .status-chip { font-size: 11px; padding: 3px 10px; border-radius: 999px; font-weight: 600; white-space: nowrap; }
         .status-chip.hold { background: rgba(243, 156, 18, 0.15); color: var(--warning); }
         .status-chip.pending { background: rgba(52, 152, 219, 0.15); color: #3498db; }
+        .status-chip.ok { background: rgba(39, 174, 96, 0.15); color: var(--success); }
+        .status-chip.soon { background: rgba(243, 156, 18, 0.15); color: var(--warning); }
+        .status-chip.urgent { background: rgba(231, 76, 60, 0.15); color: var(--danger); }
 
         .no-access { text-align: center; padding: 100px 20px; color: var(--text-secondary); }
         .no-access h3 { color: var(--text-primary); margin-bottom: 8px; }
@@ -117,10 +125,18 @@
 
         <div class="stats" id="statsRow"></div>
 
-        <div class="analytics-tabs" id="analyticsTabs">
-            <button type="button" class="analytics-tab active" data-tab="employees" onclick="switchAnalyticsTab('employees')">Сотрудники</button>
-            <button type="button" class="analytics-tab" data-tab="projects" onclick="switchAnalyticsTab('projects')">Проекты</button>
-            <button type="button" class="analytics-tab" data-tab="clients" onclick="switchAnalyticsTab('clients')">Клиенты и сделки</button>
+        <div class="analytics-tabs" id="analyticsTabs" style="justify-content:space-between; flex-wrap:wrap; gap:12px;">
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button type="button" class="analytics-tab active" data-tab="employees" onclick="switchAnalyticsTab('employees')">Сотрудники</button>
+                <button type="button" class="analytics-tab" data-tab="projects" onclick="switchAnalyticsTab('projects')">Проекты</button>
+                <button type="button" class="analytics-tab" data-tab="clients" onclick="switchAnalyticsTab('clients')">Клиенты и сделки</button>
+                <button type="button" class="analytics-tab" data-tab="finance" onclick="switchAnalyticsTab('finance')">Финансы</button>
+                <button type="button" class="analytics-tab" data-tab="quality" onclick="switchAnalyticsTab('quality')">Качество</button>
+            </div>
+            <div style="display:flex; gap:8px; align-self:center;" class="no-print">
+                <button type="button" class="btn btn-secondary" onclick="exportCurrentTabCSV()" style="padding:6px 12px; font-size:12.5px;">⬇ Экспорт CSV</button>
+                <button type="button" class="btn btn-secondary" onclick="window.print()" style="padding:6px 12px; font-size:12.5px;">🖨 Печать / PDF</button>
+            </div>
         </div>
 
         <!-- ===================== Сотрудники ===================== -->
@@ -192,6 +208,38 @@
                 </div>
             </div>
         </div>
+
+        <!-- ===================== Финансы ===================== -->
+        <div class="analytics-tab-panel" data-tab-panel="finance" style="display:none;">
+            <div class="panel" style="margin-bottom:24px;">
+                <div class="panel-header">Выручка / получено / дебиторка</div>
+                <div class="panel-body" id="financeSummaryPanel"></div>
+            </div>
+            <div class="panel" style="margin-bottom:24px;">
+                <div class="panel-header">Поступления по месяцам</div>
+                <div class="panel-body" id="financeByMonthPanel"></div>
+            </div>
+            <div class="panel">
+                <div class="panel-header">Дебиторка по сделкам (выиграно, оплачено не полностью)</div>
+                <div class="panel-body" id="financeReceivablesPanel"></div>
+            </div>
+        </div>
+
+        <!-- ===================== Качество ===================== -->
+        <div class="analytics-tab-panel" data-tab-panel="quality" style="display:none;">
+            <div class="panel" style="margin-bottom:24px;">
+                <div class="panel-header">Правки после сдачи проекта</div>
+                <div class="panel-body" id="qualityRevisionsPanel"></div>
+            </div>
+            <div class="panel" style="margin-bottom:24px;">
+                <div class="panel-header">Средняя оценка клиентов</div>
+                <div class="panel-body" id="qualityRatingSummaryPanel"></div>
+            </div>
+            <div class="panel">
+                <div class="panel-header">Оценки по проектам</div>
+                <div class="panel-body" id="qualityRatingListPanel"></div>
+            </div>
+        </div>
     </div>
     <div class="no-access" id="noAccess" style="display:none;">
         <h3>Доступ ограничен</h3>
@@ -241,7 +289,7 @@
             if (frameIds.length > 0) {
                 const { data: stageRows, error: stageErr } = await supabaseClient
                     .from('frame_stages')
-                    .select('frame_id, stage_type, frame_tasks(checked)')
+                    .select('frame_id, stage_type, is_post_delivery, frame_tasks(checked)')
                     .in('frame_id', frameIds);
                 if (stageErr) { console.error(stageErr); }
                 stages = stageRows || [];
@@ -291,11 +339,16 @@
             const { data: deals, error: dealsErr } = await supabaseClient.from('deals').select('*');
             if (dealsErr) console.error(dealsErr);
 
+            // Платежи по сделкам — для блока "Финансы" (выручка/получено/дебиторка).
+            // Таблица новая, как и deals — не считаем ошибкой, если её ещё нет.
+            const { data: payments, error: paymentsErr } = await supabaseClient.from('deal_payments').select('*');
+            if (paymentsErr) console.error(paymentsErr);
+
             // Отпуска/больничные — для панели "Сейчас в отпуске" на вкладке "Сотрудники".
             const { data: leaves, error: leavesErr } = await supabaseClient.from('employee_leaves').select('*');
             if (leavesErr) console.error(leavesErr);
 
-            return { projects, frames, taskProgressByFrame, activity: activity || [], stages, profiles: profiles || [], allProfiles: allProfiles || [], clients: clients || [], deals: deals || [], leaves: leaves || [] };
+            return { projects, frames, taskProgressByFrame, activity: activity || [], stages, profiles: profiles || [], allProfiles: allProfiles || [], clients: clients || [], deals: deals || [], payments: payments || [], leaves: leaves || [] };
         }
 
         function renderStats(projects, frames, taskProgressByFrame, clients) {
@@ -722,7 +775,235 @@
             }).join('');
         }
 
+        // ====== Финансы: выручка (по выигранным сделкам) / получено (платежи) / дебиторка ======
+        function renderFinanceSummary(deals, payments) {
+            const panel = document.getElementById('financeSummaryPanel');
+            const won = (deals || []).filter(d => d.stage === 'won');
+            if (won.length === 0) {
+                panel.innerHTML = '<div class="panel-empty">Пока нет выигранных сделок — здесь появится сводка по выручке</div>';
+                return;
+            }
+            const receivedByDeal = {};
+            (payments || []).forEach(p => { receivedByDeal[p.deal_id] = (receivedByDeal[p.deal_id] || 0) + Number(p.amount); });
+
+            const revenue = won.reduce((s, d) => s + (Number(d.price) || 0), 0);
+            const received = won.reduce((s, d) => s + (receivedByDeal[d.id] || 0), 0);
+            const receivable = Math.max(0, revenue - received);
+
+            const cards = [
+                { number: revenue.toLocaleString('ru-RU') + ' ₽', label: 'Выручка (по выигранным сделкам)' },
+                { number: received.toLocaleString('ru-RU') + ' ₽', label: 'Получено оплат' },
+                { number: receivable.toLocaleString('ru-RU') + ' ₽', label: 'Дебиторка (не оплачено)' }
+            ];
+            panel.innerHTML = `<div class="stats" style="margin:0;">${cards.map(c => `
+                <div class="stat-card"><div class="stat-number">${c.number}</div><div class="stat-label">${c.label}</div></div>
+            `).join('')}</div>`;
+        }
+
+        function renderFinanceByMonth(payments) {
+            const panel = document.getElementById('financeByMonthPanel');
+            const now = new Date();
+            const months = [];
+            for (let i = 5; i >= 0; i--) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                months.push({ key: `${d.getFullYear()}-${d.getMonth()}`, label: d.toLocaleString('ru-RU', { month: 'short' }), sum: 0 });
+            }
+            const monthByKey = Object.fromEntries(months.map(m => [m.key, m]));
+            (payments || []).forEach(p => {
+                const d = new Date(p.payment_date);
+                const key = `${d.getFullYear()}-${d.getMonth()}`;
+                if (monthByKey[key]) monthByKey[key].sum += Number(p.amount);
+            });
+            if (!payments || payments.length === 0) {
+                panel.innerHTML = '<div class="panel-empty">Оплат пока не зафиксировано — заносятся в карточке сделки</div>';
+                return;
+            }
+            const maxSum = Math.max(1, ...months.map(m => m.sum));
+            const total = months.reduce((s, m) => s + m.sum, 0);
+            const chart = `<div class="month-chart">${months.map(m => `
+                <div class="month-chart-col">
+                    <span class="month-chart-count">${m.sum ? Math.round(m.sum / 1000) + 'к' : ''}</span>
+                    <div class="month-chart-bar" style="height:${Math.round((m.sum / maxSum) * 100)}%"></div>
+                    <span class="month-chart-label">${m.label}</span>
+                </div>
+            `).join('')}</div>`;
+            panel.innerHTML = chart + `<div class="month-chart-foot">За 6 месяцев получено: ${total.toLocaleString('ru-RU')} ₽</div>`;
+        }
+
+        function renderFinanceReceivables(deals, payments, allProfiles) {
+            const panel = document.getElementById('financeReceivablesPanel');
+            const profileById = Object.fromEntries((allProfiles || []).map(p => [p.id, p]));
+            const receivedByDeal = {};
+            (payments || []).forEach(p => { receivedByDeal[p.deal_id] = (receivedByDeal[p.deal_id] || 0) + Number(p.amount); });
+
+            const rows = (deals || [])
+                .filter(d => d.stage === 'won' && d.price)
+                .map(d => ({ deal: d, received: receivedByDeal[d.id] || 0, remaining: Math.max(0, Number(d.price) - (receivedByDeal[d.id] || 0)) }))
+                .filter(r => r.remaining > 0)
+                .sort((a, b) => b.remaining - a.remaining);
+
+            if (rows.length === 0) {
+                panel.innerHTML = '<div class="panel-empty">Дебиторки нет — все выигранные сделки оплачены полностью</div>';
+                return;
+            }
+            panel.innerHTML = rows.map(r => `
+                <div class="row">
+                    <div>
+                        <div class="row-title">${escapeHtml(r.deal.title)}</div>
+                        <div class="row-sub">${escapeHtml((profileById[r.deal.manager_id] || {}).full_name || 'Неизвестно')} · получено ${r.received.toLocaleString('ru-RU')} из ${Number(r.deal.price).toLocaleString('ru-RU')} ₽</div>
+                    </div>
+                    <span class="status-chip pending">${r.remaining.toLocaleString('ru-RU')} ₽</span>
+                </div>
+            `).join('');
+        }
+
+        // ====== Качество: правки после сдачи + оценка клиента ======
+        function renderQualityRevisions(stages, frames, projects) {
+            const panel = document.getElementById('qualityRevisionsPanel');
+            const frameById = Object.fromEntries(frames.map(f => [f.id, f]));
+            const projectById = Object.fromEntries(projects.map(p => [p.id, p]));
+
+            const revisionStages = stages.filter(s => s.stage_type === 'paid_revision' || s.stage_type === 'free_revision');
+            const postDelivery = revisionStages.filter(s => s.is_post_delivery);
+
+            if (revisionStages.length === 0) {
+                panel.innerHTML = '<div class="panel-empty">Правок пока не было</div>';
+                return;
+            }
+            const percent = Math.round((postDelivery.length / revisionStages.length) * 100);
+            const summary = `<div class="row" style="background: var(--bg-secondary);">
+                <div class="row-title">После сдачи проекта — ${postDelivery.length} из ${revisionStages.length} правок (${percent}%)</div>
+                <div style="font-size:12px; color: var(--text-secondary);">Правки, начатые уже после того, как проект отмечен завершённым</div>
+            </div>`;
+
+            const byProject = {};
+            postDelivery.forEach(s => {
+                const frame = frameById[s.frame_id];
+                if (!frame) return;
+                byProject[frame.project_id] = (byProject[frame.project_id] || 0) + 1;
+            });
+            const entries = Object.entries(byProject).sort((a, b) => b[1] - a[1]);
+            if (entries.length === 0) {
+                panel.innerHTML = summary + '<div class="panel-empty">Правок после сдачи не было — хороший знак</div>';
+                return;
+            }
+            panel.innerHTML = summary + entries.map(([pid, count]) => `
+                <div class="row">
+                    <div class="row-title">${escapeHtml(projectById[pid] ? projectById[pid].name : 'Проект удалён')}</div>
+                    <span class="status-chip urgent">${count} правок после сдачи</span>
+                </div>
+            `).join('');
+        }
+
+        function renderQualityRating(projects) {
+            const summaryPanel = document.getElementById('qualityRatingSummaryPanel');
+            const listPanel = document.getElementById('qualityRatingListPanel');
+            const rated = projects.filter(p => p.client_rating);
+
+            if (rated.length === 0) {
+                summaryPanel.innerHTML = '<div class="panel-empty">Оценок пока нет — проставляются на завершённом проекте</div>';
+                listPanel.innerHTML = '<div class="panel-empty">—</div>';
+                return;
+            }
+            const avg = rated.reduce((s, p) => s + p.client_rating, 0) / rated.length;
+            summaryPanel.innerHTML = `<div class="stats" style="margin:0;">
+                <div class="stat-card"><div class="stat-number">${avg.toFixed(1)} ★</div><div class="stat-label">Средняя оценка (${rated.length} проектов)</div></div>
+            </div>`;
+            listPanel.innerHTML = rated
+                .sort((a, b) => (b.completed_at || '').localeCompare(a.completed_at || ''))
+                .map(p => `
+                <div class="row">
+                    <div>
+                        <div class="row-title">${escapeHtml(p.name)}</div>
+                        ${p.client_feedback ? `<div class="row-sub">${escapeHtml(p.client_feedback)}</div>` : ''}
+                    </div>
+                    <span class="status-chip ${p.client_rating >= 4 ? 'ok' : p.client_rating === 3 ? 'soon' : 'urgent'}">${'★'.repeat(p.client_rating)}${'☆'.repeat(5 - p.client_rating)}</span>
+                </div>
+            `).join('');
+        }
+
+        // ====== Экспорт активной вкладки в CSV (открывается в Excel) ======
+        function csvEscape(v) {
+            const s = String(v == null ? '' : v);
+            return /[",;\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+        }
+        function downloadCSV(filename, headers, rows) {
+            const lines = [headers, ...rows].map(r => r.map(csvEscape).join(';'));
+            const csv = '﻿' + lines.join('\r\n'); // BOM — чтобы Excel правильно показал кириллицу
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = filename;
+            document.body.appendChild(a); a.click(); a.remove();
+            URL.revokeObjectURL(url);
+        }
+        function exportCurrentTabCSV() {
+            if (!ANALYTICS_DATA) { showToast('Данные ещё загружаются', 'error'); return; }
+            const { projects, frames, deals, payments, stages, clients, leaves, profiles, allProfiles, activity } = ANALYTICS_DATA;
+            const profileById = Object.fromEntries(allProfiles.map(p => [p.id, p]));
+            const stamp = todayIso();
+
+            if (currentAnalyticsTab === 'employees') {
+                const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+                const activityCounts = {};
+                activity.forEach(e => { if (new Date(e.created_at).getTime() >= cutoff) activityCounts[e.actor_name] = (activityCounts[e.actor_name] || 0) + 1; });
+                const workloadCounts = {};
+                frames.forEach(f => { if (f.assigned_to && f.status !== 'done') workloadCounts[f.assigned_to] = (workloadCounts[f.assigned_to] || 0) + 1; });
+                const today = todayIso();
+                const onLeaveIds = new Set(leaves.filter(l => l.status !== 'pending' && l.status !== 'awaiting_ceo' && l.status !== 'rejected' && l.start_date <= today && l.end_date >= today).map(l => l.user_id));
+                const rows = profiles.map(p => [p.full_name, workloadCounts[p.id] || 0, activityCounts[p.full_name] || 0, onLeaveIds.has(p.id) ? 'да' : 'нет']);
+                downloadCSV(`sotrudniki_${stamp}.csv`, ['Сотрудник', 'Кадров в работе', 'Действий за 30 дней', 'В отпуске/на больничном сегодня'], rows);
+            } else if (currentAnalyticsTab === 'projects') {
+                const projectById = Object.fromEntries(projects.map(p => [p.id, p]));
+                const revByProject = {};
+                stages.forEach(s => {
+                    if (s.stage_type !== 'paid_revision' && s.stage_type !== 'free_revision') return;
+                    const frame = frames.find(f => f.id === s.frame_id);
+                    if (!frame) return;
+                    if (!revByProject[frame.project_id]) revByProject[frame.project_id] = { paid: 0, free: 0 };
+                    revByProject[frame.project_id][s.stage_type === 'paid_revision' ? 'paid' : 'free']++;
+                });
+                const rows = projects.map(p => {
+                    const rev = revByProject[p.id] || { paid: 0, free: 0 };
+                    return [p.name, p.completed ? 'завершён' : (p.on_hold ? 'в стопе' : 'в работе'), p.deadline ? formatDateRu(p.deadline) : '', rev.paid, rev.free];
+                });
+                downloadCSV(`proekty_${stamp}.csv`, ['Проект', 'Статус', 'Дедлайн', 'Платных правок', 'Бесплатных правок'], rows);
+            } else if (currentAnalyticsTab === 'clients') {
+                const clientById = Object.fromEntries(clients.map(c => [c.id, c]));
+                const rows = deals.map(d => [
+                    d.title, (clientById[d.client_id] || {}).name || '', (profileById[d.manager_id] || {}).full_name || '',
+                    d.stage, d.source ? (DEAL_SOURCE_LABELS[d.source] || d.source) : '', d.price || '',
+                    d.lost_reason_category ? (DEAL_LOST_REASON_LABELS[d.lost_reason_category] || d.lost_reason_category) : '',
+                    d.created_at ? formatDateRu(d.created_at) : ''
+                ]);
+                downloadCSV(`sdelki_${stamp}.csv`, ['Сделка', 'Клиент', 'Менеджер', 'Стадия', 'Источник', 'Цена', 'Причина отказа', 'Создана'], rows);
+            } else if (currentAnalyticsTab === 'finance') {
+                const receivedByDeal = {};
+                payments.forEach(p => { receivedByDeal[p.deal_id] = (receivedByDeal[p.deal_id] || 0) + Number(p.amount); });
+                const rows = deals.filter(d => d.stage === 'won').map(d => {
+                    const received = receivedByDeal[d.id] || 0;
+                    return [d.title, (profileById[d.manager_id] || {}).full_name || '', d.price || 0, received, Math.max(0, (Number(d.price) || 0) - received)];
+                });
+                downloadCSV(`finansy_${stamp}.csv`, ['Сделка', 'Менеджер', 'Стоимость', 'Получено', 'Остаток'], rows);
+            } else if (currentAnalyticsTab === 'quality') {
+                const revByProject = {};
+                stages.forEach(s => {
+                    if (!s.is_post_delivery || (s.stage_type !== 'paid_revision' && s.stage_type !== 'free_revision')) return;
+                    const frame = frames.find(f => f.id === s.frame_id);
+                    if (!frame) return;
+                    revByProject[frame.project_id] = (revByProject[frame.project_id] || 0) + 1;
+                });
+                const rows = projects.filter(p => p.completed).map(p => [
+                    p.name, p.completed_at ? formatDateRu(p.completed_at) : '', p.client_rating || '', p.client_feedback || '', revByProject[p.id] || 0
+                ]);
+                downloadCSV(`kachestvo_${stamp}.csv`, ['Проект', 'Дата сдачи', 'Оценка', 'Отзыв', 'Правок после сдачи'], rows);
+            }
+        }
+
+        let currentAnalyticsTab = 'employees';
+        let ANALYTICS_DATA = null;
         function switchAnalyticsTab(tab) {
+            currentAnalyticsTab = tab;
             document.querySelectorAll('.analytics-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tab));
             document.querySelectorAll('.analytics-tab-panel').forEach(panel => {
                 panel.style.display = panel.dataset.tabPanel === tab ? '' : 'none';
@@ -748,7 +1029,8 @@
 
             const data = await loadAllData();
             if (!data) return;
-            const { projects, frames, taskProgressByFrame, activity, stages, profiles, allProfiles, clients, deals, leaves } = data;
+            ANALYTICS_DATA = data;
+            const { projects, frames, taskProgressByFrame, activity, stages, profiles, allProfiles, clients, deals, payments, leaves } = data;
 
             renderStats(projects, frames, taskProgressByFrame, clients);
             renderDeadlines(projects);
@@ -764,6 +1046,11 @@
             renderCategoryBreakdown('dealSourcesPanel', deals, 'source', DEAL_SOURCE_LABELS);
             renderCategoryBreakdown('dealLostReasonsPanel', deals.filter(d => d.stage === 'lost'), 'lost_reason_category', DEAL_LOST_REASON_LABELS);
             renderRecentActivity(activity, frames, projects);
+            renderFinanceSummary(deals, payments);
+            renderFinanceByMonth(payments);
+            renderFinanceReceivables(deals, payments, allProfiles);
+            renderQualityRevisions(stages, frames, projects);
+            renderQualityRating(projects);
         });
     </script>
 </body>

@@ -257,6 +257,23 @@
             </div>
         </div>
     </div>
+    <div class="modal" id="ratingModal" style="display:none;">
+        <div class="employee-modal-box" style="max-width: 420px;">
+            <h3 style="font-size: 20px; font-weight: 700; margin-bottom: 16px;">Оценка клиента</h3>
+            <div class="field">
+                <label class="field-label">Оценка (1–5)</label>
+                <div id="ratingStarsRow" style="display:flex; gap:8px; font-size:26px; cursor:pointer;"></div>
+            </div>
+            <div class="field field-lg">
+                <label class="field-label">Комментарий клиента (необязательно)</label>
+                <textarea id="ratingFeedback" rows="3" placeholder="Что клиент сказал по итогу сдачи" class="field-input field-textarea"></textarea>
+            </div>
+            <div class="field-actions">
+                <button class="btn btn-secondary" onclick="closeRatingModal()">Отмена</button>
+                <button class="btn btn-primary" onclick="submitRating()">Сохранить</button>
+            </div>
+        </div>
+    </div>
     <div class="modal z2000" id="employeesModal" style="display:none;">
         <div class="employee-modal-box" style="max-width: 520px; max-height: 80vh;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px; gap:10px; flex-wrap:wrap;">
@@ -789,6 +806,42 @@
             renderProjects();
         }
 
+        let ratingProjectId = null;
+        let ratingValue = 0;
+        function openRatingModal(projectId) {
+            const p = (lastLoadedProjects || []).find(pr => pr.id === projectId);
+            ratingProjectId = projectId;
+            ratingValue = (p && p.client_rating) || 0;
+            document.getElementById('ratingFeedback').value = (p && p.client_feedback) || '';
+            renderRatingStars();
+            document.getElementById('ratingModal').style.display = 'flex';
+        }
+        function closeRatingModal() {
+            document.getElementById('ratingModal').style.display = 'none';
+            ratingProjectId = null;
+        }
+        function renderRatingStars() {
+            const row = document.getElementById('ratingStarsRow');
+            row.innerHTML = [1, 2, 3, 4, 5].map(n =>
+                `<span onclick="setRatingValue(${n})" style="color:${n <= ratingValue ? '#f5a623' : 'var(--border)'};">★</span>`
+            ).join('');
+        }
+        function setRatingValue(n) {
+            ratingValue = (ratingValue === n) ? 0 : n; // повторный клик по той же звезде — сброс
+            renderRatingStars();
+        }
+        async function submitRating() {
+            const feedback = document.getElementById('ratingFeedback').value.trim() || null;
+            const { error } = await supabaseClient
+                .from('projects')
+                .update({ client_rating: ratingValue || null, client_feedback: feedback })
+                .eq('id', ratingProjectId);
+            if (error) { console.error(error); showToast('Не удалось сохранить оценку', 'error'); return; }
+            showToast('Оценка сохранена', 'success');
+            closeRatingModal();
+            renderProjects();
+        }
+
         async function completeProject(id, currentlyCompleted) {
             const { error } = await supabaseClient
                 .from('projects')
@@ -1070,6 +1123,7 @@
                                     ${canManageProjects ? `<button class="btn btn-secondary" onclick="deleteProject('${p.id}')" style="color: var(--danger);">${ICON.trash}</button>` : ''}
                                     ${canCompleteProject ? `<button class="btn ${p.completed ? 'btn-secondary' : 'btn-danger'}" onclick="completeProject('${p.id}', ${p.completed})">${p.completed ? '↺ Вернуть' : '✓ Завершить'}</button>` : ''}
                                     ${canCompleteProject ? `<button class="btn btn-secondary" onclick="toggleProjectHold('${p.id}', ${p.on_hold})" title="${p.on_hold ? 'Снять стоп' : 'Поставить в стоп от заказчика'}">${p.on_hold ? '▶ Снять стоп' : '⏸ Стоп'}</button>` : ''}
+                                    ${canCompleteProject && p.completed ? `<button class="btn btn-secondary" onclick="openRatingModal('${p.id}')" title="Оценка клиента">${p.client_rating ? '★ ' + p.client_rating : '☆ Оценка'}</button>` : ''}
                                 </div>
                             </div>
                         </div>

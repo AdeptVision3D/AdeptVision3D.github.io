@@ -63,8 +63,11 @@
         .stage-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
         .stage-btn.lost-btn.active { background: var(--danger); border-color: var(--danger); }
 
-        .free-item-row, .checklist-item-row, .tpl-item-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+        .free-item-row, .checklist-item-row, .tpl-item-row, .payment-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
         .free-item-row .field-input, .tpl-item-row .field-input { margin-bottom: 0; }
+        .payment-row { justify-content: space-between; padding: 8px 10px; background: var(--surface-2, rgba(0,0,0,0.03)); border-radius: 8px; }
+        .payment-row-amount { font-weight: 700; }
+        .payment-row-meta { font-size: 12px; color: var(--text-secondary); }
         .row-remove-btn { border: none; background: none; color: var(--text-secondary); cursor: pointer; padding: 4px; flex-shrink: 0; }
         .row-remove-btn:hover { color: var(--danger); }
         .checklist-item-row label { display: flex; align-items: center; gap: 8px; font-size: 13.5px; flex: 1; cursor: pointer; }
@@ -222,6 +225,27 @@
                     Любая скидка или бесплатный пункт отправляет сделку на согласование арт-директору/CEO — это не блокируется на уровне интерфейса, изменения такого рода перепроверяет сама база.
                 </div>
                 <div id="dealApprovalBox" style="margin-top:12px; display:none;"></div>
+            </div>
+
+            <div class="deal-section" id="dealPaymentsSection" style="display:none;">
+                <div class="deal-section-title">Платежи</div>
+                <div id="dealPaymentsSummary" style="font-size:13px; color:var(--text-secondary); margin-bottom:10px;"></div>
+                <div id="dealPaymentsList"></div>
+                <div class="field-row" style="margin-top:10px;" id="dealPaymentAddRow">
+                    <div class="field-row-col">
+                        <label class="field-label">Сумма, ₽</label>
+                        <input type="number" id="dealPaymentAmount" class="field-input" min="0" step="500">
+                    </div>
+                    <div class="field-row-col">
+                        <label class="field-label">Дата</label>
+                        <input type="date" id="dealPaymentDate" class="field-input">
+                    </div>
+                    <div class="field-row-col">
+                        <label class="field-label">Комментарий</label>
+                        <input type="text" id="dealPaymentNote" class="field-input" placeholder="Например: предоплата 50%">
+                    </div>
+                </div>
+                <button type="button" class="btn btn-secondary" onclick="addDealPayment()" style="padding:6px 12px; font-size:12.5px; margin-top:8px;">+ Внести оплату</button>
             </div>
 
             <div class="deal-section" id="dealChecklistSection" style="display:none;">
@@ -602,6 +626,58 @@ function populateSourceSelect(selected) {
             openDealModal(editingDealId);
         }
 
+        let dealPaymentsCache = [];
+        async function renderPaymentsSection(deal) {
+            const section = document.getElementById('dealPaymentsSection');
+            if (!deal) { section.style.display = 'none'; return; }
+            section.style.display = '';
+            document.getElementById('dealPaymentAddRow').style.display = canAddDealPayment(currentUser) ? '' : 'none';
+            document.querySelector('#dealPaymentsSection button[onclick="addDealPayment()"]').style.display = canAddDealPayment(currentUser) ? '' : 'none';
+            document.getElementById('dealPaymentDate').value = todayIso();
+
+            const { data, error } = await supabaseClient.from('deal_payments').select('*').eq('deal_id', deal.id).order('payment_date', { ascending: false });
+            if (error) { console.error(error); document.getElementById('dealPaymentsList').innerHTML = '<div class="activity-empty">Не удалось загрузить платежи</div>'; return; }
+            dealPaymentsCache = data || [];
+
+            const received = dealPaymentsCache.reduce((sum, p) => sum + Number(p.amount), 0);
+            const price = Number(deal.price) || 0;
+            const remaining = Math.max(0, price - received);
+            document.getElementById('dealPaymentsSummary').innerHTML = price > 0
+                ? `Получено: <b>${received.toLocaleString('ru-RU')} ₽</b> из ${price.toLocaleString('ru-RU')} ₽ ${remaining > 0 ? `· Остаток: <b>${remaining.toLocaleString('ru-RU')} ₽</b>` : '· <span style="color: var(--success, #1a9e5c);">Оплачено полностью</span>'}`
+                : `Получено: <b>${received.toLocaleString('ru-RU')} ₽</b>`;
+
+            const canEdit = canEditDealPayment(currentUser);
+            document.getElementById('dealPaymentsList').innerHTML = dealPaymentsCache.length === 0
+                ? '<div class="activity-empty">Оплат пока нет</div>'
+                : dealPaymentsCache.map(p => `<div class="payment-row">
+                    <div>
+                        <span class="payment-row-amount">${Number(p.amount).toLocaleString('ru-RU')} ₽</span>
+                        <span class="payment-row-meta"> · ${new Date(p.payment_date).toLocaleDateString('ru-RU')}${p.note ? ' · ' + escapeHtml(p.note) : ''}</span>
+                    </div>
+                    ${canEdit ? `<button class="row-remove-btn" onclick="deleteDealPayment('${p.id}')">${ICON.trash}</button>` : ''}
+                </div>`).join('');
+        }
+        async function addDealPayment() {
+            const amount = Number(document.getElementById('dealPaymentAmount').value);
+            if (!amount || amount <= 0) { showToast('Укажите сумму оплаты', 'error'); return; }
+            const date = document.getElementById('dealPaymentDate').value || todayIso();
+            const note = document.getElementById('dealPaymentNote').value.trim() || null;
+            const { error } = await supabaseClient.from('deal_payments').insert({ deal_id: editingDealId, amount, payment_date: date, note, created_by: currentUser.id });
+            if (error) { console.error(error); showToast('Не удалось внести оплату', 'error'); return; }
+            document.getElementById('dealPaymentAmount').value = '';
+            document.getElementById('dealPaymentNote').value = '';
+            showToast('Оплата внесена', 'success');
+            const deal = dealsCache.find(d => d.id === editingDealId);
+            await renderPaymentsSection(deal);
+        }
+        async function deleteDealPayment(id) {
+            if (!confirm('Удалить запись об оплате?')) return;
+            const { error } = await supabaseClient.from('deal_payments').delete().eq('id', id);
+            if (error) { console.error(error); showToast('Не удалось удалить', 'error'); return; }
+            const deal = dealsCache.find(d => d.id === editingDealId);
+            await renderPaymentsSection(deal);
+        }
+
         async function renderActivityFeed() {
             const el = document.getElementById('dealActivityFeed');
             el.innerHTML = '<div class="activity-empty">Загрузка...</div>';
@@ -673,6 +749,7 @@ function populateSourceSelect(selected) {
 
             document.getElementById('dealActivitySection').style.display = deal ? '' : 'none';
             if (deal) renderActivityFeed();
+            renderPaymentsSection(deal);
 
             const canManage = canManageProjectsRole(currentUser);
             document.getElementById('dealDeleteBtn').style.display = (deal && canManage) ? '' : 'none';
