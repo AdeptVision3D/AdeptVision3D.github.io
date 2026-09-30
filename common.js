@@ -102,7 +102,10 @@ const ICON = {
     phone: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>',
     mail: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 8.97 6.28a2 2 0 0 0 2.06 0L22 7"/></svg>',
     bug: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="6" width="8" height="12" rx="4"/><path d="M12 6V3"/><path d="M8 9H3"/><path d="M8 14H3"/><path d="M16 9h5"/><path d="M16 14h5"/><path d="M9 3l1.5 2"/><path d="M15 3l-1.5 2"/><path d="M6 19l2-2"/><path d="M18 19l-2-2"/></svg>',
-    console: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3"/><path d="M13 15h4"/></svg>'
+    console: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3"/><path d="M13 15h4"/></svg>',
+    funnel: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h18l-7 9v6l-4 2v-8z"/></svg>',
+    percent: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>',
+    gift: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M12 8c-1.5-4-6-4-6-1s3 1 6 1Z"/><path d="M12 8c1.5-4 6-4 6-1s-3 1-6 1Z"/></svg>'
 };
 
 // Единая проверка ролей для пунктов сайдбара — та же логика, что раньше была
@@ -121,6 +124,23 @@ function canManageEmployeesRole(user) {
 // canManageProjectsRole целиком (это открыло бы им и другие разделы).
 function canAccessClients(user) {
     return !!(user && (hasAdminAccess(user) || ['lead', 'art_director', 'ceo', 'manager'].includes(user.role)));
+}
+// Сделки (CRM-пайплайн) доступны тому же кругу, что и карточки клиентов —
+// менеджеры их ведут, руководство видит и согласовывает.
+function canAccessDeals(user) {
+    return canAccessClients(user);
+}
+// Согласовывать скидки/бесплатные условия в сделке может только
+// арт-директор, CEO или админ — тимлид сюда намеренно не входит (он может
+// заводить и вести сделки как менеджер, но не одобрять чужие уступки
+// клиенту), это же ограничение зашито триггером в базе на случай прямого
+// запроса к API в обход интерфейса.
+function canApproveCommercial(user) {
+    return !!(user && (hasAdminAccess(user) || ['art_director', 'ceo'].includes(user.role)));
+}
+// Кто может заводить/редактировать шаблоны брифов для менеджеров.
+function canManageDealTemplates(user) {
+    return canManageProjectsRole(user);
 }
 
 // ====== Сообщения об ошибках (bug_reports) — общие справочники ======
@@ -652,15 +672,45 @@ async function fetchOpenBugReportsForBell(user) {
     return (data || []).sort((a, b) => BUG_PRIORITY_RANK[a.priority] - BUG_PRIORITY_RANK[b.priority]);
 }
 
+// Сделки со скидкой/бесплатным условием, которые ждут решения — только
+// тем, кто вправе их согласовывать (арт-директор/CEO/админ). Это и есть
+// тот самый "контроль" из просьбы: руководитель узнаёт о скидке/бесплатной
+// услуге сразу, а не когда работа уже сделана.
+async function fetchPendingCommercialApprovalsForBell(user) {
+    if (!canApproveCommercial(user)) return [];
+    const { data, error } = await supabaseClient
+        .from('deals')
+        .select('id, title')
+        .eq('commercial_approval_status', 'pending');
+    if (error) { console.error(error); return []; }
+    return data || [];
+}
+
+// Свои сделки менеджера с приближающейся датой "перезвонить/написать" —
+// личный рабочий список, а не общий дедлайн по проекту.
+async function fetchMyDealFollowupsForBell(user) {
+    if (!canAccessDeals(user)) return [];
+    const { data, error } = await supabaseClient
+        .from('deals')
+        .select('id, title, next_followup_date')
+        .eq('manager_id', user.id)
+        .not('stage', 'in', '(won,lost)')
+        .not('next_followup_date', 'is', null);
+    if (error) { console.error(error); return []; }
+    return (data || []).filter(d => daysUntilDate(d.next_followup_date) <= REMINDER_THRESHOLD_DAYS);
+}
+
 async function initDeadlineReminders(user) {
     if (!user) return;
     try {
-        const [{ data: myFrames, error: framesErr }, { data: memberships, error: memErr }, myEvents, openBugs, peopleEvents] = await Promise.all([
+        const [{ data: myFrames, error: framesErr }, { data: memberships, error: memErr }, myEvents, openBugs, peopleEvents, pendingDeals, myFollowups] = await Promise.all([
             supabaseClient.from('frames').select('id, name, project_id, due_date, status').eq('assigned_to', user.id).neq('status', 'done'),
             supabaseClient.from('project_members').select('project_id').eq('user_id', user.id),
             fetchUpcomingMyEvents(user),
             fetchOpenBugReportsForBell(user),
-            fetchUpcomingPeopleEvents()
+            fetchUpcomingPeopleEvents(),
+            fetchPendingCommercialApprovalsForBell(user),
+            fetchMyDealFollowupsForBell(user)
         ]);
         if (framesErr) console.error(framesErr);
         if (memErr) console.error(memErr);
@@ -681,6 +731,29 @@ async function initDeadlineReminders(user) {
                 bugPriority: b.priority,
                 daysLeft: -1000 + BUG_PRIORITY_RANK[b.priority] * 10 + i,
                 link: 'bugs.html'
+            });
+        });
+        // Согласование скидок — рядом с тикетами по срочности (это тоже
+        // "надо посмотреть сейчас", а не отсчёт дней до дедлайна).
+        pendingDeals.forEach((d, i) => {
+            items.push({
+                type: 'deal_approval',
+                id: d.id,
+                name: d.title,
+                projectName: 'ждёт согласования скидки',
+                daysLeft: -900 + i,
+                link: `deals.html?deal=${d.id}`
+            });
+        });
+        myFollowups.forEach(d => {
+            const daysLeft = daysUntilDate(d.next_followup_date);
+            items.push({
+                type: 'deal_followup',
+                id: d.id,
+                name: d.title,
+                projectName: 'связаться с клиентом',
+                daysLeft,
+                link: `deals.html?deal=${d.id}`
             });
         });
         myEvents.forEach(e => {
@@ -894,12 +967,15 @@ function renderReminderBell(items) {
         const isPeopleEvent = item.type === 'birthday' || item.type === 'anniversary';
         const label = item.type === 'bug'
             ? { text: item.projectName, cls: item.bugPriority === 'critical' ? 'danger' : 'warning' }
+            : item.type === 'deal_approval'
+            ? { text: 'Решение', cls: 'warning' }
             : isPeopleEvent
             ? { text: reminderLabel(item.daysLeft).text, cls: 'success' }
             : reminderLabel(item.daysLeft);
         const sub = item.type === 'frame' ? `${escapeHtml(item.projectName)} · кадр`
             : item.type === 'event' ? escapeHtml(item.projectName)
             : item.type === 'bug' ? 'тикет об ошибке'
+            : item.type === 'deal_approval' || item.type === 'deal_followup' ? escapeHtml(item.projectName)
             : isPeopleEvent ? escapeHtml(item.projectName)
             : 'проект целиком';
         const prefix = item.type === 'birthday' ? '🎂 ' : item.type === 'anniversary' ? '🎉 ' : '';
@@ -980,6 +1056,7 @@ const APP_NAV_ITEMS = [
     { key: 'vacations', label: 'Отпуска', href: 'vacations.html', icon: 'palm', match: ['vacations.html'] },
     { key: 'news', label: 'Новости', href: 'news.html', icon: 'megaphone', match: ['news.html'] },
     { key: 'clients', label: 'Клиенты', href: 'clients.html', icon: 'briefcase', match: ['clients.html'], gate: canAccessClients },
+    { key: 'deals', label: 'Сделки', href: 'deals.html', icon: 'funnel', match: ['deals.html'], gate: canAccessDeals },
     { key: 'calendar', label: 'Календарь', href: 'calendar.html', icon: 'calendar', match: ['calendar.html'] },
     { key: 'bugs', label: 'Сообщить об ошибке', href: 'bugs.html', icon: 'bug', match: ['bugs.html'] },
     { key: 'analytics', label: 'Аналитика', href: 'analytics.html', icon: 'chart', match: ['analytics.html'], gate: canManageProjectsRole },

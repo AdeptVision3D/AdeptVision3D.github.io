@@ -135,13 +135,21 @@
                 <button class="btn btn-secondary" onclick="doLogout()" style="padding:4px 10px; font-size:12px;">Выйти</button>`;
         }
 
+        let dealsByClientId = {};
+
         async function loadClients() {
-            const [{ data: clients, error: clientsErr }, { data: projects, error: projectsErr }] = await Promise.all([
+            const queries = [
                 supabaseClient.from('clients').select('*').order('name', { ascending: true }),
                 supabaseClient.from('projects').select('id, name, client_id, completed, on_hold').order('created_at', { ascending: false })
-            ]);
-            if (clientsErr || projectsErr) {
-                console.error(clientsErr || projectsErr);
+            ];
+            if (canAccessDeals(currentUser)) {
+                queries.push(supabaseClient.from('deals').select('id, title, client_id, stage, commercial_approval_status').order('created_at', { ascending: false }));
+            }
+            const results = await Promise.all(queries);
+            const [{ data: clients, error: clientsErr }, { data: projects, error: projectsErr }] = results;
+            const { data: deals, error: dealsErr } = results[2] || { data: [] };
+            if (clientsErr || projectsErr || dealsErr) {
+                console.error(clientsErr || projectsErr || dealsErr);
                 document.getElementById('clientsList').innerHTML = '<div class="panel-empty">Не удалось загрузить клиентов</div>';
                 return;
             }
@@ -151,6 +159,12 @@
                 if (!p.client_id) return;
                 if (!projectsByClientId[p.client_id]) projectsByClientId[p.client_id] = [];
                 projectsByClientId[p.client_id].push(p);
+            });
+            dealsByClientId = {};
+            (deals || []).forEach(d => {
+                if (!d.client_id) return;
+                if (!dealsByClientId[d.client_id]) dealsByClientId[d.client_id] = [];
+                dealsByClientId[d.client_id].push(d);
             });
             renderClients();
         }
@@ -180,6 +194,13 @@
                 const projectsHtml = projects.length > 0
                     ? projects.map(p => `<a class="client-project-chip ${p.completed ? 'done' : ''}" href="project.html?id=${p.id}">${p.on_hold ? '⏸ ' : ''}${escapeHtml(p.name)}${p.completed ? ' · сдан' : ''}</a>`).join('')
                     : '<span class="client-empty-projects">Проектов пока нет</span>';
+                const deals = dealsByClientId[c.id] || [];
+                const dealStageLabels = { lead: 'лид', negotiation: 'переговоры', proposal_sent: 'КП отправлено', won: 'выиграна', lost: 'проиграна' };
+                const dealsHtml = canAccessDeals(currentUser) ? `<div class="client-projects">${
+                    deals.length > 0
+                        ? deals.map(d => `<a class="client-project-chip ${d.stage === 'lost' ? 'done' : ''}" href="deals.html?deal=${d.id}">${d.commercial_approval_status === 'pending' ? '⏳ ' : ''}${escapeHtml(d.title)} · ${dealStageLabels[d.stage] || d.stage}</a>`).join('')
+                        : '<span class="client-empty-projects">Сделок пока нет</span>'
+                }</div>` : '';
                 return `<div class="client-card">
                     <div class="client-card-head">
                         <div>
@@ -193,6 +214,7 @@
                     </div>
                     ${c.notes ? `<div class="client-notes">${escapeHtml(c.notes)}</div>` : ''}
                     <div class="client-projects">${projectsHtml}</div>
+                    ${dealsHtml}
                 </div>`;
             }).join('');
         }
