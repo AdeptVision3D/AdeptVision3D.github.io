@@ -113,7 +113,7 @@
             </div>
         </div>
     </div>
-    <script src="common.js?v=20260930j"></script>
+    <script src="common.js?v=20260930k"></script>
     <script>
         let currentUser = null;
 
@@ -193,7 +193,7 @@
                 console.error(error); showToast(msg, 'error'); return;
             }
             const assignee = userId ? allProfilesCache.find(p => p.id === userId) : null;
-            logFrameActivity(frameId, 'assign', assignee ? `Назначен исполнитель: ${assignee.full_name}` : 'Исполнитель снят', currentUser ? currentUser.full_name : null);
+            logFrameActivity(frameId, 'assign', assignee ? `Назначен исполнитель: ${assignee.full_name}` : 'Исполнитель снят');
             showToast(userId ? 'Исполнитель назначен' : 'Исполнитель снят', 'success');
             renderFrames();
         }
@@ -218,7 +218,7 @@
             }
             const { error } = await supabaseClient.from('frames').update({ due_date: dueIso }).eq('id', frameId);
             if (error) { console.error(error); showToast('Не удалось изменить срок', 'error'); return; }
-            logFrameActivity(frameId, 'due_date_change', dueIso ? `Установлен срок сдачи кадра: ${formatDateRu(dueIso)}` : 'Срок сдачи кадра сброшен (используется срок проекта)', currentUser ? currentUser.full_name : null);
+            logFrameActivity(frameId, 'due_date_change', dueIso ? `Установлен срок сдачи кадра: ${formatDateRu(dueIso)}` : 'Срок сдачи кадра сброшен (используется срок проекта)');
             showToast('Срок обновлён', 'success');
             renderFrames();
         }
@@ -304,7 +304,7 @@
                 const msg = isNetworkError(error) ? 'Нет соединения — попробуйте ещё раз' : 'Не удалось обновить статус';
                 console.error(error); showToast(msg, 'error'); return;
             }
-            logFrameActivity(frameId, 'frame_status_change', `Статус кадра изменён: ${getFrameStatusLabel(status)}`, currentUser ? currentUser.full_name : null);
+            logFrameActivity(frameId, 'frame_status_change', `Статус кадра изменён: ${getFrameStatusLabel(status)}`);
             showToast(`Статус: ${getFrameStatusLabel(status)}`, 'success');
             renderFrames();
         }
@@ -322,7 +322,7 @@
                 showToast('Не удалось изменить приоритет', 'error');
                 return;
             }
-            logFrameActivity(frameId, 'priority_toggle', !currentlyPriority ? 'Кадр отмечен как горящий' : 'Пометка приоритета снята', currentUser ? currentUser.full_name : null);
+            logFrameActivity(frameId, 'priority_toggle', !currentlyPriority ? 'Кадр отмечен как горящий' : 'Пометка приоритета снята');
             showToast(!currentlyPriority ? 'Кадр отмечен как горящий' : 'Пометка приоритета снята', 'success');
             renderFrames();
         }

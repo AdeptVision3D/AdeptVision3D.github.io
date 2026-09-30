@@ -574,18 +574,23 @@ function getDeliveryStatus(frame, projectDeadline) {
 // Теперь действия с кадром можно совершать и со страницы проекта (назначение,
 // приоритет, статус, срок сдачи) — эти функции даём общими, чтобы такие действия
 // тоже попадали в журнал.
-async function logFrameActivity(frameId, actionType, description, actorName) {
+// Имя автора действия ставится триггером в базе (set_activity_log_actor,
+// см. миграцию 20260930l) из auth.uid() текущей сессии — не из того, что
+// передаёт клиент, поэтому параметра actorName здесь больше нет: раньше
+// его можно было передать любым текстом и подделать, от чьего имени
+// записано действие.
+async function logFrameActivity(frameId, actionType, description) {
     const { error } = await supabaseClient.from('frame_activity_log').insert({
-        frame_id: frameId, action_type: actionType, description: description, actor_name: actorName || null
+        frame_id: frameId, action_type: actionType, description: description
     });
     if (error) console.error('Ошибка записи в лог:', error);
 }
 
 // Записи уровня проекта (не привязаны к конкретному кадру) — стоп/снятие стопа,
 // завершение проекта, изменение команды и т.п.
-async function logProjectActivity(projectId, actionType, description, actorName) {
+async function logProjectActivity(projectId, actionType, description) {
     const { error } = await supabaseClient.from('frame_activity_log').insert({
-        project_id: projectId, action_type: actionType, description: description, actor_name: actorName || null
+        project_id: projectId, action_type: actionType, description: description
     });
     if (error) console.error('Ошибка записи в лог:', error);
 }
