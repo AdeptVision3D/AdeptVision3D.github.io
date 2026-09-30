@@ -9,7 +9,8 @@ const ADMIN_ROLES_FOR_ADMIN_GRANT = ['art_director', 'ceo']
 // ВАЖНО: 'manager' был добавлен как роль в БД/интерфейсе, но здесь список
 // не обновили — из-за этого создать/изменить сотрудника с ролью "Менеджер"
 // через эту форму было невозможно (валидация отклоняла роль). Чиним заодно.
-const VALID_ROLES = ['artist', 'lead', 'art_director', 'ceo', 'manager']
+// 'marketer' — узкая роль: доступ только к аналитике и новостям компании.
+const VALID_ROLES = ['artist', 'lead', 'art_director', 'ceo', 'manager', 'marketer']
 
 export default {
   fetch: withSupabase({ auth: 'user' }, async (req, ctx) => {

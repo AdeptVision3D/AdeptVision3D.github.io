@@ -13,7 +13,7 @@ const SUPABASE_KEY = 'sb_publishable_ouAuh1fPBDLo3bLxs4FnLA_dJwIN-Un';
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 // =====================================
 
-const roleLabels = { artist: 'Художник', lead: 'Тимлид', art_director: 'Арт-директор', ceo: 'Генеральный директор', manager: 'Менеджер' };
+const roleLabels = { artist: 'Художник', lead: 'Тимлид', art_director: 'Арт-директор', ceo: 'Генеральный директор', manager: 'Менеджер', marketer: 'Маркетолог' };
 
 // Источник лида и причина отказа — фиксированные списки (см. check-constraint
 // в БД), чтобы их можно было считать в аналитике, а не разбирать десятки
@@ -194,6 +194,24 @@ function canAddDealPayment(user) {
 }
 function canEditDealPayment(user) {
     return canManageProjectsRole(user);
+}
+// Маркетолог — узкая роль без доступа к проектам/клиентам/сотрудникам:
+// только аналитика (посмотреть, куда идёт трафик и что с деньгами) и
+// публикация новостей компании. Не расширяем canManageProjectsRole и т.п.,
+// чтобы не дать лишнего доступа туда, где он не нужен и не спрашивался.
+// Доступ к Аналитике — те же роли, что управляют проектами, плюс маркетолог
+// (единая функция, используется и в гейте пункта меню, и на самой странице,
+// чтобы не разъезжались два независимых списка ролей).
+function canViewAnalytics(user) {
+    return !!(user && (hasAdminAccess(user) || ['lead', 'art_director', 'ceo', 'marketer'].includes(user.role)));
+}
+// Публиковать/редактировать новости — те же роли, что и раньше (ceo/
+// art_director/admin, см. RLS в 20260929j_company_news.sql), плюс маркетолог.
+// Раньше кнопка в интерфейсе ориентировалась на canManageEmployeesRole
+// (lead и выше), а RLS этого не разрешал — тимлид видел кнопку "Добавить",
+// но получал ошибку при сохранении. Заодно чиним это несоответствие.
+function canManageNews(user) {
+    return !!(user && (hasAdminAccess(user) || ['ceo', 'art_director', 'marketer'].includes(user.role)));
 }
 
 // ====== Сообщения об ошибках (bug_reports) — общие справочники ======
@@ -1127,7 +1145,7 @@ const APP_NAV_ITEMS = [
     { key: 'deals', label: 'Сделки', href: 'deals.html', icon: 'funnel', match: ['deals.html'], gate: canAccessDeals },
     { key: 'calendar', label: 'Календарь', href: 'calendar.html', icon: 'calendar', match: ['calendar.html'] },
     { key: 'bugs', label: 'Сообщить об ошибке', href: 'bugs.html', icon: 'bug', match: ['bugs.html'] },
-    { key: 'analytics', label: 'Аналитика', href: 'analytics.html', icon: 'chart', match: ['analytics.html'], gate: canManageProjectsRole },
+    { key: 'analytics', label: 'Аналитика', href: 'analytics.html', icon: 'chart', match: ['analytics.html'], gate: canViewAnalytics },
     { key: 'employees', label: 'Сотрудники', href: 'index.html?open=employees', icon: 'team', match: [], gate: canManageEmployeesRole },
     { key: 'console', label: 'Консоль ошибок', href: 'error-console.html', icon: 'console', match: ['error-console.html'], gate: hasAdminAccess }
 ];

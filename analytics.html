@@ -269,9 +269,6 @@
                 <button class="btn btn-secondary" onclick="doLogout()" style="padding:4px 10px; font-size:12px;">Выйти</button>`;
         }
 
-        // Аналитика — просмотр для тех, кто управляет проектами (те же роли, что видят "+ Новый проект")
-        function canViewAnalytics() { return currentUser && (hasAdminAccess(currentUser) || ['lead', 'art_director', 'ceo'].includes(currentUser.role)); }
-
         // ====== Сбор данных со всего пайплайна ======
 
         // Загружает все проекты, все кадры и прогресс задач по каждому кадру одним проходом,
@@ -1017,7 +1014,7 @@
             if (!ok) return;
             initDeadlineReminders(currentUser);
 
-            if (!canViewAnalytics()) {
+            if (!canViewAnalytics(currentUser)) {
                 document.getElementById('noAccess').style.display = 'block';
                 return;
             }

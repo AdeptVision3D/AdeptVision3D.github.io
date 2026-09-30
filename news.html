@@ -98,7 +98,7 @@
             currentUser = { id: profile.id, full_name: profile.full_name, role: profile.role, is_admin: !!profile.is_admin };
             renderUserBox();
             initAppSidebar(currentUser);
-            document.getElementById('addNewsBtn').style.display = canManageEmployeesRole(currentUser) ? '' : 'none';
+            document.getElementById('addNewsBtn').style.display = canManageNews(currentUser) ? '' : 'none';
             return true;
         }
 
@@ -130,7 +130,7 @@
         }
 
         function renderNews() {
-            const canManage = canManageEmployeesRole(currentUser);
+            const canManage = canManageNews(currentUser);
             const listEl = document.getElementById('newsList');
             if (newsCache.length === 0) {
                 listEl.innerHTML = '<div class="panel-empty">Пока новостей нет' + (canManage ? ' — станьте первым, кто что-то объявит' : '') + '</div>';
