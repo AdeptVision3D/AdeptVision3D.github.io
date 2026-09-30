@@ -71,6 +71,38 @@ window.addEventListener('unhandledrejection', function(event) {
     const stack = reason && reason.stack ? reason.stack : null;
     logClientError(message, stack);
 });
+// window.onerror/unhandledrejection ловят только НЕОБработанные исключения —
+// то есть баги в самом JS-коде. А подавляющее большинство реальных ошибок в
+// проекте — это ошибки Supabase (RLS, check-constraint и т.п.), которые код
+// уже осознанно ловит паттерном "const { error } = await supabase...; if
+// (error) { console.error(error); showToast(...) }". Такая ошибка — не
+// исключение, а обычный объект, который выводят в консоль и на этом всё:
+// до error_logs она никогда не доходила (это и произошло с ошибкой
+// "profiles_role_check" — она была поймана и показана тостом, но не
+// записана). Перехватываем console.error, чтобы ловить и такие тоже.
+const _origConsoleError = console.error.bind(console);
+console.error = function(...args) {
+    _origConsoleError(...args);
+    try {
+        const first = args[0];
+        let message, stack;
+        if (first instanceof Error) {
+            message = first.message;
+            stack = first.stack;
+        } else if (first && typeof first === 'object') {
+            // Форма ошибок Supabase: { message, details, hint, code }
+            message = first.message || first.error_description || JSON.stringify(first).slice(0, 500);
+            const parts = [first.code ? 'code: ' + first.code : null, first.details ? 'details: ' + first.details : null, first.hint ? 'hint: ' + first.hint : null].filter(Boolean);
+            stack = parts.length > 0 ? parts.join('; ') : null;
+        } else {
+            message = args.map(a => String(a)).join(' ');
+            stack = null;
+        }
+        logClientError(message, stack);
+    } catch (e) {
+        // логирование ошибок намеренно не должно порождать собственные ошибки
+    }
+};
 // =========================================
 
 // Отдельный флаг "админ-доступа" в profiles.is_admin — даёт полный доступ ко всем
