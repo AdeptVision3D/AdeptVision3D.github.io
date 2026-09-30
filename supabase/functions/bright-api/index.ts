@@ -6,11 +6,17 @@ const ADMIN_ROLES = ['lead', 'art_director', 'ceo']
 // Более узкий круг — кто может выдавать/снимать сам флаг "Админ-доступ"
 // (см. проверку в action === 'update' ниже). Тимлид сюда не входит.
 const ADMIN_ROLES_FOR_ADMIN_GRANT = ['art_director', 'ceo']
-// ВАЖНО: 'manager' был добавлен как роль в БД/интерфейсе, но здесь список
-// не обновили — из-за этого создать/изменить сотрудника с ролью "Менеджер"
-// через эту форму было невозможно (валидация отклоняла роль). Чиним заодно.
-// 'marketer' — узкая роль: доступ только к аналитике и новостям компании.
-const VALID_ROLES = ['artist', 'lead', 'art_director', 'ceo', 'manager', 'marketer']
+
+// Раньше здесь был свой захардкоженный VALID_ROLES-массив, отдельный от
+// CHECK-ограничения в БД — рассинхрон между ними дважды ронял прод (роль
+// "manager", потом "marketer": добавляли в приложение, забывали обновить
+// список тут). Теперь допустимость роли проверяется прямо по таблице
+// public.roles (см. миграцию 20260930m_roles_table.sql) — единственному
+// месту, которое перечисляет, какие роли вообще существуют.
+async function isValidRole(ctx: any, role: string): Promise<boolean> {
+  const { data, error } = await ctx.supabaseAdmin.from('roles').select('id').eq('id', role).maybeSingle()
+  return !error && !!data
+}
 
 export default {
   fetch: withSupabase({ auth: 'user' }, async (req, ctx) => {
@@ -41,7 +47,7 @@ export default {
       if (pin.length < 6) {
         return Response.json({ error: 'PIN должен быть не короче 6 символов' }, { status: 400 })
       }
-      if (!VALID_ROLES.includes(role)) {
+      if (!(await isValidRole(ctx, role))) {
         return Response.json({ error: 'Неверная роль' }, { status: 400 })
       }
 
@@ -72,7 +78,7 @@ export default {
       if (id === ctx.userClaims.id && is_active === false) {
         return Response.json({ error: 'Нельзя деактивировать самого себя' }, { status: 400 })
       }
-      if (role !== undefined && !VALID_ROLES.includes(role)) {
+      if (role !== undefined && !(await isValidRole(ctx, role))) {
         return Response.json({ error: 'Неверная роль' }, { status: 400 })
       }
       if (vacation_days_per_year !== undefined && (!Number.isInteger(vacation_days_per_year) || vacation_days_per_year < 0)) {
