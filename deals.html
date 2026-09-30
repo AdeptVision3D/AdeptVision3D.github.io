@@ -160,7 +160,8 @@
                 </div>
                 <div class="field">
                     <label class="field-label">Источник лида</label>
-                    <select id="dealSource" class="field-input"></select>
+                    <select id="dealSource" class="field-input" onchange="onDealSourceChange()"></select>
+                    <input type="text" id="dealSourceNote" placeholder="Уточните источник (необязательно)" class="field-input" style="margin-top:8px; display:none;">
                 </div>
                 <div class="field-row">
                     <div class="field-row-col">
@@ -410,7 +411,7 @@
             const followupOverdue = d.next_followup_date && daysUntilDate(d.next_followup_date) <= 0 && d.stage !== 'won' && d.stage !== 'lost';
             return `<div class="deal-card" onclick="openDealModal('${d.id}')">
                 <div class="deal-card-title">${escapeHtml(d.title)}</div>
-                <div class="deal-card-client">${escapeHtml(clientNameById(d.client_id))}${d.source ? ' · ' + DEAL_SOURCE_LABELS[d.source] : ''}</div>
+                <div class="deal-card-client">${escapeHtml(clientNameById(d.client_id))}${d.source ? ' · ' + DEAL_SOURCE_LABELS[d.source] + (d.source === 'other' && d.source_note ? ' (' + escapeHtml(d.source_note) + ')' : '') : ''}</div>
                 <div class="deal-card-row">
                     ${d.price ? `<span class="deal-chip price">${Number(d.price).toLocaleString('ru-RU')} ₽</span>` : ''}
                     ${hasCommercial ? approvalChip : ''}
@@ -528,6 +529,10 @@ function populateSourceSelect(selected) {
             const sel = document.getElementById('dealSource');
             sel.innerHTML = '<option value="">— не указан —</option>' + Object.keys(DEAL_SOURCE_LABELS).map(k => `<option value="${k}">${DEAL_SOURCE_LABELS[k]}</option>`).join('');
             sel.value = selected || '';
+            onDealSourceChange();
+        }
+        function onDealSourceChange() {
+            document.getElementById('dealSourceNote').style.display = document.getElementById('dealSource').value === 'other' ? '' : 'none';
         }
         function populateLostReasonSelect(selected) {
             const sel = document.getElementById('dealLostReasonCategory');
@@ -642,6 +647,7 @@ function populateSourceSelect(selected) {
             document.getElementById('dealFollowup').value = deal ? (deal.next_followup_date || '') : '';
             document.getElementById('dealNextAction').value = deal ? (deal.next_action || '') : '';
             populateSourceSelect(deal ? deal.source : null);
+            document.getElementById('dealSourceNote').value = deal ? (deal.source_note || '') : '';
             document.getElementById('dealClientNew').value = '';
             document.getElementById('dealClientNewPhone').value = '';
             document.getElementById('dealClientDuplicateHint').style.display = 'none';
@@ -724,10 +730,11 @@ function populateSourceSelect(selected) {
             const nextFollowup = document.getElementById('dealFollowup').value || null;
             const nextAction = document.getElementById('dealNextAction').value.trim() || null;
             const source = document.getElementById('dealSource').value || null;
+            const sourceNote = source === 'other' ? (document.getElementById('dealSourceNote').value.trim() || null) : null;
             const freeItems = currentFreeItems.filter(i => (i.title || '').trim()).map(i => ({ title: i.title.trim(), note: (i.note || '').trim() }));
 
             const payload = {
-                client_id: clientId, title, manager_id: managerId, source,
+                client_id: clientId, title, manager_id: managerId, source, source_note: sourceNote,
                 price, discount_percent: discountPercent, discount_amount: discountAmount, discount_reason: discountReason,
                 free_items: freeItems, next_followup_date: nextFollowup, next_action: nextAction
             };
