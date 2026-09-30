@@ -105,7 +105,7 @@
     </div>
 
     <div class="toast-container" id="toastContainer"></div>
-    <script src="common.js?v=20260930g"></script>
+    <script src="common.js?v=20260930j"></script>
     <script>
         let currentUser = null;
         let editingClientId = null;
@@ -113,26 +113,14 @@
         let projectsByClientId = {};
 
         async function requireAuth() {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (!session) { window.location.href = 'login.html'; return false; }
-            const { data: profile, error } = await supabaseClient.from('profiles').select('*').eq('id', session.user.id).single();
-            if (error || !profile) { console.error(error); await supabaseClient.auth.signOut(); window.location.href = 'login.html'; return false; }
-            currentUser = { id: profile.id, full_name: profile.full_name, role: profile.role, is_admin: !!profile.is_admin };
-            renderUserBox();
-            initAppSidebar(currentUser);
+            const user = await initAuthedPage();
+            if (!user) return false;
             if (!canAccessClients(currentUser)) {
                 // Раздел клиентов — тем, кто ведёт проекты, и менеджерам (свои клиенты)
                 window.location.href = 'index.html';
                 return false;
             }
             return true;
-        }
-
-        function renderUserBox() {
-            const box = document.getElementById('userBox');
-            if (!box || !currentUser) return;
-            box.innerHTML = `<span>${currentUser.full_name} · ${roleLabels[currentUser.role] || currentUser.role}</span>
-                <button class="btn btn-secondary" onclick="doLogout()" style="padding:4px 10px; font-size:12px;">Выйти</button>`;
         }
 
         let dealsByClientId = {};

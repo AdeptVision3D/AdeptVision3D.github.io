@@ -65,7 +65,7 @@ export default {
 
     // ---------- Изменение сотрудника (новое) ----------
     if (action === 'update') {
-      const { id, full_name, role, is_admin, is_active, email, pin, team_group, hire_date, birthday } = body
+      const { id, full_name, role, is_admin, is_active, email, pin, team_group, hire_date, birthday, vacation_days_per_year } = body
       if (!id) return Response.json({ error: 'Не указан сотрудник' }, { status: 400 })
 
       // Защита от случайной самоблокировки
@@ -74,6 +74,9 @@ export default {
       }
       if (role !== undefined && !VALID_ROLES.includes(role)) {
         return Response.json({ error: 'Неверная роль' }, { status: 400 })
+      }
+      if (vacation_days_per_year !== undefined && (!Number.isInteger(vacation_days_per_year) || vacation_days_per_year < 0)) {
+        return Response.json({ error: 'Норма отпуска должна быть целым числом дней' }, { status: 400 })
       }
       // Флаг "Админ-доступ" — самый мощный рычаг (полный доступ независимо от
       // роли), поэтому его может выдавать/снимать только тот, у кого он уже
@@ -105,6 +108,7 @@ export default {
       if (team_group !== undefined) profileUpdate.team_group = team_group || null
       if (hire_date !== undefined) profileUpdate.hire_date = hire_date || null
       if (birthday !== undefined) profileUpdate.birthday = birthday || null
+      if (vacation_days_per_year !== undefined) profileUpdate.vacation_days_per_year = vacation_days_per_year
 
       if (Object.keys(profileUpdate).length > 0) {
         const { error: updError } = await ctx.supabaseAdmin.from('profiles').update(profileUpdate).eq('id', id)

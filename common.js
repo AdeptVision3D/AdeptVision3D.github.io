@@ -1144,6 +1144,47 @@ const MASCOT_SVG = `
     </g>
 </svg>`;
 
+// ====== Аутентификация страницы + шапка пользователя — общие для всех защищённых страниц ======
+// До этой правки код ниже был побайтово продублирован в 14 файлах (requireAuth
+// + renderUserBox), несмотря на то что весь смысл common.js — "правка в одном
+// месте". Теперь это единственная копия; каждая страница вызывает
+// initAuthedPage() внутри своего requireAuth() и следом делает свою
+// специфичную часть (редирект по роли, разовые тоглы кнопок, доп. поля
+// профиля) — см. requireAuth() в любой из html-страниц как пример.
+//
+// options.extraFields — доп. колонки profiles, которые нужно скопировать в
+// currentUser сверх базового набора (id/full_name/role/is_admin) — например
+// vacations.html нужен vacation_days_per_year.
+// options.showChangePin — показывать ли в шапке кнопку "Сменить PIN"
+// (сейчас так только на index.html — со страницы дашборда).
+// Возвращает currentUser при успехе, иначе null — в этом случае страница уже
+// была перенаправлена на login.html и больше ничего делать не должна.
+async function initAuthedPage(options) {
+    options = options || {};
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) { window.location.href = 'login.html'; return null; }
+    const { data: profile, error } = await supabaseClient.from('profiles').select('*').eq('id', session.user.id).single();
+    if (error || !profile) {
+        console.error(error);
+        await supabaseClient.auth.signOut();
+        window.location.href = 'login.html';
+        return null;
+    }
+    currentUser = { id: profile.id, full_name: profile.full_name, role: profile.role, is_admin: !!profile.is_admin };
+    (options.extraFields || []).forEach(field => { currentUser[field] = profile[field]; });
+    renderUserBox(!!options.showChangePin);
+    initAppSidebar(currentUser);
+    return currentUser;
+}
+
+function renderUserBox(showChangePin) {
+    const box = document.getElementById('userBox');
+    if (!box || !currentUser) return;
+    box.innerHTML = `<span>${currentUser.full_name} · ${roleLabels[currentUser.role] || currentUser.role}</span>
+        ${showChangePin ? `<button class="btn btn-secondary" onclick="changePin()" style="padding:4px 10px; font-size:12px;">Сменить PIN</button>` : ''}
+        <button class="btn btn-secondary" onclick="doLogout()" style="padding:4px 10px; font-size:12px;">Выйти</button>`;
+}
+
 // ====== Боковая навигация (сайдбар) — общая для index/project/frame/analytics/my ======
 // Раньше на каждой странице отдельно дублировались: переключатель темы,
 // ссылка "Моё", кнопки "Аналитика"/"Сотрудники" (с ручной проверкой роли) и

@@ -94,7 +94,7 @@
     </div>
 
     <div class="toast-container" id="toastContainer"></div>
-    <script src="common.js?v=20260930g"></script>
+    <script src="common.js?v=20260930j"></script>
     <script>
         let currentUser = null;
         let bugsCache = [];
@@ -112,22 +112,10 @@
         const PRIORITY_RANK = BUG_PRIORITY_RANK;
 
         async function requireAuth() {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (!session) { window.location.href = 'login.html'; return false; }
-            const { data: profile, error } = await supabaseClient.from('profiles').select('*').eq('id', session.user.id).single();
-            if (error || !profile) { console.error(error); await supabaseClient.auth.signOut(); window.location.href = 'login.html'; return false; }
-            currentUser = { id: profile.id, full_name: profile.full_name, role: profile.role, is_admin: !!profile.is_admin };
-            renderUserBox();
-            initAppSidebar(currentUser);
+            const user = await initAuthedPage();
+            if (!user) return false;
             document.getElementById('reportBugBtn').innerHTML = `${ICON.bug} + Сообщить об ошибке`;
             return true;
-        }
-
-        function renderUserBox() {
-            const box = document.getElementById('userBox');
-            if (!box || !currentUser) return;
-            box.innerHTML = `<span>${currentUser.full_name} · ${roleLabels[currentUser.role] || currentUser.role}</span>
-                <button class="btn btn-secondary" onclick="doLogout()" style="padding:4px 10px; font-size:12px;">Выйти</button>`;
         }
 
         async function loadBugs() {
@@ -150,7 +138,11 @@
 
         function bugCardHtml(b, canManage) {
             const date = new Date(b.created_at).toLocaleString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-            const canDelete = canManageEmployeesRole(currentUser) || b.reported_by === currentUser.id;
+            // Удалять может автор, либо art_director/ceo/admin — ровно как в RLS-политике
+            // bug_reports_delete (lead туда намеренно не входит: он может менять статус,
+            // но не удалять чужие сообщения). Раньше здесь стояла canManageEmployeesRole(),
+            // которая включает lead — кнопка показывалась, но удаление падало на RLS.
+            const canDelete = hasAdminAccess(currentUser) || ['art_director', 'ceo'].includes(currentUser.role) || b.reported_by === currentUser.id;
             let actions = '';
             if (canManage) {
                 if (b.status === 'new') actions += `<button class="btn btn-secondary" style="padding:6px 12px; font-size:12px;" onclick="setBugStatus('${b.id}', 'in_progress')">Взять в работу</button>`;

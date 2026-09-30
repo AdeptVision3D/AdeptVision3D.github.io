@@ -1,7 +1,7 @@
 {
   "name": "Decard Studio",
   "short_name": "Decard",
-  "description": "Трекер производства рендеров — проекты, кадры, этапы",
+  "description": "Внутренний портал студии — производство рендеров, CRM, сделки, отпуска, аналитика",
   "start_url": "index.html",
   "scope": ".",
   "display": "standalone",

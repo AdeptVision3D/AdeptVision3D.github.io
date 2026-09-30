@@ -187,7 +187,7 @@
     </div>
 
     <div class="toast-container" id="toastContainer"></div>
-    <script src="common.js?v=20260930g"></script>
+    <script src="common.js?v=20260930j"></script>
     <script>
         let currentUser = null;
         let viewYear, viewMonth; // viewMonth: 0-11
@@ -203,21 +203,7 @@
         const WEEKDAY_SHORT = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
 
         async function requireAuth() {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (!session) { window.location.href = 'login.html'; return false; }
-            const { data: profile, error } = await supabaseClient.from('profiles').select('*').eq('id', session.user.id).single();
-            if (error || !profile) { console.error(error); await supabaseClient.auth.signOut(); window.location.href = 'login.html'; return false; }
-            currentUser = { id: profile.id, full_name: profile.full_name, role: profile.role, is_admin: !!profile.is_admin, vacation_days_per_year: profile.vacation_days_per_year };
-            renderUserBox();
-            initAppSidebar(currentUser);
-            return true;
-        }
-
-        function renderUserBox() {
-            const box = document.getElementById('userBox');
-            if (!box || !currentUser) return;
-            box.innerHTML = `<span>${currentUser.full_name} · ${roleLabels[currentUser.role] || currentUser.role}</span>
-                <button class="btn btn-secondary" onclick="doLogout()" style="padding:4px 10px; font-size:12px;">Выйти</button>`;
+            return !!(await initAuthedPage({ extraFields: ['vacation_days_per_year'] }));
         }
 
         function fmtDate(iso) {
@@ -603,8 +589,23 @@
         async function submitLeaveNorm() {
             const value = parseInt(document.getElementById('leaveNormValue').value, 10);
             if (isNaN(value) || value < 0) { showToast('Некорректное число дней', 'error'); return; }
-            const { error } = await supabaseClient.from('profiles').update({ vacation_days_per_year: value }).eq('id', leaveNormUserId);
-            if (error) { console.error(error); showToast('Не удалось сохранить норму', 'error'); return; }
+            // profiles не имеет клиентской RLS-политики на UPDATE (только SELECT) —
+            // правка идёт через bright-api Edge Function с service-role, как и все
+            // остальные поля профиля (роль, is_admin, дата рождения и т.д.).
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            try {
+                const response = await fetch(`${SUPABASE_URL}/functions/v1/bright-api`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}`, 'apikey': SUPABASE_KEY },
+                    body: JSON.stringify({ action: 'update', id: leaveNormUserId, vacation_days_per_year: value })
+                });
+                const result = await response.json();
+                if (!response.ok) { showToast(result.error || 'Не удалось сохранить норму', 'error'); return; }
+            } catch (e) {
+                console.error(e);
+                showToast('Ошибка соединения с сервером', 'error');
+                return;
+            }
             showToast('Норма обновлена', 'success');
             closeLeaveNormModal();
             await loadAdminView();
