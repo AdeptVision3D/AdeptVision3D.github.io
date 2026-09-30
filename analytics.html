@@ -30,6 +30,11 @@
         .stat-number { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; color: var(--accent); }
         .stat-label { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
 
+        .analytics-tabs { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 2px solid var(--border); }
+        .analytics-tab { padding: 10px 18px; font-size: 13.5px; font-weight: 600; border: none; background: none; color: var(--text-secondary); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+        .analytics-tab:hover { color: var(--text-primary); }
+        .analytics-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
         .panels-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 24px; margin-bottom: 24px; align-items: start; }
         @media (max-width: 900px) { .panels-grid { grid-template-columns: 1fr; } }
 
@@ -77,6 +82,10 @@
         .mgr-row.mgr-head span:not(:first-child) { font-family: inherit; }
         @media (max-width: 900px) { .mgr-row { grid-template-columns: 1.2fr 0.7fr 0.7fr 0.9fr; font-size: 11.5px; } .mgr-row span:nth-child(5), .mgr-row span:nth-child(6) { display: none; } }
 
+        .vac-type-badge { font-family: var(--font-mono); font-size: 11px; padding: 4px 12px 4px 9px; border-radius: 999px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+        .vac-type-badge.vacation { background: rgba(39, 174, 96, 0.15); color: var(--success); }
+        .vac-type-badge.sick { background: rgba(231, 76, 60, 0.15); color: var(--danger); }
+
         .status-chip { font-size: 11px; padding: 3px 10px; border-radius: 999px; font-weight: 600; white-space: nowrap; }
         .status-chip.hold { background: rgba(243, 156, 18, 0.15); color: var(--warning); }
         .status-chip.pending { background: rgba(52, 152, 219, 0.15); color: #3498db; }
@@ -108,68 +117,80 @@
 
         <div class="stats" id="statsRow"></div>
 
-        <div class="panels-grid">
-            <div class="panel">
-                <div class="panel-header">Дедлайны по всем проектам</div>
-                <div class="panel-body" id="deadlinesPanel"></div>
+        <div class="analytics-tabs" id="analyticsTabs">
+            <button type="button" class="analytics-tab active" data-tab="employees" onclick="switchAnalyticsTab('employees')">Сотрудники</button>
+            <button type="button" class="analytics-tab" data-tab="projects" onclick="switchAnalyticsTab('projects')">Проекты</button>
+            <button type="button" class="analytics-tab" data-tab="clients" onclick="switchAnalyticsTab('clients')">Клиенты и сделки</button>
+        </div>
+
+        <!-- ===================== Сотрудники ===================== -->
+        <div class="analytics-tab-panel" data-tab-panel="employees">
+            <div class="panel" style="margin-bottom:24px;" id="onLeaveTodayWrap">
+                <div class="panel-header">Сейчас в отпуске / на больничном</div>
+                <div class="panel-body" id="onLeaveTodayPanel"></div>
+            </div>
+            <div class="panels-grid">
+                <div class="panel">
+                    <div class="panel-header">Активность за 30 дней (по сотрудникам)</div>
+                    <div class="panel-body" id="activityByPersonPanel"></div>
+                </div>
+                <div class="panel">
+                    <div class="panel-header">Текущая загрузка по людям</div>
+                    <div class="panel-body" id="workloadPanel"></div>
+                </div>
             </div>
             <div class="panel">
-                <div class="panel-header">Активность за 30 дней (по сотрудникам)</div>
-                <div class="panel-body" id="activityByPersonPanel"></div>
+                <div class="panel-header">Последние действия по всем кадрам</div>
+                <div class="panel-body activity-log" id="recentActivityPanel"></div>
             </div>
         </div>
 
-        <div class="panels-grid">
+        <!-- ===================== Проекты ===================== -->
+        <div class="analytics-tab-panel" data-tab-panel="projects" style="display:none;">
+            <div class="panels-grid">
+                <div class="panel">
+                    <div class="panel-header">Дедлайны по всем проектам</div>
+                    <div class="panel-body" id="deadlinesPanel"></div>
+                </div>
+                <div class="panel">
+                    <div class="panel-header">Проекты в стопе</div>
+                    <div class="panel-body" id="onHoldPanel"></div>
+                </div>
+            </div>
+            <div class="panel" style="margin-bottom:24px;">
+                <div class="panel-header">Проекты на согласовании у директора</div>
+                <div class="panel-body" id="pendingApprovalPanel"></div>
+            </div>
+            <div class="panel" style="margin-bottom:24px;">
+                <div class="panel-header">Сдача в срок</div>
+                <div class="panel-body" id="onTimePanel"></div>
+            </div>
             <div class="panel">
                 <div class="panel-header">Платные / бесплатные правки по проектам</div>
                 <div class="panel-body" id="revisionsPanel"></div>
             </div>
-            <div class="panel">
-                <div class="panel-header">Текущая загрузка по людям</div>
-                <div class="panel-body" id="workloadPanel"></div>
-            </div>
         </div>
 
-        <div class="panel" style="margin-bottom:24px;">
-            <div class="panel-header">Сдача в срок</div>
-            <div class="panel-body" id="onTimePanel"></div>
-        </div>
-
-        <div class="panels-grid">
-            <div class="panel">
+        <!-- ===================== Клиенты и сделки ===================== -->
+        <div class="analytics-tab-panel" data-tab-panel="clients" style="display:none;">
+            <div class="panel" style="margin-bottom:24px;">
                 <div class="panel-header">Новые клиенты (по месяцам)</div>
                 <div class="panel-body" id="newClientsPanel"></div>
             </div>
-            <div class="panel">
-                <div class="panel-header">Проекты в стопе</div>
-                <div class="panel-body" id="onHoldPanel"></div>
+            <div class="panel" style="margin-bottom:24px;" id="dealManagersWrap">
+                <div class="panel-header">Сделки по менеджерам</div>
+                <div class="panel-body" id="dealManagersPanel"></div>
             </div>
-        </div>
-
-        <div class="panel" style="margin-bottom:24px;">
-            <div class="panel-header">Проекты на согласовании у директора</div>
-            <div class="panel-body" id="pendingApprovalPanel"></div>
-        </div>
-
-        <div class="panel" style="margin-bottom:24px;" id="dealManagersWrap">
-            <div class="panel-header">Сделки по менеджерам</div>
-            <div class="panel-body" id="dealManagersPanel"></div>
-        </div>
-
-        <div class="panels-grid" id="dealBreakdownWrap">
-            <div class="panel">
-                <div class="panel-header">Источники лидов</div>
-                <div class="panel-body" id="dealSourcesPanel"></div>
+            <div class="panels-grid" id="dealBreakdownWrap">
+                <div class="panel">
+                    <div class="panel-header">Источники лидов</div>
+                    <div class="panel-body" id="dealSourcesPanel"></div>
+                </div>
+                <div class="panel">
+                    <div class="panel-header">Причины отказов</div>
+                    <div class="panel-body" id="dealLostReasonsPanel"></div>
+                </div>
             </div>
-            <div class="panel">
-                <div class="panel-header">Причины отказов</div>
-                <div class="panel-body" id="dealLostReasonsPanel"></div>
-            </div>
-        </div>
-
-        <div class="panel">
-            <div class="panel-header">Последние действия по всем кадрам</div>
-            <div class="panel-body activity-log" id="recentActivityPanel"></div>
         </div>
     </div>
     <div class="no-access" id="noAccess" style="display:none;">
@@ -270,7 +291,11 @@
             const { data: deals, error: dealsErr } = await supabaseClient.from('deals').select('*');
             if (dealsErr) console.error(dealsErr);
 
-            return { projects, frames, taskProgressByFrame, activity: activity || [], stages, profiles: profiles || [], allProfiles: allProfiles || [], clients: clients || [], deals: deals || [] };
+            // Отпуска/больничные — для панели "Сейчас в отпуске" на вкладке "Сотрудники".
+            const { data: leaves, error: leavesErr } = await supabaseClient.from('employee_leaves').select('*');
+            if (leavesErr) console.error(leavesErr);
+
+            return { projects, frames, taskProgressByFrame, activity: activity || [], stages, profiles: profiles || [], allProfiles: allProfiles || [], clients: clients || [], deals: deals || [], leaves: leaves || [] };
         }
 
         function renderStats(projects, frames, taskProgressByFrame, clients) {
@@ -670,6 +695,41 @@
             `).join('');
         }
 
+        // Кто сегодня в отпуске/на больничном — только реально согласованные
+        // (pending/awaiting_ceo — ещё не решённые заявки, rejected — отклонённые,
+        // их не показываем).
+        function renderOnLeaveToday(leaves, allProfiles) {
+            const panel = document.getElementById('onLeaveTodayPanel');
+            const profileById = Object.fromEntries((allProfiles || []).map(p => [p.id, p]));
+            const today = todayIso();
+            const activeLeaves = (leaves || []).filter(l =>
+                l.status !== 'pending' && l.status !== 'awaiting_ceo' && l.status !== 'rejected'
+                && l.start_date <= today && l.end_date >= today
+            );
+            if (activeLeaves.length === 0) {
+                panel.innerHTML = '<div class="panel-empty">Сегодня все на месте</div>';
+                return;
+            }
+            panel.innerHTML = activeLeaves.map(l => {
+                const emp = profileById[l.user_id];
+                return `<div class="row">
+                    <div>
+                        <div class="row-title">${escapeHtml(emp ? emp.full_name : 'Сотрудник')}</div>
+                        <div class="row-sub">${formatDateRu(l.start_date)} – ${formatDateRu(l.end_date)}</div>
+                    </div>
+                    <span class="vac-type-badge ${l.type}">${l.type === 'vacation' ? ICON.palm : ICON.pill} ${LEAVE_TYPE_LABELS[l.type] || l.type}</span>
+                </div>`;
+            }).join('');
+        }
+
+        function switchAnalyticsTab(tab) {
+            document.querySelectorAll('.analytics-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tab));
+            document.querySelectorAll('.analytics-tab-panel').forEach(panel => {
+                panel.style.display = panel.dataset.tabPanel === tab ? '' : 'none';
+            });
+            try { localStorage.setItem('analyticsActiveTab', tab); } catch (e) { /* игнор */ }
+        }
+
         document.addEventListener('DOMContentLoaded', async function() {
             loadTheme();
             const ok = await requireAuth();
@@ -682,15 +742,20 @@
             }
             document.getElementById('pageContainer').style.display = 'block';
 
+            let savedTab = 'employees';
+            try { savedTab = localStorage.getItem('analyticsActiveTab') || 'employees'; } catch (e) { /* игнор */ }
+            switchAnalyticsTab(savedTab);
+
             const data = await loadAllData();
             if (!data) return;
-            const { projects, frames, taskProgressByFrame, activity, stages, profiles, allProfiles, clients, deals } = data;
+            const { projects, frames, taskProgressByFrame, activity, stages, profiles, allProfiles, clients, deals, leaves } = data;
 
             renderStats(projects, frames, taskProgressByFrame, clients);
             renderDeadlines(projects);
             renderActivityByPerson(activity);
             renderRevisions(stages, frames, projects);
             renderWorkload(frames, profiles);
+            renderOnLeaveToday(leaves, allProfiles);
             renderOnTimeDelivery(frames, projects);
             renderNewClients(clients);
             renderOnHoldProjects(projects);
