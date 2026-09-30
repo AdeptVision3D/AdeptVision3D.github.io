@@ -44,7 +44,7 @@
         @media (max-width: 900px) { .panels-grid { grid-template-columns: 1fr; } }
 
         .panel { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 6px; box-shadow: var(--card-shadow); overflow: hidden; }
-        .panel-header { padding: 16px 20px; border-bottom: 1px solid var(--border); font-size: 15px; font-weight: 700; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; }
+        .panel-header { padding: 16px 20px; border-bottom: 1px solid var(--border); font-size: 15px; font-weight: 700; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; justify-content: space-between; }
         .panel-body { padding: 8px 0; }
         .panel-empty { padding: 24px 20px; color: var(--text-secondary); font-size: 13px; text-align: center; }
 
@@ -52,6 +52,8 @@
         .row:last-child { border-bottom: none; }
         .row-title { font-weight: 600; }
         .row-sub { color: var(--text-secondary); font-size: 12px; margin-top: 2px; }
+        .row-remove-btn { border: none; background: none; color: var(--text-secondary); cursor: pointer; padding: 4px; flex-shrink: 0; }
+        .row-remove-btn:hover { color: var(--danger); }
 
         .deadline-badge { font-family: var(--font-mono); font-size: 11px; padding: 4px 12px 4px 9px; border-radius: 999px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
         .deadline-ok { background: rgba(39, 174, 96, 0.15); color: var(--success); }
@@ -219,9 +221,39 @@
                 <div class="panel-header">Поступления по месяцам</div>
                 <div class="panel-body" id="financeByMonthPanel"></div>
             </div>
-            <div class="panel">
+            <div class="panel" style="margin-bottom:24px;">
                 <div class="panel-header">Дебиторка по сделкам (выиграно, оплачено не полностью)</div>
                 <div class="panel-body" id="financeReceivablesPanel"></div>
+            </div>
+            <div class="panel" id="marketingExpensesWrap" style="display:none;">
+                <div class="panel-header">
+                    <span>Расходы на рекламу → CAC по каналам</span>
+                    <button type="button" class="btn btn-secondary no-print" id="addExpenseBtn" onclick="toggleAddExpenseForm()" style="padding:5px 12px; font-size:12px; display:none;">+ Добавить расход</button>
+                </div>
+                <div class="panel-body">
+                    <div id="addExpenseForm" style="display:none; padding:14px 20px; border-bottom:1px solid var(--border);">
+                        <div class="field-row">
+                            <div class="field-row-col">
+                                <label class="field-label">Канал</label>
+                                <select id="expenseChannel" class="field-input"></select>
+                            </div>
+                            <div class="field-row-col">
+                                <label class="field-label">Месяц</label>
+                                <input type="month" id="expenseMonth" class="field-input">
+                            </div>
+                            <div class="field-row-col">
+                                <label class="field-label">Сумма, ₽</label>
+                                <input type="number" id="expenseAmount" class="field-input" min="0" step="500">
+                            </div>
+                        </div>
+                        <div class="field">
+                            <label class="field-label">Комментарий (необязательно)</label>
+                            <input type="text" id="expenseNote" class="field-input" placeholder="Например: таргет в Instagram">
+                        </div>
+                        <button type="button" class="btn btn-primary" onclick="addMarketingExpense()" style="padding:6px 14px; font-size:12.5px;">Сохранить</button>
+                    </div>
+                    <div id="marketingExpensesPanel"></div>
+                </div>
             </div>
         </div>
 
@@ -341,11 +373,17 @@
             const { data: payments, error: paymentsErr } = await supabaseClient.from('deal_payments').select('*');
             if (paymentsErr) console.error(paymentsErr);
 
+            // Расходы на рекламу по каналам — для CAC в блоке "Финансы". Тоже новая
+            // таблица, применяется отдельной миграцией — не считаем ошибкой, если
+            // её ещё нет.
+            const { data: marketingExpenses, error: expensesErr } = await supabaseClient.from('marketing_expenses').select('*');
+            if (expensesErr) console.error(expensesErr);
+
             // Отпуска/больничные — для панели "Сейчас в отпуске" на вкладке "Сотрудники".
             const { data: leaves, error: leavesErr } = await supabaseClient.from('employee_leaves').select('*');
             if (leavesErr) console.error(leavesErr);
 
-            return { projects, frames, taskProgressByFrame, activity: activity || [], stages, profiles: profiles || [], allProfiles: allProfiles || [], clients: clients || [], deals: deals || [], payments: payments || [], leaves: leaves || [] };
+            return { projects, frames, taskProgressByFrame, activity: activity || [], stages, profiles: profiles || [], allProfiles: allProfiles || [], clients: clients || [], deals: deals || [], payments: payments || [], marketingExpenses: marketingExpenses || [], leaves: leaves || [] };
         }
 
         function renderStats(projects, frames, taskProgressByFrame, clients) {
@@ -854,6 +892,107 @@
             `).join('');
         }
 
+        // ====== Расходы на рекламу → CAC по каналам ======
+        // Считаем два CAC: на лид (расход / все сделки с этим source, независимо
+        // от стадии — это и есть "лиды пришли с канала") и на клиента (расход /
+        // только выигранные) — второй показательнее, но по нему можно ошибочно
+        // решить, что канал не работает, пока сделки ещё не закрылись, поэтому
+        // оставляем оба.
+        function populateExpenseChannelSelect() {
+            const sel = document.getElementById('expenseChannel');
+            if (!sel || sel.options.length > 0) return;
+            sel.innerHTML = Object.keys(DEAL_SOURCE_LABELS).map(k => `<option value="${k}">${DEAL_SOURCE_LABELS[k]}</option>`).join('');
+        }
+        function toggleAddExpenseForm() {
+            const form = document.getElementById('addExpenseForm');
+            const show = form.style.display === 'none';
+            form.style.display = show ? '' : 'none';
+            if (show) {
+                populateExpenseChannelSelect();
+                const now = new Date();
+                document.getElementById('expenseMonth').value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+            }
+        }
+        async function addMarketingExpense() {
+            const channel = document.getElementById('expenseChannel').value;
+            const monthVal = document.getElementById('expenseMonth').value; // "2026-09"
+            const amount = Number(document.getElementById('expenseAmount').value);
+            const note = document.getElementById('expenseNote').value.trim() || null;
+            if (!monthVal || !amount || amount <= 0) { showToast('Укажите месяц и сумму', 'error'); return; }
+            const period_month = monthVal + '-01';
+            const { error } = await supabaseClient.from('marketing_expenses').insert({ channel, period_month, amount, note, created_by: currentUser.id });
+            if (error) { console.error(error); showToast('Не удалось сохранить расход', 'error'); return; }
+            showToast('Расход добавлен', 'success');
+            document.getElementById('expenseAmount').value = '';
+            document.getElementById('expenseNote').value = '';
+            ANALYTICS_DATA.marketingExpenses = (await supabaseClient.from('marketing_expenses').select('*')).data || ANALYTICS_DATA.marketingExpenses;
+            renderMarketingExpenses(ANALYTICS_DATA.marketingExpenses, ANALYTICS_DATA.deals);
+        }
+        async function deleteMarketingExpense(id) {
+            if (!confirm('Удалить эту запись о расходе?')) return;
+            const { error } = await supabaseClient.from('marketing_expenses').delete().eq('id', id);
+            if (error) { console.error(error); showToast('Не удалось удалить', 'error'); return; }
+            ANALYTICS_DATA.marketingExpenses = (await supabaseClient.from('marketing_expenses').select('*')).data || [];
+            renderMarketingExpenses(ANALYTICS_DATA.marketingExpenses, ANALYTICS_DATA.deals);
+        }
+        function renderMarketingExpenses(expenses, deals) {
+            const wrap = document.getElementById('marketingExpensesWrap');
+            const panel = document.getElementById('marketingExpensesPanel');
+            const canManage = canManageMarketing(currentUser);
+            document.getElementById('addExpenseBtn').style.display = canManage ? '' : 'none';
+            if (!canManage && (!expenses || expenses.length === 0)) { wrap.style.display = 'none'; return; }
+            wrap.style.display = '';
+
+            if (!expenses || expenses.length === 0) {
+                panel.innerHTML = '<div class="panel-empty">Расходов пока не внесено</div>';
+                return;
+            }
+            const spendByChannel = {};
+            expenses.forEach(e => { spendByChannel[e.channel] = (spendByChannel[e.channel] || 0) + Number(e.amount); });
+            const leadsByChannel = {};
+            const wonByChannel = {};
+            (deals || []).forEach(d => {
+                if (!d.source) return;
+                leadsByChannel[d.source] = (leadsByChannel[d.source] || 0) + 1;
+                if (d.stage === 'won') wonByChannel[d.source] = (wonByChannel[d.source] || 0) + 1;
+            });
+            const channels = Object.keys(spendByChannel).sort((a, b) => spendByChannel[b] - spendByChannel[a]);
+            const totalSpend = channels.reduce((s, c) => s + spendByChannel[c], 0);
+
+            const table = `<div class="mgr-table">
+                <div class="mgr-row mgr-head"><span>Канал</span><span>Потрачено</span><span>Лидов</span><span>Выиграно</span><span>CAC / лид</span><span>CAC / клиент</span></div>
+                ${channels.map(c => {
+                    const spend = spendByChannel[c];
+                    const leads = leadsByChannel[c] || 0;
+                    const won = wonByChannel[c] || 0;
+                    const cacLead = leads > 0 ? Math.round(spend / leads) : null;
+                    const cacClient = won > 0 ? Math.round(spend / won) : null;
+                    return `<div class="mgr-row">
+                        <span>${DEAL_SOURCE_LABELS[c] || c}</span>
+                        <span>${spend.toLocaleString('ru-RU')} ₽</span>
+                        <span>${leads}</span>
+                        <span>${won}</span>
+                        <span>${cacLead !== null ? cacLead.toLocaleString('ru-RU') + ' ₽' : '—'}</span>
+                        <span>${cacClient !== null ? cacClient.toLocaleString('ru-RU') + ' ₽' : '—'}</span>
+                    </div>`;
+                }).join('')}
+            </div>
+            <div class="month-chart-foot" style="padding:10px 20px 0;">Итого потрачено: ${totalSpend.toLocaleString('ru-RU')} ₽</div>`;
+
+            const recentList = canManage ? `<div style="padding:14px 20px 4px;">
+                ${[...expenses].sort((a, b) => b.period_month.localeCompare(a.period_month)).slice(0, 12).map(e => `
+                <div class="row">
+                    <div>
+                        <div class="row-title">${DEAL_SOURCE_LABELS[e.channel] || e.channel} · ${Number(e.amount).toLocaleString('ru-RU')} ₽</div>
+                        <div class="row-sub">${new Date(e.period_month).toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })}${e.note ? ' · ' + escapeHtml(e.note) : ''}</div>
+                    </div>
+                    <button class="row-remove-btn" onclick="deleteMarketingExpense('${e.id}')">${ICON.trash}</button>
+                </div>`).join('')}
+            </div>` : '';
+
+            panel.innerHTML = table + recentList;
+        }
+
         // ====== Качество: правки после сдачи + оценка клиента ======
         function renderQualityRevisions(stages, frames, projects) {
             const panel = document.getElementById('qualityRevisionsPanel');
@@ -1027,7 +1166,7 @@
             const data = await loadAllData();
             if (!data) return;
             ANALYTICS_DATA = data;
-            const { projects, frames, taskProgressByFrame, activity, stages, profiles, allProfiles, clients, deals, payments, leaves } = data;
+            const { projects, frames, taskProgressByFrame, activity, stages, profiles, allProfiles, clients, deals, payments, marketingExpenses, leaves } = data;
 
             renderStats(projects, frames, taskProgressByFrame, clients);
             renderDeadlines(projects);
@@ -1046,6 +1185,7 @@
             renderFinanceSummary(deals, payments);
             renderFinanceByMonth(payments);
             renderFinanceReceivables(deals, payments, allProfiles);
+            renderMarketingExpenses(marketingExpenses, deals);
             renderQualityRevisions(stages, frames, projects);
             renderQualityRating(projects);
         });

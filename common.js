@@ -149,7 +149,8 @@ const ICON = {
     console: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3"/><path d="M13 15h4"/></svg>',
     funnel: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h18l-7 9v6l-4 2v-8z"/></svg>',
     percent: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>',
-    gift: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M12 8c-1.5-4-6-4-6-1s3 1 6 1Z"/><path d="M12 8c1.5-4 6-4 6-1s-3 1-6 1Z"/></svg>'
+    gift: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M12 8c-1.5-4-6-4-6-1s3 1 6 1Z"/><path d="M12 8c1.5-4 6-4 6-1s-3 1-6 1Z"/></svg>',
+    star: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'
 };
 
 // Единая проверка ролей для пунктов сайдбара — та же логика, что раньше была
@@ -213,6 +214,12 @@ function canViewAnalytics(user) {
 function canManageNews(user) {
     return !!(user && (hasAdminAccess(user) || ['ceo', 'art_director', 'marketer'].includes(user.role)));
 }
+// Маркетинговый инструментарий (расходы на рекламу, кейсы/портфолио,
+// контент-план) — маркетолог + руководство (ceo/art_director), тимлид
+// сюда намеренно не входит — это не его зона ответственности.
+function canManageMarketing(user) {
+    return !!(user && (hasAdminAccess(user) || ['ceo', 'art_director', 'marketer'].includes(user.role)));
+}
 
 // ====== Сообщения об ошибках (bug_reports) — общие справочники ======
 // Используются и на bugs.html (форма + список), и в колокольчике напоминаний
@@ -228,6 +235,8 @@ const BUG_PAGE_OPTIONS = [
     { value: 'clients.html', label: 'Клиенты' },
     { value: 'calendar.html', label: 'Календарь' },
     { value: 'analytics.html', label: 'Аналитика' },
+    { value: 'cases.html', label: 'Кейсы' },
+    { value: 'content-plan.html', label: 'Контент-план' },
     { value: 'other', label: 'Другое / не знаю' }
 ];
 const BUG_PAGE_LABELS = Object.fromEntries(BUG_PAGE_OPTIONS.map(o => [o.value, o.label]));
@@ -1146,6 +1155,8 @@ const APP_NAV_ITEMS = [
     { key: 'calendar', label: 'Календарь', href: 'calendar.html', icon: 'calendar', match: ['calendar.html'] },
     { key: 'bugs', label: 'Сообщить об ошибке', href: 'bugs.html', icon: 'bug', match: ['bugs.html'] },
     { key: 'analytics', label: 'Аналитика', href: 'analytics.html', icon: 'chart', match: ['analytics.html'], gate: canViewAnalytics },
+    { key: 'cases', label: 'Кейсы', href: 'cases.html', icon: 'star', match: ['cases.html'], gate: canManageMarketing },
+    { key: 'content-plan', label: 'Контент-план', href: 'content-plan.html', icon: 'calendar', match: ['content-plan.html'], gate: canManageMarketing },
     { key: 'employees', label: 'Сотрудники', href: 'index.html?open=employees', icon: 'team', match: [], gate: canManageEmployeesRole },
     { key: 'console', label: 'Консоль ошибок', href: 'error-console.html', icon: 'console', match: ['error-console.html'], gate: hasAdminAccess }
 ];

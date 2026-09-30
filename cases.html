@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Decard Studio — Кейсы</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0F1830">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        body { padding: 40px; }
+        .container { max-width: 900px; margin: 0 auto; }
+        header { margin-bottom: 24px; border-bottom: 2px solid var(--border); padding-bottom: 24px; }
+        .header-top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+        .header-left { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+        .page-title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
+        .btn-back { background: var(--card-bg); color: var(--text-primary); border: 1px solid var(--border); }
+
+        .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 20px; }
+        .toolbar input.field-input { max-width: 260px; }
+        .toggle-group { display: flex; gap: 6px; }
+        .toggle-btn { padding: 7px 14px; border-radius: 6px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text-secondary); font-size: 12.5px; font-weight: 600; cursor: pointer; }
+        .toggle-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+        .case-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; box-shadow: var(--card-shadow); padding: 18px 20px; margin-bottom: 14px; }
+        .case-card.is-case { border-color: rgba(var(--accent-rgb), 0.4); box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.15), var(--card-shadow); }
+        .case-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 6px; flex-wrap: wrap; }
+        .case-title { font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+        .case-meta { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+        .case-body { margin-top: 10px; }
+        .case-body textarea.field-input { min-height: 70px; }
+        .case-tags-row { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+        .case-tags-row .field-input { flex: 1; }
+        .case-actions-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+        .panel-empty { padding: 28px 20px; color: var(--text-secondary); font-size: 13px; text-align: center; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; }
+
+        @media (max-width: 768px) {
+            body { padding: 20px; }
+            .header-top { flex-direction: column; align-items: flex-start; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="pageContainer" style="display:none;">
+        <header>
+            <div class="header-top">
+                <div class="header-left">
+                    <a href="index.html" class="btn btn-back">← Назад</a>
+                    <span class="page-title">Кейсы / портфолио</span>
+                </div>
+                <div class="user-box" id="userBox" style="display:flex; align-items:center; gap:10px; font-size:13px; color: var(--text-secondary);"></div>
+            </div>
+        </header>
+
+        <div style="font-size:13px; color:var(--text-secondary); margin-bottom:16px;">
+            Отмечайте завершённые проекты как кейсы и пишите короткое описание для соцсетей/сайта — чтобы не искать каждый раз вручную в переписке с художниками.
+        </div>
+
+        <div class="toolbar">
+            <input type="text" id="caseSearch" class="field-input" placeholder="Поиск по названию/клиенту" oninput="renderCases()">
+            <div class="toggle-group">
+                <button class="toggle-btn active" id="filterAllBtn" onclick="setCaseFilter('all')">Все завершённые</button>
+                <button class="toggle-btn" id="filterCasesBtn" onclick="setCaseFilter('cases')">Только кейсы</button>
+            </div>
+        </div>
+
+        <div id="casesList"></div>
+    </div>
+    <div class="no-access" id="noAccess" style="display:none;">
+        <h3>Доступ ограничен</h3>
+        <p>Раздел «Кейсы» доступен маркетологу, арт-директору и генеральному директору.</p>
+        <p style="margin-top:16px;"><a href="index.html" class="btn btn-primary" style="display:inline-flex;">На главную</a></p>
+    </div>
+    <div class="toast-container" id="toastContainer"></div>
+    <script src="common.js"></script>
+    <script>
+        let currentUser = null;
+        let projectsCache = [];
+        let clientsCache = [];
+        let caseFilter = 'all';
+
+        async function requireAuth() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) { window.location.href = 'login.html'; return false; }
+            const { data: profile, error } = await supabaseClient.from('profiles').select('*').eq('id', session.user.id).single();
+            if (error || !profile) { console.error(error); await supabaseClient.auth.signOut(); window.location.href = 'login.html'; return false; }
+            currentUser = { id: profile.id, full_name: profile.full_name, role: profile.role, is_admin: !!profile.is_admin };
+            renderUserBox();
+            initAppSidebar(currentUser);
+            if (!canManageMarketing(currentUser)) {
+                document.getElementById('noAccess').style.display = 'block';
+                return false;
+            }
+            document.getElementById('pageContainer').style.display = 'block';
+            return true;
+        }
+
+        function renderUserBox() {
+            const box = document.getElementById('userBox');
+            if (!box || !currentUser) return;
+            box.innerHTML = `<span>${currentUser.full_name} · ${roleLabels[currentUser.role] || currentUser.role}</span>
+                <button class="btn btn-secondary" onclick="doLogout()" style="padding:4px 10px; font-size:12px;">Выйти</button>`;
+        }
+
+        function setCaseFilter(filter) {
+            caseFilter = filter;
+            document.getElementById('filterAllBtn').classList.toggle('active', filter === 'all');
+            document.getElementById('filterCasesBtn').classList.toggle('active', filter === 'cases');
+            renderCases();
+        }
+
+        async function loadCases() {
+            const { data: projects, error } = await supabaseClient
+                .from('projects')
+                .select('*')
+                .eq('completed', true)
+                .order('completed_at', { ascending: false, nullsFirst: false });
+            if (error) { console.error(error); document.getElementById('casesList').innerHTML = '<div class="panel-empty">Не удалось загрузить проекты</div>'; return; }
+            const { data: clients, error: clientsErr } = await supabaseClient.from('clients').select('id, name');
+            if (clientsErr) console.error(clientsErr);
+            clientsCache = clients || [];
+            projectsCache = projects || [];
+            renderCases();
+        }
+
+        function clientNameById(id) {
+            const c = clientsCache.find(c => c.id === id);
+            return c ? c.name : '';
+        }
+
+        function renderCases() {
+            const listEl = document.getElementById('casesList');
+            const query = document.getElementById('caseSearch').value.trim().toLowerCase();
+            let items = projectsCache;
+            if (caseFilter === 'cases') items = items.filter(p => p.is_case);
+            if (query) items = items.filter(p => [p.name, clientNameById(p.client_id)].some(v => (v || '').toLowerCase().includes(query)));
+
+            if (items.length === 0) {
+                listEl.innerHTML = `<div class="panel-empty">${projectsCache.length === 0 ? 'Завершённых проектов пока нет' : 'Ничего не найдено'}</div>`;
+                return;
+            }
+            listEl.innerHTML = items.map(p => {
+                const date = p.completed_at ? formatDateRu(p.completed_at) : '';
+                const rating = p.client_rating ? '★'.repeat(p.client_rating) + '☆'.repeat(5 - p.client_rating) : '';
+                return `<div class="case-card ${p.is_case ? 'is-case' : ''}" id="case-${p.id}">
+                    <div class="case-head">
+                        <div>
+                            <div class="case-title">${p.is_case ? ICON.star : ''}${escapeHtml(p.name)}</div>
+                            <div class="case-meta">${escapeHtml(clientNameById(p.client_id) || 'Без клиента')}${date ? ' · сдан ' + date : ''}${rating ? ' · ' + rating : ''}</div>
+                        </div>
+                        <button class="btn ${p.is_case ? 'btn-secondary' : 'btn-primary'}" onclick="toggleCase('${p.id}', ${!p.is_case})" style="padding:6px 14px; font-size:12.5px;">${p.is_case ? '− Убрать из кейсов' : '★ Добавить в кейсы'}</button>
+                    </div>
+                    ${p.is_case ? `
+                    <div class="case-body">
+                        <label class="field-label">Описание для соцсетей/сайта</label>
+                        <textarea class="field-input" id="caseDesc-${p.id}" placeholder="Например: Экстерьер ЖК «Северный», 6 ракурсов, вечернее освещение, срок — 12 дней...">${escapeHtml(p.case_description || '')}</textarea>
+                        <div class="case-tags-row">
+                            <input type="text" class="field-input" id="caseTags-${p.id}" placeholder="Теги через запятую: экстерьер, ЖК, вечер..." value="${escapeHtml(p.case_tags || '')}">
+                        </div>
+                        <div class="case-actions-row">
+                            <button class="btn btn-primary" onclick="saveCaseText('${p.id}')" style="padding:6px 14px; font-size:12.5px;">Сохранить</button>
+                            <button class="btn btn-secondary" onclick="copyCaseText('${p.id}', '${escapeHtml(p.name).replace(/'/g, "\\'")}')" style="padding:6px 14px; font-size:12.5px;">⧉ Скопировать текст</button>
+                        </div>
+                    </div>` : ''}
+                </div>`;
+            }).join('');
+        }
+
+        async function toggleCase(id, isCase) {
+            const { error } = await supabaseClient.from('projects').update({ is_case: isCase }).eq('id', id);
+            if (error) { console.error(error); showToast('Не удалось обновить', 'error'); return; }
+            showToast(isCase ? 'Добавлено в кейсы' : 'Убрано из кейсов', 'success');
+            await loadCases();
+        }
+
+        async function saveCaseText(id) {
+            const case_description = document.getElementById(`caseDesc-${id}`).value.trim() || null;
+            const case_tags = document.getElementById(`caseTags-${id}`).value.trim() || null;
+            const { error } = await supabaseClient.from('projects').update({ case_description, case_tags }).eq('id', id);
+            if (error) { console.error(error); showToast('Не удалось сохранить', 'error'); return; }
+            showToast('Сохранено', 'success');
+            await loadCases();
+        }
+
+        async function copyCaseText(id, name) {
+            const desc = document.getElementById(`caseDesc-${id}`).value.trim();
+            const tags = document.getElementById(`caseTags-${id}`).value.trim();
+            const text = [name, desc, tags ? tags.split(',').map(t => '#' + t.trim().replace(/\s+/g, '')).join(' ') : ''].filter(Boolean).join('\n\n');
+            try {
+                await navigator.clipboard.writeText(text);
+                showToast('Текст скопирован', 'success');
+            } catch (e) {
+                console.error(e);
+                showToast('Не удалось скопировать — скопируйте вручную', 'error');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            loadTheme();
+            const ok = await requireAuth();
+            if (!ok) return;
+            initDeadlineReminders(currentUser);
+            await loadCases();
+        });
+    </script>
+</body>
+</html>

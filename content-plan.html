@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Decard Studio — Контент-план</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0F1830">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        body { padding: 40px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        header { margin-bottom: 24px; border-bottom: 2px solid var(--border); padding-bottom: 24px; }
+        .header-top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+        .header-left { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+        .page-title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
+        .btn-back { background: var(--card-bg); color: var(--text-primary); border: 1px solid var(--border); }
+
+        .cp-board { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; align-items: start; }
+        .cp-col { background: var(--bg-secondary); border-radius: 8px; padding: 10px; min-height: 100px; }
+        .cp-col-head { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; font-weight: 700; padding: 4px 6px 10px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.02em; }
+        .cp-col-count { background: var(--card-bg); border-radius: 999px; padding: 1px 8px; font-size: 11px; }
+        .cp-col-empty { padding: 16px 8px; text-align: center; color: var(--text-secondary); font-size: 12px; }
+        .cp-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 6px; padding: 10px 12px; margin-bottom: 8px; cursor: pointer; box-shadow: var(--card-shadow); }
+        .cp-card:hover { border-color: var(--accent); }
+        .cp-card-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+        .cp-card-meta { font-size: 11.5px; color: var(--text-secondary); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+        .cp-chip { font-size: 10.5px; padding: 2px 7px; border-radius: 999px; background: rgba(var(--accent-rgb), 0.12); color: var(--accent); font-weight: 600; }
+        .cp-chip.overdue { background: rgba(231, 76, 60, 0.15); color: var(--danger); }
+
+        @media (max-width: 900px) {
+            .cp-board { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 768px) {
+            body { padding: 20px; }
+            .header-top { flex-direction: column; align-items: flex-start; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="pageContainer" style="display:none;">
+        <header>
+            <div class="header-top">
+                <div class="header-left">
+                    <a href="index.html" class="btn btn-back">← Назад</a>
+                    <span class="page-title">Контент-план</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <button class="btn btn-primary" onclick="openPlanModal(null)">+ Добавить публикацию</button>
+                    <div class="user-box" id="userBox" style="display:flex; align-items:center; gap:10px; font-size:13px; color: var(--text-secondary);"></div>
+                </div>
+            </div>
+        </header>
+
+        <div id="planBoard"></div>
+    </div>
+    <div class="no-access" id="noAccess" style="display:none;">
+        <h3>Доступ ограничен</h3>
+        <p>Контент-план доступен маркетологу, арт-директору и генеральному директору.</p>
+        <p style="margin-top:16px;"><a href="index.html" class="btn btn-primary" style="display:inline-flex;">На главную</a></p>
+    </div>
+
+    <div class="modal" id="planFormModal" style="display:none;">
+        <div class="employee-modal-box" style="max-width: 480px;">
+            <h3 id="planFormTitle" style="font-size: 20px; font-weight: 700; margin-bottom: 20px;">Новая публикация</h3>
+            <div class="field">
+                <label class="field-label">Название/тема *</label>
+                <input type="text" id="planTitle" class="field-input" placeholder="Например: Пост про кейс ЖК «Северный»">
+            </div>
+            <div class="field-row">
+                <div class="field-row-col">
+                    <label class="field-label">Канал</label>
+                    <select id="planChannel" class="field-input">
+                        <option value="instagram">Instagram</option>
+                        <option value="website">Сайт</option>
+                        <option value="vk">VK</option>
+                        <option value="telegram">Telegram</option>
+                        <option value="other">Другое</option>
+                    </select>
+                </div>
+                <div class="field-row-col">
+                    <label class="field-label">Дата публикации</label>
+                    <input type="date" id="planDate" class="field-input">
+                </div>
+            </div>
+            <div class="field">
+                <label class="field-label">Статус</label>
+                <select id="planStatus" class="field-input">
+                    <option value="idea">Идея</option>
+                    <option value="planned">Запланировано</option>
+                    <option value="ready">Готово</option>
+                    <option value="published">Опубликовано</option>
+                </select>
+            </div>
+            <div class="field field-lg">
+                <label class="field-label">Заметка (текст поста, ссылка, что угодно)</label>
+                <textarea id="planNote" rows="4" class="field-input field-textarea"></textarea>
+            </div>
+            <div class="field-actions">
+                <button class="btn btn-danger" id="planDeleteBtn" onclick="deletePlanItem()" style="display:none; margin-right:auto;">Удалить</button>
+                <button class="btn btn-secondary" onclick="closePlanModal()">Отмена</button>
+                <button class="btn btn-primary" onclick="submitPlanForm()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+    <script src="common.js"></script>
+    <script>
+        let currentUser = null;
+        let planCache = [];
+        let editingPlanId = null;
+
+        const CP_STATUSES = [
+            { key: 'idea', label: 'Идея' },
+            { key: 'planned', label: 'Запланировано' },
+            { key: 'ready', label: 'Готово' },
+            { key: 'published', label: 'Опубликовано' }
+        ];
+        const CP_CHANNEL_LABELS = { instagram: 'Instagram', website: 'Сайт', vk: 'VK', telegram: 'Telegram', other: 'Другое' };
+
+        async function requireAuth() {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (!session) { window.location.href = 'login.html'; return false; }
+            const { data: profile, error } = await supabaseClient.from('profiles').select('*').eq('id', session.user.id).single();
+            if (error || !profile) { console.error(error); await supabaseClient.auth.signOut(); window.location.href = 'login.html'; return false; }
+            currentUser = { id: profile.id, full_name: profile.full_name, role: profile.role, is_admin: !!profile.is_admin };
+            renderUserBox();
+            initAppSidebar(currentUser);
+            if (!canManageMarketing(currentUser)) {
+                document.getElementById('noAccess').style.display = 'block';
+                return false;
+            }
+            document.getElementById('pageContainer').style.display = 'block';
+            return true;
+        }
+
+        function renderUserBox() {
+            const box = document.getElementById('userBox');
+            if (!box || !currentUser) return;
+            box.innerHTML = `<span>${currentUser.full_name} · ${roleLabels[currentUser.role] || currentUser.role}</span>
+                <button class="btn btn-secondary" onclick="doLogout()" style="padding:4px 10px; font-size:12px;">Выйти</button>`;
+        }
+
+        async function loadPlan() {
+            const { data, error } = await supabaseClient.from('content_plan').select('*').order('planned_date', { ascending: true, nullsFirst: false });
+            if (error) { console.error(error); document.getElementById('planBoard').innerHTML = '<div class="panel-empty">Не удалось загрузить контент-план</div>'; return; }
+            planCache = data || [];
+            renderBoard();
+        }
+
+        function renderBoard() {
+            const board = document.getElementById('planBoard');
+            const today = todayIso();
+            board.innerHTML = `<div class="cp-board">${CP_STATUSES.map(s => {
+                const items = planCache.filter(p => p.status === s.key);
+                const cardsHtml = items.length > 0 ? items.map(p => {
+                    const overdue = p.planned_date && p.planned_date < today && p.status !== 'published';
+                    return `<div class="cp-card" onclick="openPlanModal('${p.id}')">
+                        <div class="cp-card-title">${escapeHtml(p.title)}</div>
+                        <div class="cp-card-meta">
+                            <span class="cp-chip">${CP_CHANNEL_LABELS[p.channel] || p.channel}</span>
+                            ${p.planned_date ? `<span class="cp-chip ${overdue ? 'overdue' : ''}">${formatDateRu(p.planned_date)}</span>` : ''}
+                        </div>
+                    </div>`;
+                }).join('') : '<div class="cp-col-empty">Пусто</div>';
+                return `<div class="cp-col">
+                    <div class="cp-col-head"><span>${s.label}</span><span class="cp-col-count">${items.length}</span></div>
+                    ${cardsHtml}
+                </div>`;
+            }).join('')}</div>`;
+        }
+
+        function openPlanModal(id) {
+            editingPlanId = id;
+            const item = id ? planCache.find(p => p.id === id) : null;
+            document.getElementById('planFormTitle').textContent = item ? 'Публикация' : 'Новая публикация';
+            document.getElementById('planTitle').value = item ? item.title : '';
+            document.getElementById('planChannel').value = item ? item.channel : 'instagram';
+            document.getElementById('planDate').value = item ? (item.planned_date || '') : '';
+            document.getElementById('planStatus').value = item ? item.status : 'idea';
+            document.getElementById('planNote').value = item ? (item.note || '') : '';
+            document.getElementById('planDeleteBtn').style.display = item ? '' : 'none';
+            document.getElementById('planFormModal').style.display = 'flex';
+        }
+        function closePlanModal() {
+            document.getElementById('planFormModal').style.display = 'none';
+            editingPlanId = null;
+        }
+
+        async function submitPlanForm() {
+            const title = document.getElementById('planTitle').value.trim();
+            if (!title) { showToast('Укажите название/тему', 'error'); return; }
+            const payload = {
+                title,
+                channel: document.getElementById('planChannel').value,
+                planned_date: document.getElementById('planDate').value || null,
+                status: document.getElementById('planStatus').value,
+                note: document.getElementById('planNote').value.trim() || null
+            };
+            let error;
+            if (editingPlanId) {
+                ({ error } = await supabaseClient.from('content_plan').update(payload).eq('id', editingPlanId));
+            } else {
+                ({ error } = await supabaseClient.from('content_plan').insert({ ...payload, created_by: currentUser.id }));
+            }
+            if (error) { console.error(error); showToast('Не удалось сохранить', 'error'); return; }
+            showToast('Сохранено', 'success');
+            closePlanModal();
+            await loadPlan();
+        }
+
+        async function deletePlanItem() {
+            if (!editingPlanId || !confirm('Удалить эту публикацию из плана?')) return;
+            const { error } = await supabaseClient.from('content_plan').delete().eq('id', editingPlanId);
+            if (error) { console.error(error); showToast('Не удалось удалить', 'error'); return; }
+            showToast('Удалено', 'success');
+            closePlanModal();
+            await loadPlan();
+        }
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            loadTheme();
+            const ok = await requireAuth();
+            if (!ok) return;
+            initDeadlineReminders(currentUser);
+            await loadPlan();
+        });
+    </script>
+</body>
+</html>
