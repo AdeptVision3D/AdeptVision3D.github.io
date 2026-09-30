@@ -43,6 +43,14 @@
         .err-stack.open { display: block; }
         .err-del-btn { border: none; background: none; color: var(--text-secondary); cursor: pointer; padding: 2px 4px; border-radius: 4px; flex-shrink: 0; }
         .err-del-btn:hover { color: var(--danger); background: rgba(231, 76, 60, 0.1); }
+        .err-row.resolved { opacity: 0.55; }
+        .err-row.resolved .err-message { color: var(--text-secondary); }
+        .err-resolve-btn { border: 1px solid var(--border); background: var(--card-bg); color: var(--text-secondary); cursor: pointer; padding: 4px 10px; border-radius: 5px; font-size: 11.5px; font-weight: 600; flex-shrink: 0; white-space: nowrap; }
+        .err-resolve-btn:hover { border-color: var(--success); color: var(--success); }
+        .err-resolve-btn.is-resolved { background: rgba(39, 174, 96, 0.12); border-color: rgba(39, 174, 96, 0.4); color: var(--success); }
+        .err-filter-group { display: flex; gap: 6px; }
+        .err-filter-btn { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text-secondary); font-size: 12px; font-weight: 600; cursor: pointer; }
+        .err-filter-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
         .no-access { text-align: center; padding: 100px 20px; color: var(--text-secondary); }
         .no-access h3 { color: var(--text-primary); margin-bottom: 8px; }
@@ -69,6 +77,11 @@
             <div class="panel-header">
                 <span id="errCountLabel">Загрузка…</span>
                 <div class="err-toolbar">
+                    <div class="err-filter-group">
+                        <button class="err-filter-btn active" data-filter="active" onclick="setErrorFilter('active')">Активные</button>
+                        <button class="err-filter-btn" data-filter="resolved" onclick="setErrorFilter('resolved')">Решённые</button>
+                        <button class="err-filter-btn" data-filter="all" onclick="setErrorFilter('all')">Все</button>
+                    </div>
                     <input type="text" id="errSearch" class="err-search" placeholder="Поиск по тексту ошибки / странице" oninput="renderErrors()">
                     <button class="btn btn-secondary" style="padding:6px 12px; font-size:12px;" onclick="refreshErrors()">Обновить</button>
                     <button class="btn btn-secondary" style="padding:6px 12px; font-size:12px; color:var(--danger);" onclick="clearOldErrors()">Удалить старше 30 дней</button>
@@ -138,17 +151,32 @@
             return new Date(iso).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
         }
 
+        let errorFilter = 'active'; // active | resolved | all — по умолчанию показываем только непофикшенные
+        function setErrorFilter(filter) {
+            errorFilter = filter;
+            document.querySelectorAll('.err-filter-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.filter === filter));
+            renderErrors();
+        }
+
         function renderErrors() {
             const query = (document.getElementById('errSearch').value || '').trim().toLowerCase();
-            const filtered = query
-                ? errorsCache.filter(e => (e.message || '').toLowerCase().includes(query) || (e.page || '').toLowerCase().includes(query))
+            let filtered = errorFilter === 'active' ? errorsCache.filter(e => !e.resolved)
+                : errorFilter === 'resolved' ? errorsCache.filter(e => e.resolved)
                 : errorsCache;
+            if (query) filtered = filtered.filter(e => (e.message || '').toLowerCase().includes(query) || (e.page || '').toLowerCase().includes(query));
 
-            document.getElementById('errCountLabel').textContent = `Ошибок за последние 300 записей: ${errorsCache.length}${query ? ` · показано: ${filtered.length}` : ''}`;
+            const activeCount = errorsCache.filter(e => !e.resolved).length;
+            document.getElementById('errCountLabel').textContent = `Активных ошибок: ${activeCount} · всего за последние 300 записей: ${errorsCache.length}${query ? ` · показано: ${filtered.length}` : ''}`;
 
             const panel = document.getElementById('errorsPanel');
             if (filtered.length === 0) {
-                panel.innerHTML = `<div class="panel-empty">${errorsCache.length === 0 ? 'Ошибок пока не зафиксировано — это хороший знак' : 'Ничего не найдено по запросу'}</div>`;
+                let emptyText = 'Ничего не найдено по запросу';
+                if (!query) {
+                    emptyText = errorFilter === 'active' ? 'Активных ошибок нет — всё разобрано 🎉'
+                        : errorFilter === 'resolved' ? 'Решённых ошибок пока нет'
+                        : 'Ошибок пока не зафиксировано — это хороший знак';
+                }
+                panel.innerHTML = `<div class="panel-empty">${emptyText}</div>`;
                 return;
             }
 
@@ -156,21 +184,36 @@
                 const who = e.user_id ? (profileNameMap[e.user_id] || 'Бывший сотрудник') : 'Гость / до входа';
                 const pageLabel = PAGE_LABELS_ERR[e.page] || e.page || '—';
                 const stackId = `errStack${idx}`;
+                const resolvedInfo = e.resolved ? `<div class="err-sub">✓ Решено ${e.resolved_at ? fmtErrTime(e.resolved_at) : ''}${e.resolved_by && profileNameMap[e.resolved_by] ? ' · ' + escapeHtml(profileNameMap[e.resolved_by]) : ''}</div>` : '';
                 return `
-                <div class="err-row">
+                <div class="err-row ${e.resolved ? 'resolved' : ''}">
                     <div class="err-top">
                         <div style="min-width:0;">
                             <div class="err-message">${escapeHtml(e.message)}</div>
                             <div class="err-sub">${escapeHtml(pageLabel)} · ${escapeHtml(who)}</div>
+                            ${resolvedInfo}
                         </div>
                         <div style="display:flex; align-items:center; gap:8px;">
                             <span class="err-meta">${fmtErrTime(e.created_at)}</span>
+                            <button class="err-resolve-btn ${e.resolved ? 'is-resolved' : ''}" onclick="toggleErrorResolved('${e.id}', ${!e.resolved})">${e.resolved ? '✓ Решено' : 'Отметить решённой'}</button>
                             <button class="err-del-btn" title="Удалить запись" onclick="deleteErrorLog('${e.id}')">${ICON.trash}</button>
                         </div>
                     </div>
                     ${e.stack ? `<button class="err-stack-toggle" onclick="toggleStack('${stackId}')">Показать стек</button><div class="err-stack" id="${stackId}">${escapeHtml(e.stack)}</div>` : ''}
                 </div>`;
             }).join('');
+        }
+
+        async function toggleErrorResolved(id, resolved) {
+            const payload = resolved
+                ? { resolved: true, resolved_at: new Date().toISOString(), resolved_by: currentUser.id }
+                : { resolved: false, resolved_at: null, resolved_by: null };
+            const { error } = await supabaseClient.from('error_logs').update(payload).eq('id', id);
+            if (error) { console.error(error); showToast('Не удалось обновить статус', 'error'); return; }
+            const item = errorsCache.find(e => e.id === id);
+            if (item) Object.assign(item, payload);
+            showToast(resolved ? 'Отмечено решённой' : 'Возвращено в активные', 'success');
+            renderErrors();
         }
 
         function toggleStack(id) {
