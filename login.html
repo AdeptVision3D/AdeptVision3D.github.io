@@ -60,11 +60,29 @@
         .group-body-inner { overflow: hidden; }
         .group-people { display: flex; flex-direction: column; gap: 10px; padding-top: 10px; }
     </style>
-<link rel="stylesheet" href="glass.css?v=6">
+<link rel="stylesheet" href="glass.css?v=8">
 <script src="glass.js?v=2" defer></script>
 <script src="glass-fx.js?v=3" defer></script>
 </head>
 <body>
+<video id="loginBg" class="login-bg" muted loop playsinline preload="auto" aria-hidden="true" tabindex="-1"><source src="media/login-bg.webm" type="video/webm"></video>
+<div class="login-bg-veil" aria-hidden="true"></div>
+<script>
+(function () {
+    var v = document.getElementById('loginBg');
+    if (!v) return;
+    var c = navigator.connection;
+    var skip = (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) || (c && c.saveData) || !v.canPlayType('video/webm');
+    if (skip) { v.remove(); return; }
+    v.addEventListener('canplay', function () {
+        var p = v.play();
+        if (p && p.then) p.then(function () { v.classList.add('ready'); }).catch(function () { v.remove(); });
+        else v.classList.add('ready');
+    }, { once: true });
+    v.addEventListener('error', function () { v.remove(); });
+    v.load();
+})();
+</script>
     <div class="login-box">
         <div class="logo">DECARD <span>STUDIO</span></div>
         <div class="subtitle">Выберите себя из списка и введите PIN</div>
