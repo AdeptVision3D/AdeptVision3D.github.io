@@ -54,6 +54,10 @@ if ('serviceWorker' in navigator) {
 const _loggedErrorKeys = new Set(); // не долбим одну и ту же ошибку в error_logs много раз за одну загрузку страницы
 async function logClientError(message, stack) {
     try {
+        // Не засоряем журнал шумом: локальная разработка, служебные сообщения браузера
+        // про пропущенный переход между страницами и необязательный service worker
+        if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) return;
+        if (/Transition was skipped|Skipped ViewTransition|SW registration failed/i.test(String(message || ''))) return;
         const text = String(message || 'Неизвестная ошибка').slice(0, 2000);
         const key = text + '|' + String(stack || '').slice(0, 300);
         if (_loggedErrorKeys.has(key)) return;
