@@ -62,6 +62,7 @@
     document.addEventListener('pointermove', function (e) {
         if (reduce || e.pointerType === 'touch') return;
         var el = e.target && e.target.closest && e.target.closest(ROW);
+        if (el && el.closest('.person-card')) el = null;   // карточки входа уже сами подсвечиваются — без второй рамки
         if (!el) { hideGlow(); return; }
         var x = e.clientX;
         cancelAnimationFrame(glowRaf);
