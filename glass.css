@@ -681,6 +681,18 @@ html.theme-vt body, html.theme-vt body * { transition: none !important; }
         linear-gradient(rgba(237, 240, 247, 0.4), rgba(237, 240, 247, 0.4));
 }
 
+/* Выпадающие списки и встроенные элементы браузера — в цвет темы (раньше открывались белыми) */
+[data-theme="dark"] { color-scheme: dark; }
+[data-theme="light"] { color-scheme: light; }
+select option, select optgroup { background-color: #0F1830; color: #EEF2FC; }
+[data-theme="light"] select option, [data-theme="light"] select optgroup { background-color: #FFFFFF; color: #0E1424; }
+select option:checked { background-color: rgba(var(--accent-rgb), 0.55); color: #fff; }
+select option:disabled { color: var(--text-secondary); }
+
+/* Цифры статистики: тот же шрифт, что и подписи; нули — нейтральные, цвет только у значимых значений */
+.stat-number { font-family: inherit; font-weight: 700; letter-spacing: -0.02em; }
+.stat-number[data-zero] { color: var(--text-secondary) !important; }
+
 /* Уважаем системную настройку «уменьшить движение» */
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }

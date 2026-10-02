@@ -90,6 +90,7 @@
     function countUp(el) {
         if (el.dataset.counted) return;
         el.dataset.counted = '1';
+        if (/^0(?:[.,]0+)?(?:\D.*)?$/.test(el.textContent.trim())) el.dataset.zero = '1';
         if (reduceMotion) return;
         var text = el.textContent.trim();
         var m = NUM_RE.exec(text);
