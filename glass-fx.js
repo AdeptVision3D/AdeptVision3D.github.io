@@ -18,7 +18,7 @@
     /* ---------- 1. Скользящая подсветка строк ---------- */
     var ROW = '.approval-row, .reminder-item, .activity-item, .news-widget-item, .err-row, .my-row, .mgr-row, ' +
               '.person-row, .log-entry, .payment-row, .tpl-item-row, .vac-my-row, .vac-holiday-list-row, ' +
-              '.client-contact-item, .checklist-item-row, .event-invitee-row';
+              '.client-contact-item, .checklist-item-row, .event-invitee-row, .vac-grid tbody tr:not(.vac-team-header-row)';
 
     var glow = null, glowCur = null, glowVisible = false, glowRaf = 0;
 
@@ -238,6 +238,20 @@
         });
     }
 
+    /* ---------- 5. Карточка проекта «раскрывается» в страницу проекта ---------- */
+    var lastProjectCard = null;
+    document.addEventListener('pointerdown', function (e) {
+        var card = e.target && e.target.closest && e.target.closest('.project-card');
+        if (card) lastProjectCard = card;
+    }, true);
+    window.addEventListener('pageswap', function (e) {
+        if (reduce || !e.viewTransition || !lastProjectCard) return;
+        var to = e.activation && e.activation.entry && e.activation.entry.url;
+        if (to && /project\.html/.test(to)) lastProjectCard.style.viewTransitionName = 'proj-card';
+    });
+    window.addEventListener('pageshow', function () {
+        if (lastProjectCard) lastProjectCard.style.viewTransitionName = '';
+    });
     /* ---------- Запуск ---------- */
     function init() {
         wrapTheme();
