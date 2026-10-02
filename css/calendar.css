@@ -1,0 +1,46 @@
+        body { padding: 40px; }
+        .container { max-width: 1100px; margin: 0 auto; }
+        header { margin-bottom: 32px; border-bottom: 2px solid var(--border); padding-bottom: 24px; }
+        .header-top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+        .header-left { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+        .page-title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
+        .btn-back { background: var(--card-bg); color: var(--text-primary); border: 1px solid var(--border); }
+
+        .cal-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+        .month-nav { display: flex; align-items: center; gap: 10px; }
+        .month-nav-btn { width: 32px; height: 32px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 15px; }
+        .month-nav-btn:hover { border-color: var(--accent); }
+        .month-nav-label { font-weight: 700; font-size: 16px; min-width: 170px; text-align: center; text-transform: capitalize; }
+
+        .cal-grid { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; box-shadow: var(--card-shadow); overflow: hidden; }
+        .cal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); border-bottom: 1px solid var(--border); }
+        .cal-weekday { padding: 10px 6px; text-align: center; font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; }
+        .cal-weeks { display: grid; grid-template-columns: repeat(7, 1fr); }
+        .cal-day { min-height: 96px; padding: 6px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); cursor: default; display: flex; flex-direction: column; gap: 4px; }
+        .cal-day:nth-child(7n) { border-right: none; }
+        .cal-day.other-month { background: var(--bg-secondary); opacity: 0.5; }
+        .cal-day.today { background: rgba(var(--accent-rgb), 0.08); }
+        .cal-day.can-add { cursor: pointer; }
+        .cal-day.can-add:hover { background: rgba(var(--accent-rgb), 0.05); }
+        .cal-day.holiday { background: rgba(230, 126, 34, 0.1); }
+        .cal-daynum { font-size: 12px; font-weight: 700; color: var(--text-secondary); }
+        .cal-day.today .cal-daynum { color: var(--accent); }
+        .cal-event-chip { font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(var(--accent-rgb), 0.14); color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+        .cal-event-chip:hover { background: rgba(var(--accent-rgb), 0.24); }
+        .cal-holiday-chip { font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(230, 126, 34, 0.25); color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+        .cal-people-chip { font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(39, 174, 96, 0.2); color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cal-event-more { font-size: 10px; color: var(--text-secondary); }
+
+        .event-invitee-list { max-height: 160px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; }
+        .event-invitee-row { display:flex; align-items:center; gap:8px; padding: 5px 0; font-size: 13px; cursor: pointer; }
+        .event-view-row { display:flex; gap:8px; font-size: 13px; margin-bottom: 10px; }
+        .event-view-label { color: var(--text-secondary); min-width: 90px; flex-shrink: 0; }
+        .event-invitee-chip { display:inline-flex; align-items:center; gap:5px; font-size: 12px; padding: 3px 9px; border-radius: 999px; background: rgba(var(--accent-rgb), 0.1); color: var(--text-primary); margin: 2px 4px 2px 0; }
+
+        @media (max-width: 768px) {
+            body { padding: 20px; }
+            .header-top { flex-direction: column; align-items: flex-start; }
+            .cal-toolbar { flex-direction: column; align-items: stretch; }
+            .cal-day { min-height: 72px; font-size: 11px; }
+        }
+    

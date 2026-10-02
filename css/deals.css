@@ -1,0 +1,89 @@
+        body { padding: 40px; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        header { margin-bottom: 24px; border-bottom: 2px solid var(--border); padding-bottom: 24px; }
+        .header-top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+        .header-left { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+        .page-title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
+        .btn-back { background: var(--card-bg); color: var(--text-primary); border: 1px solid var(--border); }
+
+        .deals-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+        .deals-toolbar-left { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+        .deals-search { padding: 9px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--card-bg); color: var(--text-primary); font-size: 13px; width: 240px; }
+        .view-toggle { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+        .view-toggle button { padding: 8px 14px; font-size: 13px; border: none; background: var(--card-bg); color: var(--text-secondary); cursor: pointer; }
+        .view-toggle button.active { background: var(--accent); color: white; }
+
+        .deals-board { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 12px; align-items: flex-start; }
+        .deal-col { flex: 0 0 260px; background: var(--bg-secondary); border-radius: 10px; padding: 12px; min-height: 80px; }
+        .deal-col.lost { opacity: 0.72; }
+        .deal-col-head { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 700; margin-bottom: 10px; padding: 0 4px; }
+        .deal-col-count { font-size: 11px; font-weight: 600; color: var(--text-secondary); background: var(--card-bg); border-radius: 999px; padding: 1px 8px; }
+        .deal-col-empty { font-size: 12px; color: var(--text-secondary); padding: 10px 4px; text-align: center; }
+
+        .deal-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; box-shadow: var(--card-shadow); padding: 12px 14px; margin-bottom: 10px; cursor: pointer; }
+        .deal-card:hover { border-color: var(--accent); }
+        .deal-card-title { font-size: 13.5px; font-weight: 700; margin-bottom: 3px; }
+        .deal-card-client { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; }
+        .deal-card-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+        .deal-chip { font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; display: inline-flex; align-items: center; gap: 4px; }
+        .deal-chip.price { background: rgba(var(--accent-rgb), 0.1); color: var(--text-primary); }
+        .deal-chip.pending { background: rgba(230, 162, 60, 0.16); color: #e6a23c; }
+        .deal-chip.approved { background: rgba(39, 174, 96, 0.15); color: var(--success); }
+        .deal-chip.rejected { background: rgba(231, 76, 60, 0.14); color: var(--danger); }
+        .deal-chip.followup { background: rgba(231, 76, 60, 0.14); color: var(--danger); }
+        .deal-chip.manager { background: var(--bg-secondary); color: var(--text-secondary); }
+        .deal-chip.checklist { background: var(--bg-secondary); color: var(--text-secondary); }
+
+        .panel-empty { padding: 28px 20px; color: var(--text-secondary); font-size: 13px; text-align: center; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; }
+
+        .deal-modal-box { max-width: 720px; max-height: 88vh; overflow-y: auto; }
+        .deal-section { margin-bottom: 22px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+        .deal-section:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+        .deal-section-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-secondary); margin-bottom: 12px; }
+
+        .stage-btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
+        .stage-btn { padding: 7px 12px; border-radius: 6px; font-size: 12.5px; font-weight: 600; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-secondary); cursor: pointer; }
+        .stage-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+        .stage-btn.lost-btn.active { background: var(--danger); border-color: var(--danger); }
+
+        .free-item-row, .checklist-item-row, .tpl-item-row, .payment-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+        .free-item-row .field-input, .tpl-item-row .field-input { margin-bottom: 0; }
+        .payment-row { justify-content: space-between; padding: 8px 10px; background: var(--surface-2, rgba(0,0,0,0.03)); border-radius: 8px; }
+        .payment-row-amount { font-weight: 700; }
+        .payment-row-meta { font-size: 12px; color: var(--text-secondary); }
+        .row-remove-btn { border: none; background: none; color: var(--text-secondary); cursor: pointer; padding: 4px; flex-shrink: 0; }
+        .row-remove-btn:hover { color: var(--danger); }
+        .checklist-item-row label { display: flex; align-items: center; gap: 8px; font-size: 13.5px; flex: 1; cursor: pointer; }
+        .checklist-item-row label.done { color: var(--text-secondary); text-decoration: line-through; }
+
+        .approval-box { padding: 12px 14px; border-radius: 8px; font-size: 13px; }
+        .approval-box.pending { background: rgba(230, 162, 60, 0.1); border: 1px solid rgba(230, 162, 60, 0.35); }
+        .approval-box.approved { background: rgba(39, 174, 96, 0.1); border: 1px solid rgba(39, 174, 96, 0.3); }
+        .approval-box.rejected { background: rgba(231, 76, 60, 0.1); border: 1px solid rgba(231, 76, 60, 0.3); }
+        .approval-box-head { font-weight: 700; margin-bottom: 4px; }
+
+        .activity-feed { max-height: 260px; overflow-y: auto; margin-bottom: 14px; display: flex; flex-direction: column; gap: 10px; }
+        .activity-item { background: var(--bg-secondary); border-radius: 8px; padding: 10px 12px; }
+        .activity-item-head { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--text-secondary); margin-bottom: 4px; }
+        .activity-item-content { font-size: 13px; white-space: pre-wrap; }
+        .activity-empty { font-size: 12.5px; color: var(--text-secondary); text-align: center; padding: 10px; }
+        .activity-add-row { display: flex; gap: 8px; align-items: flex-start; }
+        .activity-add-row select { width: 120px; flex-shrink: 0; }
+        .activity-add-row textarea { flex: 1; }
+
+        .tpl-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; }
+        .tpl-card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .tpl-card-title { font-weight: 700; font-size: 14px; }
+        .tpl-card ul { margin: 0; padding-left: 18px; font-size: 12.5px; color: var(--text-secondary); }
+        .client-actions { display: flex; gap: 6px; flex-shrink: 0; }
+        .client-icon-btn { border: none; background: none; color: var(--text-secondary); cursor: pointer; padding: 5px; border-radius: 5px; display: inline-flex; }
+        .client-icon-btn:hover { color: var(--accent); background: rgba(var(--accent-rgb), 0.1); }
+
+        @media (max-width: 768px) {
+            body { padding: 20px; }
+            .header-top { flex-direction: column; align-items: flex-start; }
+            .deals-toolbar { flex-direction: column; align-items: stretch; }
+            .deals-search { width: 100%; }
+            .deal-modal-box { max-width: 94vw; }
+        }
+    

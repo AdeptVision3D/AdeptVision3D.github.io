@@ -1,0 +1,28 @@
+        body { padding: 40px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        header { margin-bottom: 24px; border-bottom: 2px solid var(--border); padding-bottom: 24px; }
+        .header-top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+        .header-left { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+        .page-title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
+        .btn-back { background: var(--card-bg); color: var(--text-primary); border: 1px solid var(--border); }
+
+        .cp-board { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; align-items: start; }
+        .cp-col { background: var(--bg-secondary); border-radius: 8px; padding: 10px; min-height: 100px; }
+        .cp-col-head { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; font-weight: 700; padding: 4px 6px 10px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.02em; }
+        .cp-col-count { background: var(--card-bg); border-radius: 999px; padding: 1px 8px; font-size: 11px; }
+        .cp-col-empty { padding: 16px 8px; text-align: center; color: var(--text-secondary); font-size: 12px; }
+        .cp-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 6px; padding: 10px 12px; margin-bottom: 8px; cursor: pointer; box-shadow: var(--card-shadow); }
+        .cp-card:hover { border-color: var(--accent); }
+        .cp-card-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+        .cp-card-meta { font-size: 11.5px; color: var(--text-secondary); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+        .cp-chip { font-size: 10.5px; padding: 2px 7px; border-radius: 999px; background: rgba(var(--accent-rgb), 0.12); color: var(--accent); font-weight: 600; }
+        .cp-chip.overdue { background: rgba(231, 76, 60, 0.15); color: var(--danger); }
+
+        @media (max-width: 900px) {
+            .cp-board { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 768px) {
+            body { padding: 20px; }
+            .header-top { flex-direction: column; align-items: flex-start; }
+        }
+    

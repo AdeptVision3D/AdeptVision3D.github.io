@@ -1,0 +1,127 @@
+        body { padding: 40px; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        header { margin-bottom: 24px; border-bottom: 2px solid var(--border); padding-bottom: 24px; }
+        .header-top { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+        .header-left { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+        .frame-title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
+        .overall-progress { font-size: 14px; color: var(--text-secondary); background: var(--bg-secondary); padding: 8px 16px 8px 10px; border-radius: 999px; display: inline-flex; align-items: center; gap: 10px; }
+        .overall-progress strong { color: var(--accent); }
+        .btn-secondary { background: var(--btn-secondary-bg); color: var(--text-primary); border: 1px solid var(--border); }
+        .btn-secondary:hover { background: var(--border); transform: translateY(-2px); }
+        .btn-back { background: var(--btn-secondary-bg); color: var(--text-primary); border: 1px solid var(--border); }
+        .btn-back:hover { background: var(--border); transform: translateY(-2px); }
+        .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+        .search-box { display: flex; align-items: center; gap: 8px; }
+        .search-input { padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--card-bg); color: var(--text-primary); font-size: 14px; width: 200px; transition: border-color 0.2s ease; }
+        .search-input:focus { outline: none; border-color: var(--accent); }
+        .search-results { font-size: 13px; color: var(--text-secondary); white-space: nowrap; }
+        .hide-warnings .warning-box { display: none; }
+        .stages-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 24px; margin-top: 16px; align-items: start; }
+        .stage-card.custom-free { border-left: 4px solid var(--success); }
+        .stage-card.custom-paid { border-left: 4px solid var(--warning); }
+        .stage-card.custom-base { border-left: 4px solid var(--accent); }
+        .stage-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; cursor: pointer; user-select: none; background: rgba(255, 255, 255, 0.05); border-bottom: 1px solid transparent; transition: all 0.2s ease; }
+        .stage-header:hover { border-bottom-color: var(--border); background: rgba(39, 67, 192, 0.05); }
+        [data-theme="dark"] .stage-header:hover { background: rgba(74, 111, 232, 0.1); }
+        .stage-card.expanded .stage-header { border-bottom-color: var(--border); }
+        .stage-header-left { display: flex; align-items: center; gap: 12px; flex: 1; flex-wrap: wrap; }
+        .stage-number { font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: var(--accent); background: rgba(39, 67, 192, 0.1); padding: 4px 12px; border-radius: 4px; }
+        [data-theme="dark"] .stage-number { background: rgba(74, 111, 232, 0.2); }
+        .stage-title { font-size: 16px; font-weight: 600; letter-spacing: -0.005em; line-height: 1.3; flex: 1; }
+        .revision-badge { font-family: var(--font-mono); font-size: 10px; padding: 3px 10px 3px 8px; border-radius: 999px; font-weight: 600; display: inline-flex; align-items: center; gap: 5px; }
+        .revision-free { background: rgba(39, 174, 96, 0.15); color: var(--success); }
+        .revision-paid { background: rgba(243, 156, 18, 0.15); color: var(--warning); }
+        .revision-base { background: rgba(39, 67, 192, 0.12); color: var(--accent); }
+        .stage-status { font-family: var(--font-mono); font-size: 11px; padding: 4px 10px 4px 8px; border-radius: 999px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
+        .status-not-started { background: rgba(102, 102, 102, 0.1); color: var(--text-secondary); }
+        .status-in-progress { background: rgba(243, 156, 18, 0.15); color: var(--warning); }
+        .status-done { background: rgba(39, 174, 96, 0.15); color: var(--success); }
+        .expand-icon { font-size: 18px; color: var(--text-secondary); transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); margin-left: 12px; }
+        .stage-card.expanded .expand-icon { transform: rotate(180deg); }
+        .stage-content { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        .stage-card.expanded .stage-content { grid-template-rows: 1fr; }
+        .stage-content-inner { overflow: hidden; padding: 0 20px; opacity: 0; transition: opacity 0.25s ease, padding 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        .stage-card.expanded .stage-content-inner { padding: 20px; opacity: 1; transition: opacity 0.3s ease 0.1s, padding 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        .stage-meta { background: var(--stage-meta-bg); padding: 12px; border-radius: 6px; margin-bottom: 16px; border-left: 3px solid var(--accent); }
+        .stage-location { font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 4px; }
+        .stage-output { font-size: 12px; color: var(--text-primary); }
+        .stage-output strong { color: var(--accent); }
+        .delete-stage-btn { float: right; background: none; border: 1px solid var(--danger); color: var(--danger); border-radius: 4px; padding: 4px 10px; font-size: 12px; cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 5px; }
+        .delete-stage-btn:hover { background: var(--danger); color: white; }
+        .quick-actions { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+        .btn-small { padding: 4px 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--btn-secondary-bg); color: var(--text-primary); font-size: 12px; cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 5px; }
+        .btn-small:hover { border-color: var(--accent); background: rgba(39, 67, 192, 0.05); transform: translateY(-1px); }
+        [data-theme="dark"] .btn-small:hover { background: rgba(74, 111, 232, 0.1); }
+        .checklist { margin-bottom: 20px; }
+        .checklist-item { display: flex; align-items: center; margin-bottom: 12px; font-size: 14px; gap: 8px; }
+        .checklist-item input[type="checkbox"] { margin-top: 0; width: 16px; height: 16px; cursor: pointer; accent-color: var(--accent); flex-shrink: 0; }
+        .checklist-item .task-edit-input { flex: 1; padding: 4px 8px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--text-primary); font-size: 14px; font-family: inherit; transition: all 0.15s ease; }
+        .checklist-item .task-edit-input:hover { border-color: var(--input-border); background: var(--input-bg); }
+        .checklist-item .task-edit-input:focus { outline: none; border-color: var(--accent); background: var(--input-bg); }
+        .checklist-item.checked .task-edit-input { color: var(--text-secondary); text-decoration: line-through; }
+        .task-delete-btn { background: none; border: none; color: var(--danger); cursor: pointer; font-size: 14px; padding: 4px; opacity: 0.6; transition: all 0.2s ease; flex-shrink: 0; display: inline-flex; align-items: center; }
+        .task-delete-btn:hover { opacity: 1; transform: scale(1.15); }
+        .task-comment-btn { padding: 4px 8px; border: 1px solid var(--border); background: var(--btn-secondary-bg); color: var(--text-primary); border-radius: 4px; cursor: pointer; transition: all 0.2s ease; font-size: 12px; flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px; }
+        .task-comment-btn:hover { background: var(--border); transform: translateY(-2px); }
+        .task-comment-btn.has-comment { background: var(--accent-gradient); color: white; border-color: transparent; }
+        .comments-compact-btn.has-comments { color: var(--accent); border-color: var(--accent); }
+        .add-task-btn { background: none; border: 1px dashed var(--border); border-radius: 4px; padding: 6px 12px; color: var(--text-secondary); font-size: 13px; cursor: pointer; transition: all 0.2s ease; display: block; width: 100%; text-align: center; margin-top: 4px; }
+        .add-task-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(39, 67, 192, 0.05); }
+        .stage-progress-container { margin-bottom: 16px; }
+        .progress-bar { height: 8px; background: var(--progress-bar-bg); border-radius: 4px; overflow: hidden; margin-bottom: 8px; }
+        .progress-fill { height: 100%; background: var(--progress-bar-fill); border-radius: 4px; transition: width 0.3s ease; }
+        .stage-progress { font-size: 13px; color: var(--text-secondary); }
+        .comments-compact-btn { padding: 8px 16px; border: 1px solid var(--border); background: var(--btn-secondary-bg); color: var(--text-primary); border-radius: 6px; cursor: pointer; transition: all 0.2s ease; font-size: 13px; font-weight: 600; margin-bottom: 16px; display: inline-flex; align-items: center; gap: 6px; }
+        .comments-compact-btn:hover { background: var(--border); transform: translateY(-2px); }
+        .qc-section { background: var(--qc-bg); border: 1px solid var(--qc-border); padding: 12px; border-radius: 6px; margin-bottom: 16px; }
+        .qc-title { font-size: 12px; font-weight: 700; color: var(--success); margin-bottom: 6px; }
+        .qc-text { font-size: 13px; color: var(--text-primary); line-height: 1.5; }
+        .warning-box { background: var(--warning); border-left: 3px solid rgba(0,0,0,0.2); padding: 12px; border-radius: 0 4px 4px 0; }
+        .warning-text { font-size: 13px; color: #FFFFFF; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,0.2); display: flex; align-items: flex-start; gap: 7px; }
+        .warning-text svg { flex-shrink: 0; margin-top: 2px; }
+        .add-stage-wrap { grid-column: 1 / -1; display: flex; justify-content: center; margin-top: 8px; }
+        .add-stage-btn { background: var(--accent-gradient); color: white; border: none; border-radius: 6px; padding: 10px 20px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(39, 67, 192, 0.2); }
+        .add-stage-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(39, 67, 192, 0.3); }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--modal-overlay); backdrop-filter: blur(4px); z-index: 2000; justify-content: center; align-items: center; }
+        .modal.active { display: flex; }
+        .modal-content { background: var(--modal-bg); border-radius: 8px; padding: 32px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3); animation: modalSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid var(--border); }
+        .modal-title { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+        .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-secondary); transition: color 0.2s ease; padding: 4px; }
+        .modal-close:hover { color: var(--text-primary); transform: scale(1.1); }
+        .modal-body { margin-bottom: 24px; }
+        .modal-footer { display: flex; gap: 12px; justify-content: flex-end; padding-top: 16px; border-top: 2px solid var(--border); }
+        .form-group { margin-bottom: 16px; }
+        .form-label { display: block; font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
+        .form-input, .form-select { width: 100%; padding: 10px 12px; border: 1px solid var(--input-border); border-radius: 6px; background: var(--input-bg); color: var(--text-primary); font-size: 14px; font-family: inherit; }
+        .form-input:focus, .form-select:focus { outline: none; border-color: var(--accent); }
+        .type-option { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--input-border); border-radius: 6px; margin-bottom: 8px; cursor: pointer; }
+        .comment { background: var(--bg-secondary); padding: 12px; border-radius: 6px; margin-bottom: 12px; border-left: 3px solid var(--border); }
+        .comment-meta { display: flex; gap: 12px; margin-bottom: 8px; font-size: 12px; color: var(--text-secondary); }
+        .comment-text { font-size: 14px; color: var(--text-primary); line-height: 1.5; }
+        .mention-tag { color: var(--accent); font-weight: 600; background: rgba(39, 67, 192, 0.1); padding: 1px 5px; border-radius: 4px; }
+        .log-entry { padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+        .log-entry:last-child { border-bottom: none; }
+        .log-time { color: var(--text-secondary); font-size: 12px; margin-bottom: 2px; }
+        .log-desc { color: var(--text-primary); }
+        /* Вид при экспорте в PDF: скрываем интерактивные элементы, разворачиваем все этапы в одну колонку */
+        body.exporting-pdf .btn-group, body.exporting-pdf .search-box, body.exporting-pdf .quick-actions,
+        body.exporting-pdf .task-delete-btn, body.exporting-pdf .task-comment-btn, body.exporting-pdf .comments-compact-btn,
+        body.exporting-pdf .add-task-btn, body.exporting-pdf .add-stage-wrap, body.exporting-pdf .delete-stage-btn,
+        body.exporting-pdf .expand-icon { display: none !important; }
+        body.exporting-pdf .stage-content { grid-template-rows: 1fr !important; }
+        body.exporting-pdf .stage-content-inner { overflow: visible !important; opacity: 1 !important; padding: 20px !important; }
+        body.exporting-pdf .stage-header { cursor: default; }
+        body.exporting-pdf .stages-grid { grid-template-columns: 1fr !important; }
+        body.exporting-pdf .task-edit-input { pointer-events: none; }
+        @keyframes modalSlideIn { from { opacity: 0; transform: translateY(-50px) scale(0.9); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        @media (max-width: 768px) {
+            body { padding: 20px; }
+            .header-top { flex-direction: column; align-items: flex-start; }
+            .stages-grid { grid-template-columns: 1fr; }
+            .search-box { width: 100%; }
+            .search-input { width: 100%; }
+            .modal-content { padding: 20px; max-height: 88vh; }
+            .checklist-item input[type="checkbox"] { width: 20px; height: 20px; }
+        }
+    
