@@ -583,6 +583,74 @@ svg[stroke="currentColor"] { stroke-width: 1.7; }
 .app-sidebar-user-actions { gap: 6px; }
 .app-sidebar-user-actions .btn { padding: 8px 6px; font-size: 12px; white-space: nowrap; letter-spacing: 0; }
 
+/* ============================================================
+   Часть 2: подсветка строк, бегущая кромка, живой фон, волна темы
+   ============================================================ */
+
+/* Скользящая подсветка строк (одна на всю страницу, переезжает между строками) */
+.row-glow {
+    position: fixed; top: 0; left: 0;
+    width: 0; height: 0;
+    pointer-events: none;
+    z-index: 8000;
+    opacity: 0;
+    background:
+        radial-gradient(240px circle at var(--gx, 50%) 50%, rgba(var(--accent-rgb), 0.20), transparent 72%),
+        linear-gradient(rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.04));
+    box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.20);
+    transition: transform 0.42s var(--ease), width 0.42s var(--ease), height 0.42s var(--ease), opacity 0.25s ease, border-radius 0.3s ease;
+    will-change: transform, width, height;
+}
+[data-theme="light"] .row-glow {
+    background:
+        radial-gradient(240px circle at var(--gx, 50%) 50%, rgba(var(--accent-rgb), 0.14), transparent 72%),
+        linear-gradient(rgba(var(--accent-rgb), 0.04), rgba(var(--accent-rgb), 0.04));
+}
+
+/* Бегущая градиентная кромка: контур карточки светится там, где курсор */
+.viewfinder-card, .project-card, .stat-card, .news-widget, .approval-panel, .bug-card, .case-card, .client-card,
+.cp-card, .deal-card, .group-header, .person-card, .news-card, .tpl-card { position: relative; }
+.viewfinder-card::before, .project-card::before, .stat-card::before, .news-widget::before, .approval-panel::before,
+.bug-card::before, .case-card::before, .client-card::before, .cp-card::before, .deal-card::before,
+.group-header::before, .person-card::before, .news-card::before, .tpl-card::before {
+    content: '';
+    position: absolute; inset: 0;
+    border-radius: inherit;
+    padding: 1.5px;
+    background: radial-gradient(300px circle at var(--mx, 50%) var(--my, 50%), rgba(124, 203, 255, 0.95), rgba(var(--accent-rgb), 0.55) 38%, transparent 68%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+    opacity: 0;
+    transition: opacity 0.45s var(--ease);
+    pointer-events: none;
+    z-index: 3;
+}
+.viewfinder-card:hover::before, .project-card:hover::before, .stat-card:hover::before, .news-widget:hover::before,
+.approval-panel:hover::before, .bug-card:hover::before, .case-card:hover::before, .client-card:hover::before,
+.cp-card:hover::before, .deal-card:hover::before, .group-header:hover::before, .person-card:hover::before,
+.news-card:hover::before, .tpl-card:hover::before { opacity: 1; }
+
+/* Живой фон: пятна слегка смещаются за курсором */
+body::before {
+    translate: calc(var(--px, 0) * -28px) calc(var(--py, 0) * -20px);
+    transition: translate 1.1s var(--ease);
+}
+
+/* Магнитные главные кнопки */
+.btn-primary, .btn-complete {
+    transition: transform 0.35s var(--ease), translate 0.3s var(--ease), background 0.35s var(--ease), box-shadow 0.35s var(--ease), border-color 0.35s var(--ease), opacity 0.2s ease;
+}
+
+/* Смена темы волной: без стандартного кроссфейда, новая тема «раскрывается» кругом */
+.theme-vt::view-transition-old(root) { animation: none; z-index: 1; }
+.theme-vt::view-transition-new(root) { animation: none; mix-blend-mode: normal; z-index: 2; }
+.theme-vt .app-sidebar { view-transition-name: none; }
+html.theme-vt body, html.theme-vt body * { transition: none !important; }
+
+/* Линза на краях стекла (Chromium): чуть светлее кромка */
+.has-refract .app-sidebar, .has-refract .cmdk { box-shadow: var(--glass-edge), var(--glass-shadow), inset 0 0 22px rgba(255, 255, 255, 0.045); }
+
 /* Уважаем системную настройку «уменьшить движение» */
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
