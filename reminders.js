@@ -399,7 +399,7 @@ function renderReminderBell(items) {
         wrap = document.createElement('div');
         wrap.id = 'reminderBellWrap';
         wrap.innerHTML = `
-            <button id="reminderBellBtn" type="button" title="Ближайшие сроки">🔔<span id="reminderBellBadge" class="reminder-badge" style="display:none;"></span></button>
+            <button id="reminderBellBtn" type="button" title="Ближайшие сроки">${typeof ICON !== 'undefined' ? ICON.bell : '🔔'}<span id="reminderBellBadge" class="reminder-badge" style="display:none;"></span></button>
             <div id="reminderBellPanel" class="reminder-panel"></div>
         `;
         document.body.appendChild(wrap);
@@ -416,7 +416,7 @@ function renderReminderBell(items) {
     const soundOn = isReminderSoundEnabled();
     const titleRow = `<div class="reminder-panel-title" style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
         <span>Ближайшие сроки</span>
-        <button type="button" onclick="event.stopPropagation(); toggleReminderSoundSetting();" title="${soundOn ? 'Выключить звук уведомлений' : 'Включить звук уведомлений'}" style="background:none; border:none; cursor:pointer; font-size:14px; line-height:1; padding:2px;">${soundOn ? '🔈' : '🔇'}</button>
+        <button type="button" onclick="event.stopPropagation(); toggleReminderSoundSetting();" title="${soundOn ? 'Выключить звук уведомлений' : 'Включить звук уведомлений'}" style="background:none; border:none; cursor:pointer; line-height:1; padding:2px; color:var(--text-secondary); display:inline-flex;">${typeof ICON !== 'undefined' ? (soundOn ? ICON.volume : ICON.mute) : (soundOn ? '🔈' : '🔇')}</button>
     </div>`;
     if (items.length === 0) {
         badge.style.display = 'none';

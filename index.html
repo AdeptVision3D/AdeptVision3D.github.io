@@ -99,6 +99,8 @@
             .employee-modal-box { padding: 20px !important; }
         }
     </style>
+<link rel="stylesheet" href="glass.css?v=2">
+<script src="glass.js?v=1" defer></script>
 </head>
 <body>
     <div class="container">
@@ -1107,7 +1109,7 @@
                             <div class="project-body">
                                 <div class="project-actions">
                                     ${blockedFromEntry
-                                        ? `<button class="btn btn-secondary" onclick="showToast('Вы не назначены в команду этого проекта', 'error')" style="opacity:0.6; cursor:not-allowed;" title="Нет доступа — вы не в команде проекта">🔒 Нет доступа</button>`
+                                        ? `<button class="btn btn-secondary" onclick="showToast('Вы не назначены в команду этого проекта', 'error')" style="opacity:0.6; cursor:not-allowed;" title="Нет доступа — вы не в команде проекта">${ICON.lock} Нет доступа</button>`
                                         : `<a href="project.html?id=${p.id}" class="btn btn-primary">Открыть</a>`}
                                     ${canManageProjects ? `<button class="btn btn-secondary" onclick="openProjectTeamModal('${p.id}')" title="Команда проекта">${ICON.team}</button>` : ''}
                                     ${canManageProjects ? `<button class="btn btn-secondary" onclick="openProjectFormModal('${p.id}')">${ICON.edit}</button>` : ''}
