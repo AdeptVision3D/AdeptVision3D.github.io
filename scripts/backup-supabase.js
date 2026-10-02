@@ -22,19 +22,46 @@ const TABLES = [
     'frame_tasks',
     'frame_comments',
     'frame_activity_log',
+    'project_members',
+    'clients',
+    'deals',
+    'deal_activities',
+    'deal_payments',
+    'deal_templates',
+    'employee_leaves',
+    'company_events',
+    'company_event_invitees',
+    'company_news',
+    'company_holidays',
+    'bug_reports',
+    'error_logs',
+    'marketing_expenses',
+    'content_plan',
+    'roles',
 ];
 
+// Supabase отдаёт максимум 1000 строк за запрос — без постраничной загрузки
+// большие таблицы (лог действий, ошибки) молча обрезались бы в бэкапе.
+const PAGE_SIZE = 1000;
+
 async function fetchTable(table) {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=*`, {
-        headers: {
-            apikey: SERVICE_ROLE_KEY,
-            Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
-        },
-    });
-    if (!res.ok) {
-        throw new Error(`Не удалось выгрузить таблицу "${table}": ${res.status} ${await res.text()}`);
+    const rows = [];
+    for (let from = 0; ; from += PAGE_SIZE) {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=*`, {
+            headers: {
+                apikey: SERVICE_ROLE_KEY,
+                Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+                'Range-Unit': 'items',
+                Range: `${from}-${from + PAGE_SIZE - 1}`,
+            },
+        });
+        if (!res.ok) {
+            throw new Error(`Не удалось выгрузить таблицу "${table}": ${res.status} ${await res.text()}`);
+        }
+        const page = await res.json();
+        rows.push(...page);
+        if (page.length < PAGE_SIZE) return rows;
     }
-    return res.json();
 }
 
 function pruneOldBackups() {
