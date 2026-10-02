@@ -52,9 +52,9 @@
             .clients-search { width: 100%; }
         }
     </style>
-<link rel="stylesheet" href="glass.css?v=9">
-<script src="glass.js?v=3" defer></script>
-<script src="glass-fx.js?v=3" defer></script>
+<link rel="stylesheet" href="glass.css?v=14">
+<script src="glass.js?v=5" defer></script>
+<script src="glass-fx.js?v=4" defer></script>
 </head>
 <body>
     <div class="container">
@@ -109,7 +109,7 @@
     </div>
 
     <div class="toast-container" id="toastContainer"></div>
-    <script src="common.js?v=20260930l"></script>
+    <script src="common.js?v=20261002a"></script>
     <script src="icons.js?v=20260930l"></script>
     <script src="reminders.js?v=20260930l"></script>
     <script>
@@ -275,6 +275,7 @@
             if (!ok) return;
             initDeadlineReminders(currentUser);
             await loadClients();
+            { const q = new URLSearchParams(location.search).get('q'); const inp = document.getElementById('clientSearch'); if (q && inp) { inp.value = q; renderClients(); } }
         });
     </script>
 </body>

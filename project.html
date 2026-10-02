@@ -72,10 +72,10 @@
             .frames-grid { grid-template-columns: 1fr; }
         }
     </style>
-<link rel="stylesheet" href="glass.css?v=9">
+<link rel="stylesheet" href="glass.css?v=14">
 <style>.container > header { view-transition-name: proj-card; } .theme-vt .container > header { view-transition-name: none; }</style>
-<script src="glass.js?v=3" defer></script>
-<script src="glass-fx.js?v=3" defer></script>
+<script src="glass.js?v=5" defer></script>
+<script src="glass-fx.js?v=4" defer></script>
 </head>
 <body>
     <div class="container">
@@ -93,12 +93,17 @@
                 <div style="display:flex; align-items:center; gap:10px;">
                     <a href="my.html" class="btn btn-secondary nav-my-link">Моё</a>
                     <button class="btn btn-secondary" onclick="openProjectLogModal()" title="Журнал изменений по проекту"><span data-icon="clipboard"></span><span class="btn-text">Журнал</span></button>
+                    <a class="btn btn-secondary" id="projectHolstLink" href="#" target="_blank" rel="noopener noreferrer" style="display:none;" title="Материалы проекта в Holst">Holst</a>
+                    <button class="btn btn-secondary" id="editProjectHolstBtn" onclick="editProjectHolst()" style="display:none;" title="Ссылка на материалы проекта в Holst">Ссылка Holst</button>
+                    <button class="btn btn-secondary" id="bulkFramesBtn" onclick="openBulkFrames()" style="display:none;" title="Создать сразу несколько кадров списком">+ Несколько кадров</button>
                     <button class="btn btn-primary" id="newFrameBtn" onclick="createFrame()">+ Новый кадр</button>
                 </div>
                 <div class="user-box" id="userBox" style="display:flex; align-items:center; gap:10px; font-size:13px; color: var(--text-secondary);"></div>
             </div>
         </header>
+        <div class="frames-toolbar"><div class="view-toggle" id="frameViewToggle"><button type="button" id="viewListBtn" onclick="setFrameView('list')">Список</button><button type="button" id="viewBoardBtn" onclick="setFrameView('board')">Доска</button></div></div>
         <div class="frames-grid" id="framesGrid"></div>
+        <div class="frames-board" id="framesBoard" style="display:none;"></div>
         <div class="empty-state" id="emptyState" style="display: none;">
             <div class="mascot-wrap" id="emptyStateMascot"></div>
             <h3>Нет кадров</h3>
@@ -118,7 +123,24 @@
             </div>
         </div>
     </div>
-    <script src="common.js?v=20260930l"></script>
+    <div class="modal" id="bulkFramesModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Создать несколько кадров</h3>
+                <button class="modal-close" onclick="closeBulkFrames()">×</button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size:13px; color:var(--text-secondary); margin-bottom:10px;">Каждый кадр с новой строки. Например: «Фасад, день», «Фасад, вечер», «Двор».</p>
+                <textarea id="bulkFramesText" class="field-input field-textarea" rows="8" placeholder="Название кадра 1&#10;Название кадра 2&#10;Название кадра 3"></textarea>
+                <div id="bulkFramesCount" style="font-size:12px; color:var(--text-secondary); margin-top:8px;"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeBulkFrames()">Отмена</button>
+                <button class="btn btn-primary" id="bulkFramesSubmit" onclick="submitBulkFrames()">Создать</button>
+            </div>
+        </div>
+    </div>
+    <script src="common.js?v=20261002a"></script>
     <script src="icons.js?v=20260930l"></script>
     <script src="reminders.js?v=20260930l"></script>
     <script>
@@ -135,6 +157,7 @@
             const canManage = hasAdminAccess(currentUser) || ['lead', 'art_director', 'ceo'].includes(currentUser.role);
             const newBtn = document.getElementById('newFrameBtn');
             if (newBtn) newBtn.style.display = canManage ? '' : 'none';
+            ['bulkFramesBtn', 'editProjectHolstBtn'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = canManage ? '' : 'none'; });
         }
 
         const urlParams = new URLSearchParams(window.location.search);
@@ -251,7 +274,7 @@
             if (frameIds.length === 0) return {};
             const { data, error } = await supabaseClient
                 .from('frame_stages')
-                .select('frame_id, frame_tasks(checked)')
+                .select('frame_id, stage_type, frame_tasks(checked)')
                 .in('frame_id', frameIds);
             if (error) {
                 console.error(error);
@@ -259,7 +282,9 @@
             }
             const progress = {};
             (data || []).forEach(stageRow => {
-                if (!progress[stageRow.frame_id]) progress[stageRow.frame_id] = { total: 0, completed: 0 };
+                if (!progress[stageRow.frame_id]) progress[stageRow.frame_id] = { total: 0, completed: 0, freeRev: 0, paidRev: 0 };
+                if (stageRow.stage_type === 'free_revision') progress[stageRow.frame_id].freeRev++;
+                if (stageRow.stage_type === 'paid_revision') progress[stageRow.frame_id].paidRev++;
                 const tasks = stageRow.frame_tasks || [];
                 progress[stageRow.frame_id].total += tasks.length;
                 progress[stageRow.frame_id].completed += tasks.filter(t => t.checked).length;
@@ -346,18 +371,25 @@
         }
 
         async function renderFrames() {
+            await renderFramesList();
+            renderBoard();
+            applyFrameView();
+        }
+        async function renderFramesList() {
             const project = await getProject();
             if (!project) {
                 document.getElementById('projectTitle').textContent = 'Проект не найден';
                 return;
             }
             document.getElementById('projectTitle').textContent = project.name;
+            updateProjectHolstLink(project);
 
             const frames = await getFrames();
             // Горящие кадры — наверх списка; порядок внутри каждой группы сохраняется
             // (Array.sort в JS стабилен), created_at desc уже задан запросом в getFrames()
             frames.sort((a, b) => (b.is_priority ? 1 : 0) - (a.is_priority ? 1 : 0));
             const progressMap = await getFramesProgress(frames.map(f => f.id));
+            frameCache = frames; projectCache = project; progressCache = progressMap;
             const canManageFrames = currentUser && (hasAdminAccess(currentUser) || ['lead', 'art_director', 'ceo'].includes(currentUser.role));
             const grid = document.getElementById('framesGrid');
             const empty = document.getElementById('emptyState');
@@ -378,6 +410,10 @@
                     const delivery = getDeliveryStatus(f, project.deadline);
                     const dueTitle = f.due_date ? 'Свой срок кадра (не срок проекта)' : 'Срок по умолчанию — дедлайн проекта';
                     const assignee = f.assigned_to ? allProfilesCache.find(p => p.id === f.assigned_to) : null;
+                    const freeRev = frameProgress.freeRev || 0, paidRev = frameProgress.paidRev || 0;
+                    const revBadge = (freeRev + paidRev) > 0 ? `<span class="rev-badge" title="Раунды правок: бесплатных ${freeRev}, платных ${paidRev}">Правки: ${freeRev + paidRev}${paidRev ? ` · платных ${paidRev}` : ''}</span>` : '';
+                    const spentH = Number(f.spent_hours || 0), estH = (f.est_hours !== null && f.est_hours !== undefined) ? Number(f.est_hours) : null;
+                    const hoursBadge = (spentH > 0 || estH !== null) ? `<span class="hours-badge ${estH !== null && spentH > estH ? 'over' : ''}" title="Потрачено / план, часов">${spentH}${estH !== null ? ' / ' + estH : ''} ч</span>` : '';
                     const assigneeBadge = assignee ? `<span class="assignee-badge">${ICON.team} ${escapeHtml(assignee.full_name)}</span>` : '';
                     const assigneeSelect = canManageFrames ? `
                         <select class="assignee-select" onchange="assignFrame('${f.id}', this.value)" title="Назначить ответственного">
@@ -400,6 +436,7 @@
                                         <span style="display:inline-flex;align-items:center;gap:5px;">${ICON.calendar}${createdDisplay}</span>
                                         <span class="status-badge ${statusClass}"><span class="badge-dot"></span>${statusLabel}</span>
                                         <span>${frameProgress.completed}/${frameProgress.total} задач</span>
+                                        ${revBadge}${hoursBadge}
                                         ${isPriority ? `<span class="priority-badge">${ICON.warning} Горит</span>` : ''}
                                         ${f.status !== 'done' && effectiveDue ? `<span class="deadline-badge deadline-${dueStatus}" title="${dueTitle}"><span class="badge-dot"></span>${getDeadlineLabel(dueStatus)}: ${formatDateRu(effectiveDue)}</span>` : ''}
                                         ${delivery === 'on_time' ? `<span class="delivery-badge delivery-on_time">✓ Сдано в срок</span>` : ''}
@@ -416,6 +453,10 @@
                                     <button class="btn btn-secondary ${isPriority ? 'btn-priority-on' : ''}" onclick="toggleFramePriority('${f.id}', ${isPriority})" title="${isPriority ? 'Снять пометку приоритета' : 'Отметить как горящий'}">${ICON.warning}</button>
                                     <button class="btn btn-secondary" onclick="setFrameStatus('${f.id}', 'in_progress')">${ICON.clock} В работу</button>
                                     <button class="btn btn-secondary" onclick="setFrameStatus('${f.id}', 'done')">${ICON.check} Готов</button>
+                                    ${safeHttpUrl(f.holst_url) ? `<a class="btn btn-secondary" href="${escapeHtml(safeHttpUrl(f.holst_url))}" target="_blank" rel="noopener noreferrer" title="Материалы кадра в Holst">Holst</a>` : ''}
+                                    <button class="btn btn-secondary" onclick="editFrameHolst('${f.id}')" title="${f.holst_url ? 'Изменить ссылку на Holst' : 'Добавить ссылку на Holst'}">${f.holst_url ? ICON.edit : 'Holst'}</button>
+                                    <button class="btn btn-secondary" onclick="logFrameHours('${f.id}')" title="Записать потраченные часы">${ICON.clock} Часы</button>
+                                    ${canManageFrames ? `<button class="btn btn-secondary" onclick="setFrameEstimate('${f.id}')" title="Плановые часы на кадр">План, ч</button>` : ''}
                                     ${canManageFrames ? `<button class="btn btn-secondary" onclick="editFrameDueDate('${f.id}', ${f.due_date ? `'${f.due_date}'` : 'null'})" title="Срок сдачи кадра">${ICON.calendar} Срок</button>` : ''}
                                     ${canManageFrames ? `<button class="btn btn-secondary" onclick="deleteFrame('${f.id}')" style="color: var(--danger);">${ICON.trash}</button>` : ''}
                                 </div>
@@ -469,9 +510,173 @@
         }
         function closeProjectLogModal() { document.getElementById('projectLogModal').classList.remove('active'); }
 
+        // ====== Рабочий пакет: Holst, часы, несколько кадров, доска ======
+        let frameCache = [], projectCache = null, progressCache = {};
+        let frameView = 'list';
+        try { frameView = localStorage.getItem('decardFrameView') === 'board' ? 'board' : 'list'; } catch (e) {}
+
+        function updateProjectHolstLink(project) {
+            const a = document.getElementById('projectHolstLink');
+            if (!a) return;
+            const url = safeHttpUrl(project && project.holst_url);
+            if (url) { a.href = url; a.style.display = ''; } else { a.style.display = 'none'; }
+        }
+
+        async function editProjectHolst() {
+            const current = (projectCache && projectCache.holst_url) || '';
+            const raw = prompt('Ссылка на материалы проекта в Holst (пусто — убрать):', current);
+            if (raw === null) return;
+            const url = raw.trim() ? safeHttpUrl(raw) : '';
+            if (raw.trim() && !url) { showToast('Это не похоже на ссылку', 'error'); return; }
+            const { error } = await supabaseClient.from('projects').update({ holst_url: url || null }).eq('id', projectId);
+            if (error) { console.error(error); showToast('Не удалось сохранить ссылку', 'error'); return; }
+            showToast(url ? 'Ссылка сохранена' : 'Ссылка убрана', 'success');
+            renderFrames();
+        }
+
+        async function editFrameHolst(frameId) {
+            const f = frameCache.find(x => x.id === frameId);
+            const raw = prompt('Ссылка на материалы кадра в Holst (пусто — убрать):', (f && f.holst_url) || '');
+            if (raw === null) return;
+            const url = raw.trim() ? safeHttpUrl(raw) : '';
+            if (raw.trim() && !url) { showToast('Это не похоже на ссылку', 'error'); return; }
+            const { error } = await supabaseClient.from('frames').update({ holst_url: url || null }).eq('id', frameId);
+            if (error) { console.error(error); showToast('Не удалось сохранить ссылку', 'error'); return; }
+            logFrameActivity(frameId, 'holst_link', url ? 'Добавлена/изменена ссылка на Holst' : 'Ссылка на Holst убрана');
+            showToast(url ? 'Ссылка сохранена' : 'Ссылка убрана', 'success');
+            renderFrames();
+        }
+
+        // Часы: потраченное время накапливается; плановые часы ставит руководитель
+        function parseHours(raw) {
+            const v = parseFloat(String(raw).replace(',', '.'));
+            return (isFinite(v) && v >= 0 && v <= 1000) ? Math.round(v * 10) / 10 : null;
+        }
+        async function logFrameHours(frameId) {
+            const f = frameCache.find(x => x.id === frameId);
+            const raw = prompt('Сколько часов вы потратили на этот кадр? (например 2 или 1.5)', '');
+            if (raw === null || !raw.trim()) return;
+            const add = parseHours(raw);
+            if (add === null || add <= 0 || add > 24) { showToast('Введите число часов от 0.1 до 24', 'error'); return; }
+            const next = Math.round((Number((f && f.spent_hours) || 0) + add) * 10) / 10;
+            const { error } = await supabaseClient.from('frames').update({ spent_hours: next }).eq('id', frameId);
+            if (error) { console.error(error); showToast('Не удалось записать часы', 'error'); return; }
+            logFrameActivity(frameId, 'hours_logged', `Записано часов: +${add} (всего ${next})`);
+            showToast(`Записано: +${add} ч`, 'success');
+            renderFrames();
+        }
+        async function setFrameEstimate(frameId) {
+            const f = frameCache.find(x => x.id === frameId);
+            const raw = prompt('Плановые часы на кадр (пусто — не задан):', (f && f.est_hours !== null && f.est_hours !== undefined) ? f.est_hours : '');
+            if (raw === null) return;
+            let est = null;
+            if (raw.trim()) { est = parseHours(raw); if (est === null) { showToast('Введите число часов', 'error'); return; } }
+            const { error } = await supabaseClient.from('frames').update({ est_hours: est }).eq('id', frameId);
+            if (error) { console.error(error); showToast('Не удалось сохранить план', 'error'); return; }
+            logFrameActivity(frameId, 'hours_estimate', est === null ? 'Плановые часы сброшены' : `Плановые часы: ${est}`);
+            showToast('План сохранён', 'success');
+            renderFrames();
+        }
+
+        // Несколько кадров списком
+        function openBulkFrames() {
+            document.getElementById('bulkFramesText').value = '';
+            document.getElementById('bulkFramesCount').textContent = '';
+            document.getElementById('bulkFramesModal').classList.add('active');
+            setTimeout(() => document.getElementById('bulkFramesText').focus(), 50);
+        }
+        function closeBulkFrames() { document.getElementById('bulkFramesModal').classList.remove('active'); }
+        function bulkNames() {
+            return document.getElementById('bulkFramesText').value.split('\n').map(s => s.trim()).filter(Boolean);
+        }
+        async function submitBulkFrames() {
+            const names = bulkNames();
+            if (names.length === 0) { showToast('Впишите хотя бы одно название', 'error'); return; }
+            if (names.length > 30) { showToast('За раз можно создать не больше 30 кадров', 'error'); return; }
+            const btn = document.getElementById('bulkFramesSubmit');
+            btn.disabled = true;
+            const { error } = await supabaseClient.from('frames').insert(names.map(name => ({ project_id: projectId, name: name, status: 'not_started' })));
+            btn.disabled = false;
+            if (error) { console.error(error); showToast('Не удалось создать кадры', 'error'); return; }
+            closeBulkFrames();
+            showToast(`Создано кадров: ${names.length}`, 'success');
+            renderFrames();
+        }
+
+        // Доска: колонки по статусу, перетаскивание карточек между колонками
+        const BOARD_COLUMNS = [
+            { status: 'not_started', title: 'Не начаты' },
+            { status: 'in_progress', title: 'В работе' },
+            { status: 'done', title: 'Готовы' }
+        ];
+        function renderBoard() {
+            const board = document.getElementById('framesBoard');
+            if (!board) return;
+            const frames = frameCache;
+            board.innerHTML = BOARD_COLUMNS.map(col => {
+                const items = frames.filter(f => (f.status || 'not_started') === col.status);
+                return `
+                    <div class="board-col" ondragover="boardDragOver(event)" ondragleave="boardDragLeave(event)" ondrop="boardDrop(event, '${col.status}')">
+                        <div class="board-col-head"><span>${col.title}</span><span class="board-col-count">${items.length}</span></div>
+                        <div class="board-col-body">
+                            ${items.length === 0 ? '<div class="board-empty">Пусто</div>' : items.map(boardCardHtml).join('')}
+                        </div>
+                    </div>`;
+            }).join('');
+        }
+        function boardCardHtml(f) {
+            const prog = progressCache[f.id] || { total: 0, completed: 0 };
+            const pct = prog.total > 0 ? Math.round((prog.completed / prog.total) * 100) : 0;
+            const due = f.status !== 'done' ? getEffectiveDueDate(f, projectCache && projectCache.deadline) : null;
+            const dueStatus = due ? getDeadlineStatus(due) : null;
+            const assignee = f.assigned_to ? allProfilesCache.find(p => p.id === f.assigned_to) : null;
+            const rev = (prog.freeRev || 0) + (prog.paidRev || 0);
+            return `
+                <div class="board-card ${f.is_priority ? 'priority' : ''}" draggable="true" ondragstart="boardDragStart(event, '${f.id}')" ondragend="boardDragEnd(event)">
+                    <a class="board-card-title" href="frame.html?project=${projectId}&frame=${f.id}" draggable="false">${escapeHtml(f.name)}</a>
+                    <div class="board-card-meta">
+                        <span class="board-pct">${pct}%</span>
+                        ${f.is_priority ? '<span class="priority-badge">Горит</span>' : ''}
+                        ${due ? `<span class="deadline-badge deadline-${dueStatus}"><span class="badge-dot"></span>${formatDateRu(due)}</span>` : ''}
+                        ${rev > 0 ? `<span class="rev-badge">Правки: ${rev}</span>` : ''}
+                    </div>
+                    ${assignee ? `<div class="board-card-assignee">${escapeHtml(assignee.full_name)}</div>` : ''}
+                </div>`;
+        }
+        let boardDragId = null;
+        function boardDragStart(e, id) { boardDragId = id; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', id); e.currentTarget.classList.add('dragging'); }
+        function boardDragEnd(e) { e.currentTarget.classList.remove('dragging'); document.querySelectorAll('.board-col.drop').forEach(c => c.classList.remove('drop')); }
+        function boardDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; e.currentTarget.classList.add('drop'); }
+        function boardDragLeave(e) { if (!e.currentTarget.contains(e.relatedTarget)) e.currentTarget.classList.remove('drop'); }
+        async function boardDrop(e, status) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('drop');
+            const id = boardDragId || e.dataTransfer.getData('text/plain');
+            boardDragId = null;
+            const f = frameCache.find(x => x.id === id);
+            if (!f || (f.status || 'not_started') === status) return;
+            await setFrameStatus(id, status);
+        }
+        function setFrameView(mode) {
+            frameView = mode === 'board' ? 'board' : 'list';
+            try { localStorage.setItem('decardFrameView', frameView); } catch (e) {}
+            applyFrameView();
+        }
+        function applyFrameView() {
+            const grid = document.getElementById('framesGrid'), board = document.getElementById('framesBoard');
+            if (!grid || !board) return;
+            const hasFrames = frameCache.length > 0;
+            grid.style.display = (frameView === 'list' && hasFrames) ? '' : 'none';
+            board.style.display = (frameView === 'board' && hasFrames) ? '' : 'none';
+            document.getElementById('viewListBtn').classList.toggle('active', frameView === 'list');
+            document.getElementById('viewBoardBtn').classList.toggle('active', frameView === 'board');
+            const toolbar = document.querySelector('.frames-toolbar');
+            if (toolbar) toolbar.style.display = hasFrames ? '' : 'none';
+        }
         document.addEventListener('DOMContentLoaded', async function() {
             loadTheme();
             document.getElementById('emptyStateMascot').innerHTML = MASCOT_SVG;
+            document.getElementById('bulkFramesText').addEventListener('input', () => { const n = bulkNames().length; document.getElementById('bulkFramesCount').textContent = n ? ('Будет создано кадров: ' + n) : ''; });
             document.getElementById('projectTitle').textContent = randomLoadingPhrase();
             const ok = await requireAuth();
             if (!ok) return;

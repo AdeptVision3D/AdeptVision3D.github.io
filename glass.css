@@ -693,6 +693,102 @@ select option:disabled { color: var(--text-secondary); }
 .stat-number { font-family: inherit; font-weight: 700; letter-spacing: -0.02em; }
 .stat-number[data-zero] { color: var(--text-secondary) !important; }
 
+/* ============================================================
+   Рабочий пакет: правки, часы, доска кадров
+   ============================================================ */
+.frames-toolbar { display: flex; justify-content: flex-end; margin-bottom: 14px; }
+.rev-badge, .hours-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+    padding: 4px 10px; border-radius: 999px;
+    background: rgba(var(--accent-rgb), 0.14); color: var(--text-primary);
+    border: 1px solid rgba(var(--accent-rgb), 0.28);
+    white-space: nowrap;
+}
+.rev-badge { background: rgba(251, 191, 36, 0.12); border-color: rgba(251, 191, 36, 0.32); }
+.hours-badge.over { background: rgba(248, 113, 113, 0.14); border-color: rgba(248, 113, 113, 0.38); color: var(--danger); }
+
+.frames-board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.board-col {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--r-md);
+    box-shadow: var(--glass-edge);
+    padding: 12px;
+    min-height: 160px;
+    transition: border-color 0.3s var(--ease), background 0.3s var(--ease), box-shadow 0.3s var(--ease);
+    -webkit-backdrop-filter: blur(var(--glass-blur-amount)) saturate(165%);
+    backdrop-filter: blur(var(--glass-blur-amount)) saturate(165%);
+}
+.board-col.drop { border-color: rgba(var(--accent-rgb), 0.6); background: var(--glass-bg-strong); box-shadow: var(--glass-edge), 0 0 0 4px rgba(var(--accent-rgb), 0.14); }
+.board-col-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 6px 12px; font-size: 13px; font-weight: 700; letter-spacing: 0.01em; }
+.board-col-count { font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); background: rgba(var(--accent-rgb), 0.14); padding: 2px 8px; border-radius: 999px; }
+.board-col-body { display: flex; flex-direction: column; gap: 10px; }
+.board-empty { text-align: center; font-size: 12.5px; color: var(--text-secondary); padding: 22px 0; opacity: 0.7; }
+.board-card {
+    background: var(--glass-bg-strong);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--r-sm);
+    padding: 12px 14px;
+    cursor: grab;
+    box-shadow: var(--glass-edge);
+    transition: transform 0.4s var(--ease), border-color 0.4s var(--ease), box-shadow 0.4s var(--ease), opacity 0.2s ease;
+}
+.board-card:hover { transform: translateY(-2px); border-color: rgba(var(--accent-rgb), 0.4); box-shadow: var(--glass-edge), var(--glass-shadow-hover); }
+.board-card:active { cursor: grabbing; }
+.board-card.dragging { opacity: 0.45; transform: scale(0.98); }
+.board-card.priority { border-color: rgba(248, 113, 113, 0.45); }
+.board-card-title { display: block; font-weight: 600; font-size: 14px; color: var(--text-primary); text-decoration: none; margin-bottom: 8px; }
+.board-card-title:hover { color: var(--accent); }
+.board-card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.board-pct { font-family: var(--font-mono); font-size: 11px; font-weight: 700; color: var(--text-secondary); }
+.board-card-assignee { margin-top: 8px; font-size: 12px; color: var(--text-secondary); }
+@media (max-width: 800px) { .frames-board { grid-template-columns: 1fr; } }
+
+/* Виджет «Сегодня» на главной */
+.today-section { padding-top: 12px; }
+.today-section:first-of-type { padding-top: 4px; }
+.today-section-title { font-size: 12px; font-weight: 700; color: var(--text-secondary); letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 6px; }
+.today-more { font-weight: 500; text-transform: none; letter-spacing: 0; }
+.today-item { display: flex; align-items: center; gap: 12px; padding: 10px 10px; margin: 0 -10px; border-radius: 12px; text-decoration: none; color: inherit; }
+.today-item-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.today-item-title { font-size: 14px; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.today-item-sub { font-size: 12.5px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.today-empty { font-size: 13.5px; color: var(--text-secondary); padding: 6px 0 2px; }
+
+/* Подсказки для новичков */
+.tour { position: fixed; inset: 0; z-index: 9500; }
+.tour-veil { position: absolute; inset: 0; }
+.tour-ring {
+    position: fixed; border-radius: 18px; pointer-events: none;
+    box-shadow: 0 0 0 9999px rgba(3, 5, 12, 0.62), 0 0 0 2px rgba(var(--accent-rgb), 0.85), 0 0 40px rgba(var(--accent-rgb), 0.45);
+    transition: left 0.55s var(--ease), top 0.55s var(--ease), width 0.55s var(--ease), height 0.55s var(--ease);
+}
+[data-theme="light"] .tour-ring { box-shadow: 0 0 0 9999px rgba(30, 40, 70, 0.45), 0 0 0 2px rgba(var(--accent-rgb), 0.9), 0 0 40px rgba(var(--accent-rgb), 0.35); }
+.tour-card {
+    position: fixed; width: 320px; max-width: calc(100vw - 24px);
+    padding: 20px 22px;
+    background: var(--modal-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--r-lg);
+    box-shadow: var(--glass-edge), 0 24px 70px rgba(0, 0, 0, 0.45);
+    -webkit-backdrop-filter: blur(30px) saturate(170%); backdrop-filter: blur(30px) saturate(170%);
+    transition: left 0.55s var(--ease), top 0.55s var(--ease);
+}
+.tour-card.in { animation: sheetIn 0.55s var(--ease-spring) both; }
+.tour-step { font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); margin-bottom: 6px; }
+.tour-title { font-family: var(--font-display); font-size: 17px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 6px; }
+.tour-text { font-size: 13.5px; line-height: 1.55; color: var(--text-secondary); }
+.tour-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.tour-replay { margin-top: 2px; background: none; border: none; color: var(--text-secondary); font: inherit; font-size: 12px; cursor: pointer; padding: 6px 4px; text-align: center; transition: color 0.3s ease; }
+.tour-replay:hover { color: var(--accent); }
+
+/* Бейдж «Горит» — общий (раньше был только на странице проекта) */
+.priority-badge { font-family: var(--font-mono); font-size: 11px; padding: 4px 12px 4px 9px; border-radius: 999px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; background: rgba(248, 113, 113, 0.14); color: var(--danger); border: 1px solid rgba(248, 113, 113, 0.3); white-space: nowrap; }
+
+.frames-toolbar .view-toggle { display: inline-flex; }
+.frames-toolbar .view-toggle button { padding: 8px 18px; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; }
+
 /* Уважаем системную настройку «уменьшить движение» */
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }

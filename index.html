@@ -100,9 +100,9 @@
             .employee-modal-box { padding: 20px !important; }
         }
     </style>
-<link rel="stylesheet" href="glass.css?v=9">
-<script src="glass.js?v=3" defer></script>
-<script src="glass-fx.js?v=3" defer></script>
+<link rel="stylesheet" href="glass.css?v=14">
+<script src="glass.js?v=5" defer></script>
+<script src="glass-fx.js?v=4" defer></script>
 </head>
 <body>
     <div class="container">
@@ -127,6 +127,7 @@
                 <div class="user-box" id="userBox" style="display:flex; align-items:center; gap:10px; font-size:13px; color: var(--text-secondary);"></div>
             </div>
         </header>
+        <div id="todayWidget"></div>
         <div id="newsWidget"></div>
         <div class="stats">
             <div class="stat-card">
@@ -309,7 +310,7 @@
         </div>
     </div>
     <div class="toast-container" id="toastContainer"></div>
-    <script src="common.js?v=20260930l"></script>
+    <script src="common.js?v=20261002a"></script>
     <script src="icons.js?v=20260930l"></script>
     <script src="reminders.js?v=20260930l"></script>
     <script>
@@ -1113,6 +1114,7 @@
                                     ${blockedFromEntry
                                         ? `<button class="btn btn-secondary" onclick="showToast('Вы не назначены в команду этого проекта', 'error')" style="opacity:0.6; cursor:not-allowed;" title="Нет доступа — вы не в команде проекта">${ICON.lock} Нет доступа</button>`
                                         : `<a href="project.html?id=${p.id}" class="btn btn-primary">Открыть</a>`}
+                                    ${!blockedFromEntry && safeHttpUrl(p.holst_url) ? `<a class="btn btn-secondary" href="${escapeHtml(safeHttpUrl(p.holst_url))}" target="_blank" rel="noopener noreferrer" title="Материалы проекта в Holst">Holst</a>` : ''}
                                     ${canManageProjects ? `<button class="btn btn-secondary" onclick="openProjectTeamModal('${p.id}')" title="Команда проекта">${ICON.team}</button>` : ''}
                                     ${canManageProjects ? `<button class="btn btn-secondary" onclick="openProjectFormModal('${p.id}')">${ICON.edit}</button>` : ''}
                                     ${canManageProjects ? `<button class="btn btn-secondary" onclick="deleteProject('${p.id}')" style="color: var(--danger);">${ICON.trash}</button>` : ''}
@@ -1190,6 +1192,93 @@
                 </div>`;
         }
 
+        // ====== Виджет «Сегодня»: что требует внимания именно этого человека ======
+        async function loadTodayWidget() {
+            const el = document.getElementById('todayWidget');
+            if (!el || !currentUser) return;
+            const sections = [];
+
+            // 1) Мои кадры в работе: горящие и с ближайшим сроком — сверху
+            try {
+                const { data: frames, error } = await supabaseClient
+                    .from('frames')
+                    .select('id, name, project_id, due_date, is_priority, status, projects(name, deadline)')
+                    .eq('assigned_to', currentUser.id)
+                    .neq('status', 'done')
+                    .limit(60);
+                if (error) throw error;
+                const rows = (frames || []).map(f => {
+                    const due = getEffectiveDueDate(f, f.projects && f.projects.deadline);
+                    return { f, due, st: due ? getDeadlineStatus(due) : null };
+                }).sort((a, b) => ((b.f.is_priority ? 1 : 0) - (a.f.is_priority ? 1 : 0)) || ((a.due || '9999') < (b.due || '9999') ? -1 : 1));
+                if (rows.length) {
+                    sections.push({
+                        title: 'Мои кадры в работе',
+                        total: rows.length,
+                        items: rows.slice(0, 5).map(r => `
+                            <a class="today-item" href="frame.html?project=${r.f.project_id}&frame=${r.f.id}">
+                                <span class="today-item-main"><span class="today-item-title">${escapeHtml(r.f.name)}</span><span class="today-item-sub">${escapeHtml((r.f.projects && r.f.projects.name) || '')}</span></span>
+                                ${r.f.is_priority ? '<span class="priority-badge">Горит</span>' : ''}
+                                ${r.due ? `<span class="deadline-badge deadline-${r.st}"><span class="badge-dot"></span>${formatDateRu(r.due)}</span>` : ''}
+                            </a>`).join('')
+                    });
+                }
+            } catch (e) { console.error(e); }
+
+            // 2) Продажи: пора связаться с клиентом
+            if (canAccessDeals(currentUser)) {
+                try {
+                    const { data: deals, error } = await supabaseClient
+                        .from('deals')
+                        .select('id, title, next_followup_date, next_action, stage')
+                        .eq('manager_id', currentUser.id)
+                        .not('next_followup_date', 'is', null)
+                        .limit(60);
+                    if (error) throw error;
+                    const due = (deals || []).filter(d => d.stage !== 'won' && d.stage !== 'lost' && daysUntilDate(d.next_followup_date) <= 0)
+                        .sort((a, b) => (a.next_followup_date < b.next_followup_date ? -1 : 1));
+                    if (due.length) {
+                        sections.push({
+                            title: 'Пора связаться с клиентом',
+                            total: due.length,
+                            items: due.slice(0, 5).map(d => `
+                                <a class="today-item" href="deals.html">
+                                    <span class="today-item-main"><span class="today-item-title">${escapeHtml(d.title)}</span><span class="today-item-sub">${escapeHtml(d.next_action || 'Следующий шаг не указан')}</span></span>
+                                    <span class="deadline-badge deadline-urgent"><span class="badge-dot"></span>${formatDateRu(d.next_followup_date)}</span>
+                                </a>`).join('')
+                        });
+                    }
+                } catch (e) { console.error(e); }
+            }
+
+            // 3) Согласование условий сделок — для тех, кто согласует
+            if (canApproveCommercial(currentUser)) {
+                try {
+                    const { count, error } = await supabaseClient.from('deals').select('id', { count: 'exact', head: true }).eq('commercial_approval_status', 'pending');
+                    if (error) throw error;
+                    if (count) {
+                        sections.push({
+                            title: 'Ждут вашего согласования',
+                            total: count,
+                            items: `<a class="today-item" href="deals.html"><span class="today-item-main"><span class="today-item-title">Сделки со скидками и бесплатными условиями</span><span class="today-item-sub">Нужно одобрить или отклонить</span></span><span class="rev-badge">${count}</span></a>`
+                        });
+                    }
+                } catch (e) { console.error(e); }
+            }
+
+            if (!sections.length) {
+                el.innerHTML = `<div class="news-widget today-widget"><div class="news-widget-head"><span class="news-widget-title">${ICON.clock} Сегодня</span></div><div class="today-empty">На сегодня срочных дел нет — всё под контролем.</div></div>`;
+                return;
+            }
+            el.innerHTML = `<div class="news-widget today-widget">
+                <div class="news-widget-head"><span class="news-widget-title">${ICON.clock} Сегодня</span></div>
+                ${sections.map(s => `
+                    <div class="today-section">
+                        <div class="today-section-title">${s.title}${s.total > 5 ? ` <span class="today-more">· ещё ${s.total - 5}</span>` : ''}</div>
+                        ${s.items}
+                    </div>`).join('')}
+            </div>`;
+        }
         document.addEventListener('DOMContentLoaded', async function() {
             loadTheme();
             restoreProjectsControls();
@@ -1198,6 +1287,7 @@
             if (!ok) return;
             await renderProjects();
             loadNewsWidget();
+            loadTodayWidget();
             initDeadlineReminders(currentUser);
             // Если пришли редиректом с project.html (кто-то ввёл прямую ссылку на
             // проект без доступа) — покажем причину и уберём метку из адреса

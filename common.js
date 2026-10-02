@@ -119,7 +119,13 @@ console.error = function(...args) {
 // нужен полный доступ для тестирования/отладки. Используется вместе с проверками
 // по роли (через ||), а не вместо них — обычным сотрудникам ничего не открывает.
 function hasAdminAccess(user) { return !!(user && user.is_admin); }
-
+// Принимаем только http(s)-ссылки — защита от javascript:-ссылок в данных (ссылки на Holst и т.п.)
+function safeHttpUrl(raw) {
+    if (!raw) return '';
+    let u;
+    try { u = new URL(/^https?:\/\//i.test(String(raw).trim()) ? String(raw).trim() : 'https://' + String(raw).trim()); } catch (e) { return ''; }
+    return (u.protocol === 'http:' || u.protocol === 'https:') ? u.href : '';
+}
 // Библиотека иконок ICON вынесена в icons.js (подключается отдельным <script> на странице).
 
 

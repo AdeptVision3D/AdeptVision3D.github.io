@@ -153,14 +153,23 @@
     function loadProjects() {
         if (typeof supabaseClient === 'undefined') return Promise.resolve([]);
         if (Date.now() - projectsCache.at < 60000) return Promise.resolve(projectsCache.list);
-        return Promise.resolve(supabaseClient.from('projects').select('id, name').order('created_at', { ascending: false }).limit(300))
-            .then(function (r) {
-                projectsCache = { at: Date.now(), list: (r && r.data) || [] };
-                return projectsCache.list;
-            })
-            .catch(function () { return []; });
+        var q = function (table, cols) {
+            return Promise.resolve(supabaseClient.from(table).select(cols).limit(300))
+                .then(function (r) { return (r && r.data) || []; })
+                .catch(function () { return []; });
+        };
+        // клиенты и сделки подгружаем только если у роли есть к ним доступ (RLS сам отфильтрует лишнее)
+        var wantCrm = !!document.querySelector('#appSidebar [data-nav-key="clients"]');
+        return Promise.all([
+            Promise.resolve(supabaseClient.from('projects').select('id, name').order('created_at', { ascending: false }).limit(300))
+                .then(function (r) { return (r && r.data) || []; }).catch(function () { return []; }),
+            wantCrm ? q('clients', 'id, name') : Promise.resolve([]),
+            wantCrm ? q('deals', 'id, title') : Promise.resolve([])
+        ]).then(function (res) {
+            projectsCache = { at: Date.now(), list: res[0], clients: res[1], deals: res[2] };
+            return projectsCache.list;
+        });
     }
-
     function buildPalette() {
         var root = document.createElement('div');
         root.className = 'cmdk-overlay';
@@ -196,6 +205,12 @@
         var all = pageItems().concat(projectsCache.list.map(function (p) {
             return { kind: 'Проект', label: p.name || 'Без названия', href: 'project.html?id=' + encodeURIComponent(p.id), icon: (typeof ICON !== 'undefined' ? ICON.frames : '') };
         }));
+        (projectsCache.clients || []).forEach(function (c) {
+            all.push({ kind: 'Клиент', label: c.name || 'Без имени', href: 'clients.html?q=' + encodeURIComponent(c.name || ''), icon: (typeof ICON !== 'undefined' ? ICON.briefcase : '') });
+        });
+        (projectsCache.deals || []).forEach(function (d) {
+            all.push({ kind: 'Сделка', label: d.title || 'Без названия', href: 'deals.html?q=' + encodeURIComponent(d.title || ''), icon: (typeof ICON !== 'undefined' ? ICON.funnel : '') });
+        });
         paletteItems = all.filter(function (it) {
             var hay = (it.label + ' ' + it.kind).toLowerCase();
             return words.every(function (w) { return hay.indexOf(w) !== -1; });
@@ -262,6 +277,95 @@
         fillIcons(btn);
     }
 
+    /* ---------- 7. Подсказки для новичков (показываются один раз + кнопка «Показать подсказки») ---------- */
+    var TOUR_STEPS = [
+        { sel: '.app-sidebar-nav', title: 'Разделы системы', text: 'Здесь всё, что вам доступно: проекты, клиенты, сделки, календарь, отпуска. Набор зависит от вашей роли.' },
+        { sel: '.cmdk-trigger', title: 'Быстрый поиск', text: 'Нажмите Ctrl+K (или эту кнопку) и начните печатать: можно мгновенно перейти в нужный раздел, проект, к клиенту или сделке.' },
+        { sel: '#reminderBellBtn', title: 'Колокольчик', text: 'Сюда приходят ближайшие сроки и напоминания. Если срок горит, вы увидите его здесь.' },
+        { sel: '.app-sidebar-theme', title: 'Тема оформления', text: 'Светлая, тёмная или как в системе. Выбор запоминается.' }
+    ];
+    var tourEl = null, tourIdx = 0, tourSteps = [];
+
+    function tourDone() { try { localStorage.setItem('decardTourDone', '1'); } catch (e) {} }
+
+    function visible(el) { return !!(el && el.getClientRects().length && el.offsetWidth > 0); }
+
+    function endTour() {
+        if (tourEl) { tourEl.remove(); tourEl = null; }
+        window.removeEventListener('resize', placeTour);
+        tourDone();
+    }
+
+    function placeTour() {
+        if (!tourEl) return;
+        var step = tourSteps[tourIdx];
+        var target = document.querySelector(step.sel);
+        var ring = tourEl.querySelector('.tour-ring'), card = tourEl.querySelector('.tour-card');
+        if (!visible(target)) return;
+        var r = target.getBoundingClientRect(), pad = 8;
+        ring.style.left = (r.left - pad) + 'px'; ring.style.top = (r.top - pad) + 'px';
+        ring.style.width = (r.width + pad * 2) + 'px'; ring.style.height = (r.height + pad * 2) + 'px';
+        var cw = card.offsetWidth, ch = card.offsetHeight, gap = 18;
+        var left = (r.left + r.width / 2 < window.innerWidth / 2) ? r.right + pad + gap : r.left - pad - gap - cw;
+        left = Math.max(12, Math.min(left, window.innerWidth - cw - 12));
+        var top = Math.max(12, Math.min(r.top - pad, window.innerHeight - ch - 12));
+        card.style.left = left + 'px'; card.style.top = top + 'px';
+    }
+
+    function showTourStep(i) {
+        tourIdx = i;
+        var step = tourSteps[i];
+        var card = tourEl.querySelector('.tour-card');
+        card.querySelector('.tour-step').textContent = (i + 1) + ' из ' + tourSteps.length;
+        card.querySelector('.tour-title').textContent = step.title;
+        card.querySelector('.tour-text').textContent = step.text;
+        card.querySelector('.tour-next').textContent = (i === tourSteps.length - 1) ? 'Готово' : 'Далее';
+        card.classList.remove('in'); void card.offsetWidth; card.classList.add('in');
+        placeTour();
+    }
+
+    function startTour() {
+        if (tourEl || window.innerWidth < 900) return;
+        tourSteps = TOUR_STEPS.filter(function (s) { return visible(document.querySelector(s.sel)); });
+        if (tourSteps.length < 2) return;
+        tourEl = document.createElement('div');
+        tourEl.className = 'tour';
+        tourEl.innerHTML = '<div class="tour-veil"></div><div class="tour-ring"></div>' +
+            '<div class="tour-card" role="dialog" aria-label="Подсказка"><div class="tour-step"></div><div class="tour-title"></div><div class="tour-text"></div>' +
+            '<div class="tour-actions"><button type="button" class="btn btn-secondary tour-skip">Пропустить</button><button type="button" class="btn btn-primary tour-next">Далее</button></div></div>';
+        document.body.appendChild(tourEl);
+        tourEl.querySelector('.tour-skip').addEventListener('click', endTour);
+        tourEl.querySelector('.tour-next').addEventListener('click', function () {
+            if (tourIdx >= tourSteps.length - 1) endTour(); else showTourStep(tourIdx + 1);
+        });
+        window.addEventListener('resize', placeTour);
+        showTourStep(0);
+    }
+
+    var tourScheduled = false;
+    function maybeAutoTour() {
+        if (tourScheduled) return;
+        var path = location.pathname.split('/').pop();
+        if (path !== 'index.html' && path !== '') return;
+        if (!document.getElementById('appSidebar')) return;
+        var done = false; try { done = localStorage.getItem('decardTourDone') === '1'; } catch (e) {}
+        if (done) return;
+        tourScheduled = true;
+        setTimeout(function () {
+            if (document.getElementById('reminderBellBtn') || true) startTour();
+        }, 2200);
+    }
+
+    function addTourReplay() {
+        var sb = document.getElementById('appSidebar');
+        if (!sb || sb.querySelector('.tour-replay')) return;
+        var foot = sb.querySelector('.app-sidebar-footer');
+        if (!foot) return;
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'tour-replay'; b.textContent = 'Показать подсказки';
+        b.addEventListener('click', startTour);
+        foot.appendChild(b);
+    }
     /* ---------- Запуск и наблюдение за динамическим содержимым ---------- */
     function onMutations(muts) {
         for (var i = 0; i < muts.length; i++) {
@@ -280,6 +384,8 @@
                 fillIcons();
                 scanSegmented();
                 addPaletteTrigger();
+                addTourReplay();
+                maybeAutoTour();
             });
         }
     }
@@ -290,6 +396,8 @@
         addSkeletons();
         scanSegmented();
         addPaletteTrigger();
+        addTourReplay();
+        maybeAutoTour();
         document.querySelectorAll('.stat-number').forEach(countUp);
         new MutationObserver(onMutations).observe(document.body, { childList: true, subtree: true });
     }

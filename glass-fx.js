@@ -18,7 +18,7 @@
     /* ---------- 1. Скользящая подсветка строк ---------- */
     var ROW = '.approval-row, .reminder-item, .activity-item, .news-widget-item, .err-row, .my-row, .mgr-row, ' +
               '.person-row, .log-entry, .payment-row, .tpl-item-row, .vac-my-row, .vac-holiday-list-row, ' +
-              '.client-contact-item, .checklist-item-row, .event-invitee-row, .vac-grid tbody tr:not(.vac-team-header-row)';
+              '.client-contact-item, .checklist-item-row, .event-invitee-row, .vac-grid tbody tr:not(.vac-team-header-row), .today-item';
 
     var glow = null, glowCur = null, glowVisible = false, glowRaf = 0;
 
