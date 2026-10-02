@@ -191,6 +191,10 @@
                 <div class="panel-header">Платные / бесплатные правки по проектам</div>
                 <div class="panel-body" id="revisionsPanel"></div>
             </div>
+            <div class="panel" style="margin-top:24px;">
+                <div class="panel-header">Часы: план и факт</div>
+                <div class="panel-body" id="hoursPanel"></div>
+            </div>
         </div>
 
         <!-- ===================== Клиенты и сделки ===================== -->
@@ -567,6 +571,47 @@
         // Текущая загрузка по людям — сколько НЕзавершённых кадров сейчас назначено
         // на каждого (frames.assigned_to), а не что делали в прошлом (это уже
         // покрывает "Активность по сотрудникам" ниже)
+        // Часы: план/факт по проектам и кто сколько часов записал (по ответственному за кадр)
+        function renderHours(frames, projects, allProfiles) {
+            const panel = document.getElementById('hoursPanel');
+            if (!panel) return;
+            const projectById = {}; projects.forEach(p => { projectById[p.id] = p; });
+            const byProject = {}, byPerson = {};
+            let totalSpent = 0, totalEst = 0;
+            frames.forEach(f => {
+                const spent = Number(f.spent_hours || 0);
+                const est = (f.est_hours !== null && f.est_hours !== undefined) ? Number(f.est_hours) : 0;
+                if (!spent && !est) return;
+                if (!byProject[f.project_id]) byProject[f.project_id] = { spent: 0, est: 0 };
+                byProject[f.project_id].spent += spent; byProject[f.project_id].est += est;
+                totalSpent += spent; totalEst += est;
+                const who = f.assigned_to || 'none';
+                byPerson[who] = (byPerson[who] || 0) + spent;
+            });
+            const fmt = n => (Math.round(n * 10) / 10).toString();
+            const entries = Object.entries(byProject).sort((a, b) => (b[1].spent - b[1].est) - (a[1].spent - a[1].est));
+            if (entries.length === 0) {
+                panel.innerHTML = '<div class="panel-empty">Часы пока не записывались — их можно вносить на карточке кадра в проекте</div>';
+                return;
+            }
+            const nameOf = id => id === 'none' ? 'Без ответственного' : ((allProfiles || []).find(p => p.id === id) || {}).full_name || 'Сотрудник';
+            const summary = `<div class="row" style="background: var(--bg-secondary);">
+                <div class="row-title">Итого</div>
+                <div style="font-family: var(--font-mono); font-size:12px;">факт ${fmt(totalSpent)} ч${totalEst ? ' / план ' + fmt(totalEst) + ' ч' : ''}</div>
+            </div>`;
+            const projRows = entries.map(([pid, v]) => {
+                const over = v.est > 0 && v.spent > v.est;
+                const proj = projectById[pid];
+                return `<div class="row">
+                    <div class="row-title">${escapeHtml(proj ? proj.name : 'Проект удалён')}</div>
+                    <div style="font-family: var(--font-mono); font-size:12px; color:${over ? 'var(--danger)' : 'var(--text-secondary)'};">факт ${fmt(v.spent)} ч${v.est ? ' / план ' + fmt(v.est) + ' ч' : ''}${over ? ' · перерасход ' + fmt(v.spent - v.est) + ' ч' : ''}</div>
+                </div>`;
+            }).join('');
+            const people = Object.entries(byPerson).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+            const peopleRows = people.length ? `<div class="row" style="background: var(--bg-secondary);"><div class="row-title">По исполнителям</div><div></div></div>` +
+                people.map(([id, v]) => `<div class="row"><div class="row-title">${escapeHtml(nameOf(id))}</div><div style="font-family: var(--font-mono); font-size:12px; color: var(--text-secondary);">${fmt(v)} ч</div></div>`).join('') : '';
+            panel.innerHTML = summary + projRows + peopleRows;
+        }
         function renderWorkload(frames, profiles) {
             const panel = document.getElementById('workloadPanel');
             const profileById = {};
@@ -1164,6 +1209,7 @@
             renderDeadlines(projects);
             renderActivityByPerson(activity);
             renderRevisions(stages, frames, projects);
+            renderHours(frames, projects, allProfiles);
             renderWorkload(frames, profiles);
             renderOnLeaveToday(leaves, allProfiles);
             renderOnTimeDelivery(frames, projects);
