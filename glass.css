@@ -13,8 +13,6 @@
    • тихая палитра: цвет только там, где он несёт смысл (статус, действие).
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Geist:wght@500;600;700&family=Geist+Mono:wght@500;600&display=swap');
-
 :root {
     --ease: cubic-bezier(0.22, 1, 0.36, 1);          /* плавное замедление */
     --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);  /* лёгкий «упругий» выход */
@@ -90,6 +88,7 @@
     --orb-c: rgba(170, 140, 255, 0.22);
 }
 
+html { background-color: var(--bg-primary); }
 /* ---------- Фон: три медленных световых пятна, под которыми «живёт» стекло ---------- */
 body,
 [data-theme="dark"] body {
