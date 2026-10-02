@@ -130,6 +130,11 @@ function safeHttpUrl(raw) {
     try { u = new URL(/^https?:\/\//i.test(String(raw).trim()) ? String(raw).trim() : 'https://' + String(raw).trim()); } catch (e) { return ''; }
     return (u.protocol === 'http:' || u.protocol === 'https:') ? u.href : '';
 }
+
+// ====== «Есть новое в Новостях»: помним, до какой новости человек уже дошёл (на этом устройстве) ======
+function newsSeenKey() { return 'decardNewsSeen:' + (typeof currentUser !== 'undefined' && currentUser ? currentUser.id : ''); }
+function getNewsSeen() { try { return localStorage.getItem(newsSeenKey()) || ''; } catch (e) { return ''; } }
+function markNewsSeen(iso) { try { if (iso && iso > getNewsSeen()) localStorage.setItem(newsSeenKey(), iso); } catch (e) {} }
 // Библиотека иконок ICON вынесена в icons.js (подключается отдельным <script> на странице).
 
 

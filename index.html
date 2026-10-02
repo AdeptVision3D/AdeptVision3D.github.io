@@ -100,8 +100,8 @@
             .employee-modal-box { padding: 20px !important; }
         }
     </style>
-<link rel="stylesheet" href="glass.css?v=14">
-<script src="glass.js?v=5" defer></script>
+<link rel="stylesheet" href="glass.css?v=15">
+<script src="glass.js?v=6" defer></script>
 <script src="glass-fx.js?v=4" defer></script>
 </head>
 <body>
@@ -310,7 +310,7 @@
         </div>
     </div>
     <div class="toast-container" id="toastContainer"></div>
-    <script src="common.js?v=20261002b"></script>
+    <script src="common.js?v=20261002c"></script>
     <script src="icons.js?v=20260930l"></script>
     <script src="reminders.js?v=20260930l"></script>
     <script>
@@ -1168,28 +1168,36 @@
 
         // ====== Виджет последних новостей на дашборде ======
         async function loadNewsWidget() {
+            // Раньше здесь был блок с последними новостями. Теперь — короткое приглашение,
+            // если есть новость, которую человек ещё не открывал (после просмотра раздела «Новости» пропадает)
+            const widget = document.getElementById('newsWidget');
+            if (!widget) return;
             const { data, error } = await supabaseClient
                 .from('company_news')
-                .select('id, title, body, pinned')
-                .order('pinned', { ascending: false })
+                .select('id, title, created_at')
                 .order('created_at', { ascending: false })
-                .limit(2);
-            const widget = document.getElementById('newsWidget');
+                .limit(1);
             if (error) { console.error(error); widget.innerHTML = ''; return; }
-            if (!data || data.length === 0) { widget.innerHTML = ''; return; }
+            const latest = data && data[0];
+            if (!latest || latest.created_at <= getNewsSeen()) { widget.innerHTML = ''; return; }
             widget.innerHTML = `
-                <div class="news-widget">
-                    <div class="news-widget-head">
-                        <span class="news-widget-title">${ICON.megaphone} Новости компании</span>
-                        <a href="news.html" class="btn btn-secondary" style="padding:4px 10px; font-size:12px;">Все новости</a>
+                <div class="update-banner" role="status">
+                    <span class="update-banner-dot" aria-hidden="true"></span>
+                    <div class="update-banner-text">
+                        <strong>Хей, у нас обновление!</strong>
+                        <span>${escapeHtml(latest.title)}</span>
                     </div>
-                    ${data.map(n => `
-                        <div class="news-widget-item">
-                            <div class="news-widget-item-title">${n.pinned ? ICON.pin : ''} ${escapeHtml(n.title)}</div>
-                            <div class="news-widget-item-body">${escapeHtml(n.body)}</div>
-                        </div>
-                    `).join('')}
+                    <a href="news.html" class="btn btn-primary">Посмотреть</a>
+                    <button type="button" class="update-banner-close" aria-label="Скрыть" title="Скрыть" onclick="dismissNewsNotice('${latest.created_at}')">${ICON.close}</button>
                 </div>`;
+        }
+        function dismissNewsNotice(iso) {
+            markNewsSeen(iso);
+            const widget = document.getElementById('newsWidget');
+            const b = widget && widget.querySelector('.update-banner');
+            if (!b) return;
+            b.classList.add('leaving');
+            setTimeout(() => { widget.innerHTML = ''; }, 350);
         }
 
         // ====== Виджет «Сегодня»: что требует внимания именно этого человека ======

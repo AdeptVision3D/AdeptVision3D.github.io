@@ -789,6 +789,35 @@ select option:disabled { color: var(--text-secondary); }
 .frames-toolbar .view-toggle { display: inline-flex; }
 .frames-toolbar .view-toggle button { padding: 8px 18px; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; }
 
+/* Приглашение «у нас обновление» на главной и точка у пункта «Новости» */
+.update-banner {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 18px; margin-bottom: 24px;
+    background: var(--glass-bg);
+    border: 1px solid rgba(var(--accent-rgb), 0.35);
+    border-radius: var(--r-md);
+    box-shadow: var(--glass-edge), var(--glass-shadow), 0 0 40px rgba(var(--accent-rgb), 0.10);
+    -webkit-backdrop-filter: blur(var(--glass-blur-amount)) saturate(165%);
+    backdrop-filter: blur(var(--glass-blur-amount)) saturate(165%);
+    animation: rise 0.7s var(--ease) both;
+    transition: opacity 0.35s var(--ease), transform 0.35s var(--ease);
+}
+.update-banner.leaving { opacity: 0; transform: translateY(-8px) scale(0.985); }
+.update-banner-dot, .app-nav-item.has-news::after {
+    width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+    background: var(--accent);
+    box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.22);
+    animation: newsPulse 2.4s ease-in-out infinite;
+}
+.app-nav-item.has-news::after { content: ''; margin-left: auto; }
+@keyframes newsPulse { 0%, 100% { box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.22); } 50% { box-shadow: 0 0 0 7px rgba(var(--accent-rgb), 0.06); } }
+.update-banner-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.update-banner-text strong { font-size: 14px; font-weight: 700; }
+.update-banner-text span { font-size: 13px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.update-banner-close { background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: 6px; border-radius: 10px; display: inline-flex; transition: background 0.3s var(--ease), color 0.3s ease; }
+.update-banner-close:hover { background: rgba(255, 255, 255, 0.08); color: var(--text-primary); }
+@media (max-width: 600px) { .update-banner { flex-wrap: wrap; } .update-banner .btn { order: 3; } }
+
 /* Уважаем системную настройку «уменьшить движение» */
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }

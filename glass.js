@@ -366,6 +366,21 @@
         b.addEventListener('click', startTour);
         foot.appendChild(b);
     }
+    /* ---------- 8. Точка «есть новое» у пункта «Новости» ---------- */
+    var newsDotChecked = false;
+    function checkNewsDot() {
+        if (newsDotChecked) return;
+        var item = document.querySelector('#appSidebar [data-nav-key="news"]');
+        if (!item || typeof supabaseClient === 'undefined' || typeof getNewsSeen !== 'function') return;
+        newsDotChecked = true;
+        if (location.pathname.split('/').pop() === 'news.html') return;
+        Promise.resolve(supabaseClient.from('company_news').select('created_at').order('created_at', { ascending: false }).limit(1))
+            .then(function (r) {
+                var latest = r && r.data && r.data[0];
+                if (latest && latest.created_at > getNewsSeen()) item.classList.add('has-news');
+            })
+            .catch(function () {});
+    }
     /* ---------- Запуск и наблюдение за динамическим содержимым ---------- */
     function onMutations(muts) {
         for (var i = 0; i < muts.length; i++) {
@@ -385,7 +400,7 @@
                 scanSegmented();
                 addPaletteTrigger();
                 addTourReplay();
-                maybeAutoTour();
+                maybeAutoTour(); checkNewsDot();
             });
         }
     }
@@ -397,7 +412,7 @@
         scanSegmented();
         addPaletteTrigger();
         addTourReplay();
-        maybeAutoTour();
+        maybeAutoTour(); checkNewsDot();
         document.querySelectorAll('.stat-number').forEach(countUp);
         new MutationObserver(onMutations).observe(document.body, { childList: true, subtree: true });
     }

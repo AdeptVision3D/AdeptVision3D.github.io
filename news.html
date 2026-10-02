@@ -41,8 +41,8 @@
             .header-top { flex-direction: column; align-items: flex-start; }
         }
     </style>
-<link rel="stylesheet" href="glass.css?v=14">
-<script src="glass.js?v=5" defer></script>
+<link rel="stylesheet" href="glass.css?v=15">
+<script src="glass.js?v=6" defer></script>
 <script src="glass-fx.js?v=4" defer></script>
 </head>
 <body>
@@ -88,7 +88,7 @@
     </div>
 
     <div class="toast-container" id="toastContainer"></div>
-    <script src="common.js?v=20261002b"></script>
+    <script src="common.js?v=20261002c"></script>
     <script src="icons.js?v=20260930l"></script>
     <script src="reminders.js?v=20260930l"></script>
     <script>
@@ -120,6 +120,7 @@
             const nameById = {};
             (profiles || []).forEach(p => { nameById[p.id] = p.full_name; });
             newsCache = (data || []).map(n => ({ ...n, authorName: nameById[n.created_by] || 'Неизвестно' }));
+            markNewsSeen(newsCache.reduce((m, n) => (n.created_at > m ? n.created_at : m), ''));
             renderNews();
         }
 
